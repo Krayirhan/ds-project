@@ -60,9 +60,13 @@ class ExperimentTracker:
                 mlflow.set_tracking_uri(uri)
                 mlflow.set_experiment(experiment_name)
                 self._active = True
-                logger.info(f"MLflow tracking active | uri={uri} experiment={experiment_name}")
+                logger.info(
+                    f"MLflow tracking active | uri={uri} experiment={experiment_name}"
+                )
             else:
-                logger.info("MLflow installed but MLFLOW_TRACKING_URI not set — tracking disabled.")
+                logger.info(
+                    "MLflow installed but MLFLOW_TRACKING_URI not set — tracking disabled."
+                )
         except ImportError:
             logger.info("MLflow not installed — experiment tracking disabled.")
 
@@ -101,7 +105,9 @@ class ExperimentTracker:
             except Exception as exc:
                 logger.warning(f"MLflow log_metric failed: {exc}")
 
-    def log_metrics(self, metrics: Dict[str, float], step: Optional[int] = None) -> None:
+    def log_metrics(
+        self, metrics: Dict[str, float], step: Optional[int] = None
+    ) -> None:
         if self._active:
             try:
                 self._mlflow.log_metrics(metrics, step=step)

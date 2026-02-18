@@ -121,7 +121,9 @@ def _fit_one(
     model = _build_model_pipeline(spec, estimator)
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=seed)
     scores = cross_val_score(model, X, y, cv=cv, scoring="roc_auc")
-    logger.info(f"[{name}] CV ROC-AUC | mean={scores.mean():.4f} std={scores.std():.4f}")
+    logger.info(
+        f"[{name}] CV ROC-AUC | mean={scores.mean():.4f} std={scores.std():.4f}"
+    )
     model.fit(X, y)
     return TrainResult(
         model=model,
@@ -172,7 +174,9 @@ def train_candidate_models(
     return results
 
 
-def train_baseline(df: pd.DataFrame, target_col: str, seed: int, cv_folds: int) -> TrainResult:
+def train_baseline(
+    df: pd.DataFrame, target_col: str, seed: int, cv_folds: int
+) -> TrainResult:
     """Backward-compatible wrapper."""
     return train_candidate_models(
         df=df,

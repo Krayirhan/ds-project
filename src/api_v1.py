@@ -58,8 +58,14 @@ def v1_predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
         if len(payload.records) > max_rows:
             raise ValueError(f"Payload too large. Max records={max_rows}")
         df = pd.DataFrame(payload.records)
-        with trace_inference("v1.predict_proba", n_rows=len(df), model_name=str(getattr(serving.policy, 'selected_model', ''))):
-            X, schema_report = validate_and_prepare_features(df, serving.feature_spec, fail_on_missing=True)
+        with trace_inference(
+            "v1.predict_proba",
+            n_rows=len(df),
+            model_name=str(getattr(serving.policy, "selected_model", "")),
+        ):
+            X, schema_report = validate_and_prepare_features(
+                df, serving.feature_spec, fail_on_missing=True
+            )
             proba = serving.model.predict_proba(X)[:, 1]
             set_span_attribute("ml.result_count", int(len(proba)))
         INFERENCE_ROWS.labels(endpoint="v1.predict_proba").inc(len(proba))
@@ -85,7 +91,11 @@ def v1_decide(payload: RecordsPayload) -> DecideResponse:
         if len(payload.records) > max_rows:
             raise ValueError(f"Payload too large. Max records={max_rows}")
         df = pd.DataFrame(payload.records)
-        with trace_inference("v1.decide", n_rows=len(df), model_name=str(serving.policy.selected_model_artifact)):
+        with trace_inference(
+            "v1.decide",
+            n_rows=len(df),
+            model_name=str(serving.policy.selected_model_artifact),
+        ):
             actions_df, pred_report = predict_with_policy(
                 model=serving.model,
                 policy=serving.policy,
@@ -105,7 +115,9 @@ def v1_decide(payload: RecordsPayload) -> DecideResponse:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router_v1.post("/reload", response_model=ReloadResponse, responses={500: {"model": ErrorResponse}})
+@router_v1.post(
+    "/reload", response_model=ReloadResponse, responses={500: {"model": ErrorResponse}}
+)
 def v1_reload() -> ReloadResponse:
     try:
         serving = load_serving_state()

@@ -44,6 +44,7 @@ class DecisionPolicy:
     selected_model_artifact:
       - hangi model dosyasının kullanılacağı bilgisi (ops için)
     """
+
     selected_model: str
     selected_model_artifact: Optional[str]
     threshold: float
@@ -83,7 +84,11 @@ def load_decision_policy(policy_path: Path) -> DecisionPolicy:
         selected_model_artifact=payload.get("selected_model_artifact"),
         threshold=threshold,
         max_action_rate=mar,
-        expected_net_profit=float(payload["expected_net_profit"]) if "expected_net_profit" in payload else None,
+        expected_net_profit=(
+            float(payload["expected_net_profit"])
+            if "expected_net_profit" in payload
+            else None
+        ),
         raw=payload,
     )
 
@@ -197,7 +202,9 @@ def apply(
     """
     Short alias for production usage: policy.apply(...)
     """
-    return apply_policy_to_proba(proba=proba, policy=policy, ranking_scores=ranking_scores)
+    return apply_policy_to_proba(
+        proba=proba, policy=policy, ranking_scores=ranking_scores
+    )
 
 
 def compute_incremental_profit_scores(
@@ -217,10 +224,26 @@ def compute_incremental_profit_scores(
 
     uplift_cfg = policy.raw.get("uplift", {}) or {}
     segment_col = uplift_cfg.get("segment_col")
-    default_tp = float(uplift_cfg.get("default_tp_value", policy.raw.get("cost_matrix", {}).get("tp_value", 0.0)))
-    fp_value = float(uplift_cfg.get("fp_value", policy.raw.get("cost_matrix", {}).get("fp_value", 0.0)))
-    fn_value = float(uplift_cfg.get("fn_value", policy.raw.get("cost_matrix", {}).get("fn_value", 0.0)))
-    tn_value = float(uplift_cfg.get("tn_value", policy.raw.get("cost_matrix", {}).get("tn_value", 0.0)))
+    default_tp = float(
+        uplift_cfg.get(
+            "default_tp_value", policy.raw.get("cost_matrix", {}).get("tp_value", 0.0)
+        )
+    )
+    fp_value = float(
+        uplift_cfg.get(
+            "fp_value", policy.raw.get("cost_matrix", {}).get("fp_value", 0.0)
+        )
+    )
+    fn_value = float(
+        uplift_cfg.get(
+            "fn_value", policy.raw.get("cost_matrix", {}).get("fn_value", 0.0)
+        )
+    )
+    tn_value = float(
+        uplift_cfg.get(
+            "tn_value", policy.raw.get("cost_matrix", {}).get("tn_value", 0.0)
+        )
+    )
 
     tp_values = np.full(shape=proba.shape[0], fill_value=default_tp, dtype=float)
 

@@ -47,7 +47,8 @@ def cmd_monitor(
             f"Policy version mismatch. expected={cfg.contract.policy_version} got={policy.raw.get('policy_version')}"
         )
     resolved_run_id = run_id or str(
-        policy.raw.get("run_id") or resolve_latest_run_id(paths.reports_metrics / "latest.json")
+        policy.raw.get("run_id")
+        or resolve_latest_run_id(paths.reports_metrics / "latest.json")
     )
 
     model_artifact = policy.selected_model_artifact
@@ -66,7 +67,11 @@ def cmd_monitor(
     df_ref = read_parquet(paths.data_processed / "dataset.parquet")
 
     run_feature_spec = paths.reports_metrics / resolved_run_id / "feature_spec.json"
-    feature_spec_file = run_feature_spec if run_feature_spec.exists() else (paths.reports / "feature_spec.json")
+    feature_spec_file = (
+        run_feature_spec
+        if run_feature_spec.exists()
+        else (paths.reports / "feature_spec.json")
+    )
     feature_spec_payload = load_feature_spec(feature_spec_file)
     spec = FeatureSpec.from_dict(feature_spec_payload)
 

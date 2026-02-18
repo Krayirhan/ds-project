@@ -15,11 +15,9 @@ from .utils import get_logger
 
 logger = get_logger("split")
 
+
 def stratified_split(
-    df: pd.DataFrame,
-    target_col: str,
-    test_size: float,
-    seed: int
+    df: pd.DataFrame, target_col: str, test_size: float, seed: int
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     y = df[target_col]
     train_df, test_df = train_test_split(

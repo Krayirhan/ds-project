@@ -24,7 +24,11 @@ def cmd_predict(
     policy_path: Optional[str] = None,
     run_id: Optional[str] = None,
 ) -> str:
-    policy_file = Path(policy_path) if policy_path else (paths.reports_metrics / "decision_policy.json")
+    policy_file = (
+        Path(policy_path)
+        if policy_path
+        else (paths.reports_metrics / "decision_policy.json")
+    )
     policy = load_decision_policy(policy_file)
     if policy.raw.get("policy_version") != cfg.contract.policy_version:
         raise ValueError(
@@ -32,7 +36,8 @@ def cmd_predict(
         )
 
     resolved_run_id = run_id or str(
-        policy.raw.get("run_id") or resolve_latest_run_id(paths.reports_metrics / "latest.json")
+        policy.raw.get("run_id")
+        or resolve_latest_run_id(paths.reports_metrics / "latest.json")
     )
 
     model_artifact = policy.selected_model_artifact
@@ -47,7 +52,9 @@ def cmd_predict(
     if expected_sha:
         actual_sha = sha256_file(str(model_path))
         if actual_sha != expected_sha:
-            raise ValueError("Model checksum mismatch. Artifact integrity validation failed.")
+            raise ValueError(
+                "Model checksum mismatch. Artifact integrity validation failed."
+            )
 
     expected_schema_version = policy.raw.get("feature_schema_version")
 
@@ -62,9 +69,14 @@ def cmd_predict(
 
     run_feature_spec = paths.reports_metrics / resolved_run_id / "feature_spec.json"
     global_feature_spec = paths.reports / "feature_spec.json"
-    feature_spec_file = run_feature_spec if run_feature_spec.exists() else global_feature_spec
+    feature_spec_file = (
+        run_feature_spec if run_feature_spec.exists() else global_feature_spec
+    )
     feature_spec = load_feature_spec(feature_spec_file)
-    if expected_schema_version and feature_spec.get("schema_version") != expected_schema_version:
+    if (
+        expected_schema_version
+        and feature_spec.get("schema_version") != expected_schema_version
+    ):
         raise ValueError(
             "Feature schema version mismatch. "
             f"policy={expected_schema_version} feature_spec={feature_spec.get('schema_version')}"
@@ -97,7 +109,11 @@ def cmd_predict(
     }
     json_write(run_pred_dir / "prediction_report.json", pred_meta)
     json_write(paths.reports_predictions / "latest_prediction_report.json", pred_meta)
-    mark_latest(paths.reports_predictions, resolved_run_id, extra={"actions_path": str(run_actions_path)})
+    mark_latest(
+        paths.reports_predictions,
+        resolved_run_id,
+        extra={"actions_path": str(run_actions_path)},
+    )
 
     logger.info(f"Saved predictions -> {run_actions_path}")
     return resolved_run_id

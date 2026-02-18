@@ -16,6 +16,7 @@ from .utils import get_logger
 
 logger = get_logger("validate")
 
+
 def basic_schema_checks(df: pd.DataFrame, target_col: str) -> None:
     if df.empty:
         raise ValueError("Dataset is empty.")
@@ -28,7 +29,10 @@ def basic_schema_checks(df: pd.DataFrame, target_col: str) -> None:
 
     logger.info("Basic schema checks passed.")
 
-def validate_target_labels(df: pd.DataFrame, target_col: str, allowed: set[str]) -> None:
+
+def validate_target_labels(
+    df: pd.DataFrame, target_col: str, allowed: set[str]
+) -> None:
     """
     Target label check.
 
@@ -40,8 +44,11 @@ def validate_target_labels(df: pd.DataFrame, target_col: str, allowed: set[str])
     y = df[target_col].astype(str).str.lower().str.strip()
     uniq = set(y.unique())
     if not uniq.issubset(allowed):
-        raise ValueError(f"Unexpected labels in {target_col}: {sorted(uniq)} | allowed={sorted(allowed)}")
+        raise ValueError(
+            f"Unexpected labels in {target_col}: {sorted(uniq)} | allowed={sorted(allowed)}"
+        )
     logger.info(f"Target labels OK -> {sorted(uniq)}")
+
 
 def null_ratio_report(df: pd.DataFrame, top_k: int = 10) -> pd.Series:
     """

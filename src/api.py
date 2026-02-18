@@ -21,10 +21,21 @@ from .api_shared import (
     error_response,
 )
 from .config import ExperimentConfig
-from .metrics import INFERENCE_ERRORS, INFERENCE_ROWS, REQUEST_COUNT, REQUEST_LATENCY, render_metrics
+from .metrics import (
+    INFERENCE_ERRORS,
+    INFERENCE_ROWS,
+    REQUEST_COUNT,
+    REQUEST_LATENCY,
+    render_metrics,
+)
 from .predict import predict_with_policy, validate_and_prepare_features
 from .rate_limit import BaseRateLimiter, build_rate_limiter
-from .tracing import init_tracing, instrument_fastapi, trace_inference, set_span_attribute
+from .tracing import (
+    init_tracing,
+    instrument_fastapi,
+    trace_inference,
+    set_span_attribute,
+)
 from .utils import get_logger
 
 logger = get_logger("api")
@@ -190,8 +201,12 @@ async def request_context_middleware(request: Request, call_next):
         f"request path={request.url.path} status={response.status_code} latency_ms={latency_ms}",
         extra={"request_id": rid},
     )
-    REQUEST_COUNT.labels(path=request.url.path, method=request.method, status=str(response.status_code)).inc()
-    REQUEST_LATENCY.labels(path=request.url.path, method=request.method).observe((time.time() - started))
+    REQUEST_COUNT.labels(
+        path=request.url.path, method=request.method, status=str(response.status_code)
+    ).inc()
+    REQUEST_LATENCY.labels(path=request.url.path, method=request.method).observe(
+        (time.time() - started)
+    )
     return response
 
 
@@ -232,8 +247,14 @@ def predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
         if len(payload.records) > max_rows:
             raise ValueError(f"Payload too large. Max records={max_rows}")
         df = pd.DataFrame(payload.records)
-        with trace_inference("predict_proba", n_rows=len(df), model_name=str(getattr(serving.policy, 'selected_model', ''))):
-            X, schema_report = validate_and_prepare_features(df, serving.feature_spec, fail_on_missing=True)
+        with trace_inference(
+            "predict_proba",
+            n_rows=len(df),
+            model_name=str(getattr(serving.policy, "selected_model", "")),
+        ):
+            X, schema_report = validate_and_prepare_features(
+                df, serving.feature_spec, fail_on_missing=True
+            )
             proba = serving.model.predict_proba(X)[:, 1]
             set_span_attribute("ml.result_count", int(len(proba)))
         INFERENCE_ROWS.labels(endpoint="predict_proba").inc(len(proba))
@@ -259,7 +280,11 @@ def decide(payload: RecordsPayload) -> DecideResponse:
         if len(payload.records) > max_rows:
             raise ValueError(f"Payload too large. Max records={max_rows}")
         df = pd.DataFrame(payload.records)
-        with trace_inference("decide", n_rows=len(df), model_name=str(serving.policy.selected_model_artifact)):
+        with trace_inference(
+            "decide",
+            n_rows=len(df),
+            model_name=str(serving.policy.selected_model_artifact),
+        ):
             actions_df, pred_report = predict_with_policy(
                 model=serving.model,
                 policy=serving.policy,
@@ -268,7 +293,14 @@ def decide(payload: RecordsPayload) -> DecideResponse:
                 model_used=serving.policy.selected_model_artifact,
             )
             set_span_attribute("ml.result_count", int(len(actions_df)))
-            set_span_attribute("ml.threshold_used", float(pred_report.get("threshold_used", 0) if isinstance(pred_report, dict) else getattr(pred_report, 'threshold_used', 0)))
+            set_span_attribute(
+                "ml.threshold_used",
+                float(
+                    pred_report.get("threshold_used", 0)
+                    if isinstance(pred_report, dict)
+                    else getattr(pred_report, "threshold_used", 0)
+                ),
+            )
         INFERENCE_ROWS.labels(endpoint="decide").inc(len(actions_df))
         return DecideResponse(
             n=int(len(actions_df)),
@@ -280,7 +312,9 @@ def decide(payload: RecordsPayload) -> DecideResponse:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/reload", response_model=ReloadResponse, responses={500: {"model": ErrorResponse}})
+@app.post(
+    "/reload", response_model=ReloadResponse, responses={500: {"model": ErrorResponse}}
+)
 def reload_serving_state() -> ReloadResponse:
     try:
         serving = _load_serving_state()

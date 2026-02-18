@@ -28,7 +28,9 @@ from ._helpers import (
 logger = get_logger("cli.evaluate")
 
 
-def cmd_evaluate(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None) -> str:
+def cmd_evaluate(
+    paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None
+) -> str:
     run_id = run_id or resolve_latest_run_id(
         paths.models / "latest.json",
         paths.reports_metrics / "latest.json",
@@ -43,7 +45,9 @@ def cmd_evaluate(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = No
     if not model_registry_path.exists():
         raise FileNotFoundError(f"Model registry not found: {model_registry_path}")
     model_registry = json_read(model_registry_path)
-    model_checksums = json_read(model_checksums_path) if model_checksums_path.exists() else {}
+    model_checksums = (
+        json_read(model_checksums_path) if model_checksums_path.exists() else {}
+    )
 
     models: Dict[str, Any] = {}
     for model_name, rel_artifact in model_registry.items():
@@ -75,7 +79,6 @@ def cmd_evaluate(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = No
     # ── Optional MLflow tracking ───────────────────────────────────
     tracker = ExperimentTracker()
     with tracker.start_run(run_name=f"evaluate_{run_id}"):
-
         for model_name, model_obj in models.items():
             safe_name = model_name.replace("/", "_")
 
@@ -102,7 +105,9 @@ def cmd_evaluate(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = No
                 run_metrics_dir / f"threshold_sweep_{safe_name}.json",
             )
 
-            unconstrained = sweep_thresholds_for_profit(model_obj, test_df, cfg.target_col, cost)
+            unconstrained = sweep_thresholds_for_profit(
+                model_obj, test_df, cfg.target_col, cost
+            )
             json_write(
                 run_metrics_dir / f"profit_sweep_{safe_name}.json",
                 {
@@ -131,7 +136,8 @@ def cmd_evaluate(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = No
                 out_rows.append(row)
 
                 json_write(
-                    run_metrics_dir / f"profit_sweep_{safe_name}_constrained_{int(r * 100)}.json",
+                    run_metrics_dir
+                    / f"profit_sweep_{safe_name}_constrained_{int(r * 100)}.json",
                     {
                         "model": model_name,
                         "constraint": {"max_action_rate": r},
@@ -147,7 +153,8 @@ def cmd_evaluate(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = No
             valid_rows = [
                 x
                 for x in out_rows
-                if isinstance(x["best_profit"], (int, float)) and x["best_profit"] == x["best_profit"]
+                if isinstance(x["best_profit"], (int, float))
+                and x["best_profit"] == x["best_profit"]
             ]
             if valid_rows:
                 selected_model_policy = max(valid_rows, key=lambda x: x["best_profit"])
@@ -184,8 +191,14 @@ def cmd_evaluate(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = No
                     "summary_path": str(summary_path),
                 },
             )
-            copy_to_latest(run_policy_path, paths.reports_metrics / "decision_policy.json")
-            mark_latest(paths.reports_metrics, run_id, extra={"decision_policy": str(run_policy_path)})
+            copy_to_latest(
+                run_policy_path, paths.reports_metrics / "decision_policy.json"
+            )
+            mark_latest(
+                paths.reports_metrics,
+                run_id,
+                extra={"decision_policy": str(run_policy_path)},
+            )
             return run_id
 
         selected = pick["selected"]
@@ -209,15 +222,25 @@ def cmd_evaluate(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = No
 
         json_write(run_policy_path, decision_policy)
         copy_to_latest(run_policy_path, paths.reports_metrics / "decision_policy.json")
-        mark_latest(paths.reports_metrics, run_id, extra={"decision_policy": str(run_policy_path)})
+        mark_latest(
+            paths.reports_metrics,
+            run_id,
+            extra={"decision_policy": str(run_policy_path)},
+        )
 
         # ── MLflow: log evaluation metrics ─────────────────────────
-        tracker.log_metrics({
-            "champion_model": 0,  # placeholder — tag below
-            "expected_net_profit": float(decision_policy.get("expected_net_profit", 0)),
-            "threshold": float(decision_policy.get("threshold", 0.5)),
-        })
-        tracker.set_tag("champion_model", decision_policy.get("selected_model", "unknown"))
+        tracker.log_metrics(
+            {
+                "champion_model": 0,  # placeholder — tag below
+                "expected_net_profit": float(
+                    decision_policy.get("expected_net_profit", 0)
+                ),
+                "threshold": float(decision_policy.get("threshold", 0.5)),
+            }
+        )
+        tracker.set_tag(
+            "champion_model", decision_policy.get("selected_model", "unknown")
+        )
         tracker.log_artifact(run_policy_path)
 
         # ── Auto-generate explainability artifacts ─────────────────
@@ -273,7 +296,9 @@ def _generate_explainability(
 
     # Permutation importance (always works)
     try:
-        perm_report = compute_permutation_importance(model, X_test, y_test, seed=cfg.seed)
+        perm_report = compute_permutation_importance(
+            model, X_test, y_test, seed=cfg.seed
+        )
         out_perm = run_metrics_dir / "permutation_importance.json"
         save_explainability_report(perm_report, out_perm)
         tracker.log_artifact(out_perm)

@@ -1,9 +1,15 @@
-.PHONY: setup test test-cov train evaluate predict monitor serve hpo explain load-locust dev-up dev-down helm-lint helm-template
+.PHONY: setup hooks lint test test-cov train evaluate predict monitor serve hpo explain load-locust dev-up dev-down helm-lint helm-template
 
 setup:
 	python -m venv .venv
 	.venv\\Scripts\\python.exe -m pip install --upgrade pip
 	.venv\\Scripts\\python.exe -m pip install -r requirements.txt
+
+hooks:
+	.venv\\Scripts\\python.exe -m pre_commit install --hook-type pre-commit --hook-type pre-push
+
+lint:
+	.venv\\Scripts\\python.exe -m pre_commit run --all-files
 
 test:
 	.venv\\Scripts\\python.exe -m pytest -q

@@ -38,7 +38,9 @@ def new_run_id() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
-def mark_latest(base_dir: Path, run_id: str, extra: Optional[Dict[str, Any]] = None) -> None:
+def mark_latest(
+    base_dir: Path, run_id: str, extra: Optional[Dict[str, Any]] = None
+) -> None:
     payload = {
         "run_id": run_id,
         "updated_at": datetime.now().isoformat(timespec="seconds"),
@@ -75,7 +77,9 @@ def read_input_dataset(input_path: Path):
         return read_parquet(input_path)
     if input_path.suffix.lower() == ".csv":
         return read_csv(input_path)
-    raise ValueError(f"Unsupported input format: {input_path.suffix}. Use .parquet or .csv")
+    raise ValueError(
+        f"Unsupported input format: {input_path.suffix}. Use .parquet or .csv"
+    )
 
 
 # ── Webhook / DLQ ──────────────────────────────────────────────────
@@ -113,7 +117,9 @@ def notify_webhook(
             return
         except Exception as e:
             last_error = e
-            logger.warning(f"Webhook notify attempt {attempt}/{max_attempts} failed: {e}")
+            logger.warning(
+                f"Webhook notify attempt {attempt}/{max_attempts} failed: {e}"
+            )
             if attempt < max_attempts:
                 time.sleep(backoff_seconds)
                 backoff_seconds *= 2.0
@@ -124,7 +130,9 @@ def notify_webhook(
 
 
 # ── Policy selection ───────────────────────────────────────────────
-def pick_best_policy(summary: Dict[str, Any], prefer_models: List[str]) -> Dict[str, Any]:
+def pick_best_policy(
+    summary: Dict[str, Any], prefer_models: List[str]
+) -> Dict[str, Any]:
     candidates: List[Dict[str, Any]] = []
     for model_name, rows in summary.get("models", {}).items():
         for row in rows:
@@ -140,10 +148,14 @@ def pick_best_policy(summary: Dict[str, Any], prefer_models: List[str]) -> Dict[
     candidates = [
         c
         for c in candidates
-        if isinstance(c["best_profit"], (int, float)) and c["best_profit"] == c["best_profit"]
+        if isinstance(c["best_profit"], (int, float))
+        and c["best_profit"] == c["best_profit"]
     ]
     if not candidates:
-        return {"status": "no_valid_candidate", "reason": "No non-NaN constrained profit found."}
+        return {
+            "status": "no_valid_candidate",
+            "reason": "No non-NaN constrained profit found.",
+        }
 
     max_profit = max(c["best_profit"] for c in candidates)
     top = [c for c in candidates if c["best_profit"] == max_profit]

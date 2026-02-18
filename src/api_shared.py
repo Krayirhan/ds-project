@@ -143,7 +143,9 @@ def load_serving_state() -> ServingState:
     run_id = str(policy.raw.get("run_id", ""))
     run_feature_spec = paths.reports_metrics / run_id / "feature_spec.json"
     global_feature_spec = paths.reports / "feature_spec.json"
-    feature_spec_path = run_feature_spec if run_feature_spec.exists() else global_feature_spec
+    feature_spec_path = (
+        run_feature_spec if run_feature_spec.exists() else global_feature_spec
+    )
     feature_spec = load_feature_spec(feature_spec_path)
     if feature_spec.get("schema_version") != cfg.contract.feature_schema_version:
         raise RuntimeError("Feature schema contract version mismatch")

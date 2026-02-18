@@ -30,6 +30,7 @@ logger = get_logger("hpo")
 @dataclass(frozen=True)
 class HPOResult:
     """Hyperparameter optimization sonucu."""
+
     best_params: Dict[str, Any]
     best_score: float
     n_trials: int
@@ -40,11 +41,13 @@ def _detect_best_model_type() -> str:
     """Mevcut en iyi GBM kütüphanesini seç (XGBoost > LightGBM > HistGB)."""
     try:
         import xgboost  # noqa: F401
+
         return "xgboost"
     except ImportError:
         pass
     try:
         import lightgbm  # noqa: F401
+
         return "lightgbm"
     except ImportError:
         pass
@@ -80,7 +83,9 @@ def _get_search_space(trial: Any, model_type: str) -> Dict[str, Any]:
         "max_depth": trial.suggest_int("max_depth", 3, 12),
         "max_iter": trial.suggest_int("max_iter", 100, 800, step=50),
         "min_samples_leaf": trial.suggest_int("min_samples_leaf", 5, 50),
-        "l2_regularization": trial.suggest_float("l2_regularization", 1e-8, 10.0, log=True),
+        "l2_regularization": trial.suggest_float(
+            "l2_regularization", 1e-8, 10.0, log=True
+        ),
     }
 
 
@@ -99,7 +104,9 @@ def _build_estimator(model_type: str, params: Dict[str, Any], seed: int) -> Any:
     if model_type == "lightgbm":
         from lightgbm import LGBMClassifier
 
-        return LGBMClassifier(**params, objective="binary", random_state=seed, verbosity=-1)
+        return LGBMClassifier(
+            **params, objective="binary", random_state=seed, verbosity=-1
+        )
     from sklearn.ensemble import HistGradientBoostingClassifier
 
     return HistGradientBoostingClassifier(**params, random_state=seed)
@@ -132,10 +139,12 @@ def run_hpo(
     def objective(trial: Any) -> float:
         params = _get_search_space(trial, resolved_type)
         estimator = _build_estimator(resolved_type, params, seed)
-        pipeline = Pipeline([
-            ("preprocess", build_preprocessor(spec)),
-            ("clf", estimator),
-        ])
+        pipeline = Pipeline(
+            [
+                ("preprocess", build_preprocessor(spec)),
+                ("clf", estimator),
+            ]
+        )
         cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=seed)
         scores = cross_val_score(pipeline, X, y, cv=cv, scoring="roc_auc")
         return float(scores.mean())

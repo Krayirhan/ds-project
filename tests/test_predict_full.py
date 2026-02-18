@@ -5,7 +5,11 @@ import pandas as pd
 import pytest
 
 from src.policy import DecisionPolicy
-from src.predict import load_feature_spec, predict_with_policy, validate_and_prepare_features
+from src.predict import (
+    load_feature_spec,
+    predict_with_policy,
+    validate_and_prepare_features,
+)
 
 
 # ── helpers ───────────────────────────────────────────────────────────
@@ -89,7 +93,9 @@ class TestValidateAndPrepareExtras:
 
     def test_fail_on_missing_false_fills_nan(self):
         df = pd.DataFrame({"n1": [1, 2], "c1": ["a", "b"]})  # n2 missing
-        out, report = validate_and_prepare_features(df, _feature_spec(), fail_on_missing=False)
+        out, report = validate_and_prepare_features(
+            df, _feature_spec(), fail_on_missing=False
+        )
         assert "n2" in out.columns
         assert out["n2"].isna().all()
         assert "n2" in report["missing_columns"]
@@ -117,7 +123,12 @@ class TestPredictWithPolicy:
         )
         assert isinstance(actions_df, pd.DataFrame)
         assert len(actions_df) == 3
-        assert set(actions_df.columns) >= {"proba", "action", "threshold_used", "model_used"}
+        assert set(actions_df.columns) >= {
+            "proba",
+            "action",
+            "threshold_used",
+            "model_used",
+        }
         assert isinstance(report, dict)
 
     def test_action_column_respects_threshold(self):
@@ -125,7 +136,10 @@ class TestPredictWithPolicy:
         model = DummyModel([0.8, 0.3, 0.6, 0.1])
         policy = _simple_policy(threshold=0.5)
         actions_df, _ = predict_with_policy(
-            model=model, policy=policy, df_input=df, feature_spec_payload=_feature_spec()
+            model=model,
+            policy=policy,
+            df_input=df,
+            feature_spec_payload=_feature_spec(),
         )
         assert actions_df["action"].tolist() == [1, 0, 1, 0]
 
@@ -134,7 +148,10 @@ class TestPredictWithPolicy:
         model = DummyModel([0.7, 0.2])
         policy = _simple_policy()
         _, report = predict_with_policy(
-            model=model, policy=policy, df_input=df, feature_spec_payload=_feature_spec()
+            model=model,
+            policy=policy,
+            df_input=df,
+            feature_spec_payload=_feature_spec(),
         )
         for key in (
             "n_rows",
@@ -152,7 +169,10 @@ class TestPredictWithPolicy:
         model = DummyModel([0.5])
         policy = _simple_policy()
         actions_df, report = predict_with_policy(
-            model=model, policy=policy, df_input=df, feature_spec_payload=_feature_spec()
+            model=model,
+            policy=policy,
+            df_input=df,
+            feature_spec_payload=_feature_spec(),
         )
         assert actions_df["model_used"].iloc[0] == "test_model"
         assert report["model_used"] == "test_model"
@@ -162,7 +182,10 @@ class TestPredictWithPolicy:
         model = DummyModel([0.9, 0.8, 0.7, 0.6, 0.55])
         policy = _simple_policy(threshold=0.5, max_action_rate=0.4)
         actions_df, report = predict_with_policy(
-            model=model, policy=policy, df_input=df, feature_spec_payload=_feature_spec()
+            model=model,
+            policy=policy,
+            df_input=df,
+            feature_spec_payload=_feature_spec(),
         )
         assert actions_df["action"].sum() <= 2  # floor(0.4*5)=2
         assert report["predicted_action_rate"] <= 0.5
@@ -173,6 +196,9 @@ class TestPredictWithPolicy:
         model = DummyModel([0.7, 0.3])
         policy = _simple_policy()
         _, report = predict_with_policy(
-            model=model, policy=policy, df_input=df, feature_spec_payload=_feature_spec()
+            model=model,
+            policy=policy,
+            df_input=df,
+            feature_spec_payload=_feature_spec(),
         )
         assert "extra_col" in report["extra_columns"]

@@ -29,6 +29,7 @@ class JsonLogFormatter(logging.Formatter):
             payload["request_id"] = getattr(record, "request_id")
         return json.dumps(payload, ensure_ascii=False)
 
+
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """
     Logger oluşturur.
@@ -50,6 +51,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
         logger.addHandler(handler)
     logger.setLevel(level)
     return logger
+
 
 def set_seed(seed: int) -> None:
     """

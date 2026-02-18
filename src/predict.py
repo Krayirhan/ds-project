@@ -81,7 +81,10 @@ def validate_and_prepare_features(
 
     for c in spec.categorical:
         # Categorical pipeline string/object ile daha güvenli
-        if not (pd.api.types.is_object_dtype(work[c]) or pd.api.types.is_string_dtype(work[c])):
+        if not (
+            pd.api.types.is_object_dtype(work[c])
+            or pd.api.types.is_string_dtype(work[c])
+        ):
             work[c] = work[c].astype("string")
 
     report = {
@@ -101,10 +104,14 @@ def predict_with_policy(
     feature_spec_payload: Dict[str, Any],
     model_used: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    X, schema_report = validate_and_prepare_features(df_input, feature_spec_payload=feature_spec_payload)
+    X, schema_report = validate_and_prepare_features(
+        df_input, feature_spec_payload=feature_spec_payload
+    )
 
     proba = model.predict_proba(X)[:, 1]
-    ranking_scores = compute_incremental_profit_scores(df_input=df_input, proba=proba, policy=policy)
+    ranking_scores = compute_incremental_profit_scores(
+        df_input=df_input, proba=proba, policy=policy
+    )
     actions = apply(proba=proba, policy=policy, ranking_scores=ranking_scores)
 
     out = pd.DataFrame(
@@ -113,7 +120,9 @@ def predict_with_policy(
             "action": actions.astype(int),
             "threshold_used": float(policy.threshold),
             "max_action_rate_used": (
-                float(policy.max_action_rate) if policy.max_action_rate is not None else np.nan
+                float(policy.max_action_rate)
+                if policy.max_action_rate is not None
+                else np.nan
             ),
             "model_used": str(model_used or policy.selected_model),
         }
@@ -125,7 +134,9 @@ def predict_with_policy(
         "predicted_action_rate": float(out["action"].mean()) if len(out) > 0 else 0.0,
         "threshold_used": float(policy.threshold),
         "max_action_rate_used": (
-            float(policy.max_action_rate) if policy.max_action_rate is not None else None
+            float(policy.max_action_rate)
+            if policy.max_action_rate is not None
+            else None
         ),
         "model_used": str(model_used or policy.selected_model),
         "ranking_mode": str(policy.raw.get("ranking_mode", "proba")),

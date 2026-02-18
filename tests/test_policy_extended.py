@@ -37,7 +37,9 @@ class TestLoadDecisionPolicy:
 
     def test_invalid_max_action_rate_raises(self, tmp_path: Path):
         p = tmp_path / "policy.json"
-        p.write_text(json.dumps({"status": "ok", "threshold": 0.5, "max_action_rate": 0.0}))
+        p.write_text(
+            json.dumps({"status": "ok", "threshold": 0.5, "max_action_rate": 0.0})
+        )
         with pytest.raises(ValueError, match="max_action_rate"):
             load_decision_policy(p)
 
@@ -91,7 +93,9 @@ class TestDecideActionsEdgeCases:
 
     def test_invalid_max_action_rate_in_decide_raises(self):
         with pytest.raises(ValueError, match="max_action_rate"):
-            decide_actions_from_proba(np.array([0.6]), threshold=0.5, max_action_rate=0.0)
+            decide_actions_from_proba(
+                np.array([0.6]), threshold=0.5, max_action_rate=0.0
+            )
 
     def test_ranking_scores_shape_mismatch_raises(self):
         with pytest.raises(ValueError, match="same shape"):
@@ -104,7 +108,9 @@ class TestDecideActionsEdgeCases:
     def test_negative_ranking_scores_block_action(self):
         proba = np.array([0.6, 0.7, 0.8])
         ranking = np.array([-0.1, 0.5, -0.2])
-        actions = decide_actions_from_proba(proba, threshold=0.5, ranking_scores=ranking)
+        actions = decide_actions_from_proba(
+            proba, threshold=0.5, ranking_scores=ranking
+        )
         assert actions.tolist() == [0, 1, 0]
 
     def test_k_zero_returns_all_zeros(self):
@@ -151,7 +157,10 @@ class TestApplyWrappers:
     def test_apply_alias_same_result(self):
         proba = np.array([0.3, 0.7])
         policy = _simple_policy()
-        assert apply(proba, policy).tolist() == apply_policy_to_proba(proba, policy).tolist()
+        assert (
+            apply(proba, policy).tolist()
+            == apply_policy_to_proba(proba, policy).tolist()
+        )
 
     def test_apply_with_max_action_rate(self):
         proba = np.array([0.9, 0.8, 0.7, 0.6, 0.55])

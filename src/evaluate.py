@@ -137,9 +137,13 @@ def sweep_thresholds(
         thresholds = np.arange(0.05, 0.96, 0.05)
 
     if rule_mode == "maximize_precision_given_recall" and min_recall is None:
-        raise ValueError("rule_mode='maximize_precision_given_recall' requires min_recall")
+        raise ValueError(
+            "rule_mode='maximize_precision_given_recall' requires min_recall"
+        )
     if rule_mode == "maximize_recall_given_precision" and min_precision is None:
-        raise ValueError("rule_mode='maximize_recall_given_precision' requires min_precision")
+        raise ValueError(
+            "rule_mode='maximize_recall_given_precision' requires min_precision"
+        )
 
     X_test = df_test.drop(columns=[target_col])
     y_test = df_test[target_col].astype(int).values
@@ -174,14 +178,24 @@ def sweep_thresholds(
             if r >= float(min_recall):
                 # Bu şart altında precision maksimize edilir
                 if best_rule["precision"] is None or p > best_rule["precision"]:
-                    best_rule = {"threshold": float(t), "f1": f1, "precision": p, "recall": r}
+                    best_rule = {
+                        "threshold": float(t),
+                        "f1": f1,
+                        "precision": p,
+                        "recall": r,
+                    }
 
         elif rule_mode == "maximize_recall_given_precision":
             # Şart: precision >= min_precision
             if p >= float(min_precision):
                 # Bu şart altında recall maksimize edilir
                 if best_rule["recall"] is None or r > best_rule["recall"]:
-                    best_rule = {"threshold": float(t), "f1": f1, "precision": p, "recall": r}
+                    best_rule = {
+                        "threshold": float(t),
+                        "f1": f1,
+                        "precision": p,
+                        "recall": r,
+                    }
 
     result = {
         "best_by_f1": best_f1,

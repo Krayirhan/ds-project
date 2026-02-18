@@ -28,11 +28,14 @@ class CalibrationResult:
     - Model + metrikler birlikte taşınır.
     - Raporlama/CI karşılaştırması kolaylaşır.
     """
+
     calibrated_model: CalibratedClassifierCV
     metrics: Dict[str, Any]
 
 
-def _reliability_table(y_true: np.ndarray, proba: np.ndarray, bins: int = 10) -> list[Dict[str, Any]]:
+def _reliability_table(
+    y_true: np.ndarray, proba: np.ndarray, bins: int = 10
+) -> list[Dict[str, Any]]:
     edges = np.linspace(0.0, 1.0, bins + 1)
     rows: list[Dict[str, Any]] = []
     for i in range(bins):

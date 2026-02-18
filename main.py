@@ -84,26 +84,38 @@ def main() -> None:
 
     if args.command == "preprocess":
         from src.cli.preprocess import cmd_preprocess
+
         cmd_preprocess(paths, cfg)
 
     elif args.command == "split":
         from src.cli.split import cmd_split
+
         cmd_split(paths, cfg)
 
     elif args.command == "train":
         from src.cli.train import cmd_train
+
         cmd_train(paths, cfg, run_id=args.run_id)
 
     elif args.command == "evaluate":
         from src.cli.evaluate import cmd_evaluate
+
         cmd_evaluate(paths, cfg, run_id=args.run_id)
 
     elif args.command == "predict":
         from src.cli.predict import cmd_predict
-        cmd_predict(paths, cfg, input_path=args.input, policy_path=args.policy, run_id=args.run_id)
+
+        cmd_predict(
+            paths,
+            cfg,
+            input_path=args.input,
+            policy_path=args.policy,
+            run_id=args.run_id,
+        )
 
     elif args.command == "monitor":
         from src.cli.monitor import cmd_monitor
+
         cmd_monitor(
             paths,
             cfg,
@@ -115,6 +127,7 @@ def main() -> None:
 
     elif args.command == "serve-api":
         from src.cli.serve import cmd_serve_api
+
         cmd_serve_api(
             host=args.host,
             port=args.port,
@@ -123,22 +136,27 @@ def main() -> None:
 
     elif args.command == "promote-policy":
         from src.cli.policy import cmd_promote_policy
+
         cmd_promote_policy(paths, run_id=args.run_id, slot=args.slot)
 
     elif args.command == "rollback-policy":
         from src.cli.policy import cmd_rollback_policy
+
         cmd_rollback_policy(paths, slot=args.slot)
 
     elif args.command == "retry-webhook-dlq":
         from src.cli.policy import cmd_retry_webhook_dlq
+
         cmd_retry_webhook_dlq(paths, webhook_url=args.url)
 
     elif args.command == "hpo":
         from src.cli.hpo import cmd_hpo
+
         cmd_hpo(paths, cfg, n_trials=args.n_trials, run_id=args.run_id)
 
     elif args.command == "explain":
         from src.cli.explain import cmd_explain
+
         cmd_explain(paths, cfg, run_id=args.run_id, sample_size=args.sample_size)
 
 

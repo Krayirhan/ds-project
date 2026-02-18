@@ -10,7 +10,9 @@ logger = get_logger("rate_limit")
 
 
 class BaseRateLimiter:
-    def allow(self, key: str, limit_per_minute: int) -> bool:  # pragma: no cover - interface only
+    def allow(
+        self, key: str, limit_per_minute: int
+    ) -> bool:  # pragma: no cover - interface only
         raise NotImplementedError
 
 
@@ -53,7 +55,9 @@ class RedisRateLimiter(BaseRateLimiter):
         return int(count) < int(limit_per_minute)
 
 
-def build_rate_limiter(*, backend: str, redis_url: str | None, key_prefix: str) -> BaseRateLimiter:
+def build_rate_limiter(
+    *, backend: str, redis_url: str | None, key_prefix: str
+) -> BaseRateLimiter:
     normalized = (backend or "memory").strip().lower()
     if normalized == "redis":
         try:

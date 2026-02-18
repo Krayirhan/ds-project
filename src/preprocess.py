@@ -19,6 +19,7 @@ from .utils import get_logger
 
 logger = get_logger("preprocess")
 
+
 def preprocess_basic(
     df: pd.DataFrame,
     target_col: str,
@@ -49,7 +50,9 @@ def preprocess_basic(
     y = df[target_col].astype(str).str.lower().str.strip()
     unknown = set(y.unique()) - set(label_map.keys())
     if unknown:
-        raise ValueError(f"Unknown target labels: {sorted(unknown)} | label_map keys={sorted(label_map.keys())}")
+        raise ValueError(
+            f"Unknown target labels: {sorted(unknown)} | label_map keys={sorted(label_map.keys())}"
+        )
     df[target_col] = y.map(label_map).astype(int)
 
     # 3) Tamamen boş kolonları düşür (baseline)

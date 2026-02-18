@@ -24,19 +24,12 @@ jobs:
             ruff==0.7.4 \
             mypy==1.13.0 \
             bandit==1.7.10 \
+            pre-commit==4.0.1 \
             pytest-cov==6.0.0
 
-      - name: Lint (ruff)
+      - name: Quality gate (pre-commit)
         run: |
-          ruff check src tests
-
-      - name: Type check (mypy)
-        run: |
-          mypy --ignore-missing-imports src
-
-      - name: Security lint (bandit)
-        run: |
-          bandit -q -r src
+          pre-commit run --all-files
 
       - name: Unit tests
         run: |

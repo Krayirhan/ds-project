@@ -47,4 +47,6 @@ class InferenceUser(HttpUser):
                 }
             ]
         }
-        self.client.post("/decide", json=payload, headers={"x-api-key": API_KEY}, name="POST /decide")
+        self.client.post(
+            "/decide", json=payload, headers={"x-api-key": API_KEY}, name="POST /decide"
+        )

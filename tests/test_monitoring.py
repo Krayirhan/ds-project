@@ -59,8 +59,12 @@ def test_outcome_monitoring_report_happy_path():
         }
     )
     outcome_df = pd.DataFrame({"target": [1, 0, 1, 0]})
-    policy = {"cost_matrix": {"tp_value": 10, "fp_value": -2, "fn_value": -5, "tn_value": 0}}
-    rep = outcome_monitoring_report(actions_df, outcome_df, actual_col="target", policy=policy)
+    policy = {
+        "cost_matrix": {"tp_value": 10, "fp_value": -2, "fn_value": -5, "tn_value": 0}
+    }
+    rep = outcome_monitoring_report(
+        actions_df, outcome_df, actual_col="target", policy=policy
+    )
     assert rep["n_rows"] == 4
     assert "realized_profit" in rep
 
@@ -69,4 +73,6 @@ def test_outcome_monitoring_report_missing_actual_column():
     actions_df = pd.DataFrame({"proba": [0.5], "action": [1]})
     outcome_df = pd.DataFrame({"other": [1]})
     with pytest.raises(ValueError):
-        outcome_monitoring_report(actions_df, outcome_df, actual_col="target", policy={})
+        outcome_monitoring_report(
+            actions_df, outcome_df, actual_col="target", policy={}
+        )

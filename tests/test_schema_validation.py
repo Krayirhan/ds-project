@@ -27,6 +27,8 @@ def test_extra_columns_are_ignored_and_order_frozen():
             "extra": [999, 999],
         }
     )
-    out, report = validate_and_prepare_features(df, _spec_payload(), fail_on_missing=True)
+    out, report = validate_and_prepare_features(
+        df, _spec_payload(), fail_on_missing=True
+    )
     assert list(out.columns) == ["x1", "x2", "c1"]
     assert report["extra_columns"] == ["extra"]

@@ -50,18 +50,25 @@ def init_tracing(service_name: str = "ds-project-api") -> None:
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
         from opentelemetry.sdk.resources import Resource, SERVICE_NAME
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # noqa: F401
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+            OTLPSpanExporter,
+        )
 
-        resource = Resource.create({
-            SERVICE_NAME: os.getenv("OTEL_SERVICE_NAME", service_name),
-            "service.version": os.getenv("OTEL_SERVICE_VERSION", "1.1.0"),
-            "deployment.environment": os.getenv("OTEL_DEPLOYMENT_ENV", "production"),
-        })
+        resource = Resource.create(
+            {
+                SERVICE_NAME: os.getenv("OTEL_SERVICE_NAME", service_name),
+                "service.version": os.getenv("OTEL_SERVICE_VERSION", "1.1.0"),
+                "deployment.environment": os.getenv(
+                    "OTEL_DEPLOYMENT_ENV", "production"
+                ),
+            }
+        )
 
         provider = TracerProvider(resource=resource)
 
-        otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+        otlp_endpoint = os.getenv(
+            "OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"
+        )
         exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
         provider.add_span_processor(BatchSpanProcessor(exporter))
 
@@ -107,6 +114,7 @@ def get_tracer():
     if _tracer is None:
         try:
             from opentelemetry import trace
+
             _tracer = trace.get_tracer(__name__)
         except ImportError:
             return None
@@ -125,7 +133,6 @@ def trace_span(
         return
 
     try:
-
         with tracer.start_as_current_span(name) as span:
             if attributes:
                 for k, v in attributes.items():

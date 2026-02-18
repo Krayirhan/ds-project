@@ -69,11 +69,11 @@ def cmd_explain(
     shap_result = compute_shap_values(model, X_test, max_samples=sample_size)
     if shap_result is not None:
         report["shap"] = shap_result
-        save_explainability_report(
-            shap_result, run_metrics_dir / "shap_summary.json"
-        )
+        save_explainability_report(shap_result, run_metrics_dir / "shap_summary.json")
 
     # Combined report
     save_explainability_report(report, run_metrics_dir / "explainability_report.json")
-    logger.info(f"Explainability report saved → {run_metrics_dir / 'explainability_report.json'}")
+    logger.info(
+        f"Explainability report saved → {run_metrics_dir / 'explainability_report.json'}"
+    )
     return run_id

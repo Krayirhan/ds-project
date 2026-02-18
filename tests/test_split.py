@@ -44,8 +44,12 @@ class TestStratifiedSplit:
         df = _balanced_df(100)
         train1, test1 = stratified_split(df, "target", test_size=0.2, seed=42)
         train2, test2 = stratified_split(df, "target", test_size=0.2, seed=42)
-        pd.testing.assert_frame_equal(train1.reset_index(drop=True), train2.reset_index(drop=True))
-        pd.testing.assert_frame_equal(test1.reset_index(drop=True), test2.reset_index(drop=True))
+        pd.testing.assert_frame_equal(
+            train1.reset_index(drop=True), train2.reset_index(drop=True)
+        )
+        pd.testing.assert_frame_equal(
+            test1.reset_index(drop=True), test2.reset_index(drop=True)
+        )
 
     def test_different_seed_gives_different_split(self):
         df = _balanced_df(100)
@@ -63,10 +67,12 @@ class TestSplitCLI:
 
         # Setup: create a minimal dataset.parquet
         n = 200
-        df = pd.DataFrame({
-            "lead_time": list(range(n)),
-            "is_canceled": [0] * (n // 2) + [1] * (n // 2),
-        })
+        df = pd.DataFrame(
+            {
+                "lead_time": list(range(n)),
+                "is_canceled": [0] * (n // 2) + [1] * (n // 2),
+            }
+        )
         processed = tmp_path / "data" / "processed"
         processed.mkdir(parents=True)
         df.to_parquet(processed / "dataset.parquet", index=False)
@@ -79,12 +85,17 @@ class TestSplitCLI:
         object.__setattr__(paths, "models", tmp_path / "models")
         object.__setattr__(paths, "reports", tmp_path / "reports")
         object.__setattr__(paths, "reports_metrics", tmp_path / "reports" / "metrics")
-        object.__setattr__(paths, "reports_predictions", tmp_path / "reports" / "predictions")
-        object.__setattr__(paths, "reports_monitoring", tmp_path / "reports" / "monitoring")
+        object.__setattr__(
+            paths, "reports_predictions", tmp_path / "reports" / "predictions"
+        )
+        object.__setattr__(
+            paths, "reports_monitoring", tmp_path / "reports" / "monitoring"
+        )
 
         cfg = ExperimentConfig(target_col="is_canceled")
 
         from src.cli.split import cmd_split
+
         cmd_split(paths, cfg)
 
         # All three split files must exist
@@ -108,10 +119,12 @@ class TestSplitCLI:
     def test_no_row_overlap_across_splits(self, tmp_path):
         """No single row should appear in more than one split."""
         n = 200
-        df = pd.DataFrame({
-            "row_id": list(range(n)),
-            "is_canceled": [0] * (n // 2) + [1] * (n // 2),
-        })
+        df = pd.DataFrame(
+            {
+                "row_id": list(range(n)),
+                "is_canceled": [0] * (n // 2) + [1] * (n // 2),
+            }
+        )
         processed = tmp_path / "data" / "processed"
         processed.mkdir(parents=True)
         df.to_parquet(processed / "dataset.parquet", index=False)
@@ -124,12 +137,17 @@ class TestSplitCLI:
         object.__setattr__(paths, "models", tmp_path / "models")
         object.__setattr__(paths, "reports", tmp_path / "reports")
         object.__setattr__(paths, "reports_metrics", tmp_path / "reports" / "metrics")
-        object.__setattr__(paths, "reports_predictions", tmp_path / "reports" / "predictions")
-        object.__setattr__(paths, "reports_monitoring", tmp_path / "reports" / "monitoring")
+        object.__setattr__(
+            paths, "reports_predictions", tmp_path / "reports" / "predictions"
+        )
+        object.__setattr__(
+            paths, "reports_monitoring", tmp_path / "reports" / "monitoring"
+        )
 
         cfg = ExperimentConfig(target_col="is_canceled")
 
         from src.cli.split import cmd_split
+
         cmd_split(paths, cfg)
 
         train_ids = set(pd.read_parquet(processed / "train.parquet")["row_id"])
@@ -146,10 +164,12 @@ class TestSplitCLI:
         n = 1000
         pos_rate = 0.37
         n_pos = int(n * pos_rate)
-        df = pd.DataFrame({
-            "feature": list(range(n)),
-            "is_canceled": [0] * (n - n_pos) + [1] * n_pos,
-        })
+        df = pd.DataFrame(
+            {
+                "feature": list(range(n)),
+                "is_canceled": [0] * (n - n_pos) + [1] * n_pos,
+            }
+        )
         processed = tmp_path / "data" / "processed"
         processed.mkdir(parents=True)
         df.to_parquet(processed / "dataset.parquet", index=False)
@@ -162,17 +182,22 @@ class TestSplitCLI:
         object.__setattr__(paths, "models", tmp_path / "models")
         object.__setattr__(paths, "reports", tmp_path / "reports")
         object.__setattr__(paths, "reports_metrics", tmp_path / "reports" / "metrics")
-        object.__setattr__(paths, "reports_predictions", tmp_path / "reports" / "predictions")
-        object.__setattr__(paths, "reports_monitoring", tmp_path / "reports" / "monitoring")
+        object.__setattr__(
+            paths, "reports_predictions", tmp_path / "reports" / "predictions"
+        )
+        object.__setattr__(
+            paths, "reports_monitoring", tmp_path / "reports" / "monitoring"
+        )
 
         cfg = ExperimentConfig(target_col="is_canceled")
 
         from src.cli.split import cmd_split
+
         cmd_split(paths, cfg)
 
         for fname in ("train.parquet", "cal.parquet", "test.parquet"):
             split_df = pd.read_parquet(processed / fname)
             split_rate = split_df["is_canceled"].mean()
-            assert split_rate == pytest.approx(pos_rate, abs=0.05), (
-                f"{fname}: positive_rate={split_rate:.3f} expected≈{pos_rate}"
-            )
+            assert split_rate == pytest.approx(
+                pos_rate, abs=0.05
+            ), f"{fname}: positive_rate={split_rate:.3f} expected≈{pos_rate}"

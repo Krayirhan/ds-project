@@ -57,6 +57,7 @@ class CostMatrix:
     fn_value: FN başına değer (genelde negatif: kaçırılan iptal maliyeti)
     tn_value: TN başına değer (çoğu senaryoda 0)
     """
+
     tp_value: float
     fp_value: float
     fn_value: float
@@ -68,6 +69,7 @@ class ProfitSweepResult:
     """
     Profit sweep çıktıları.
     """
+
     best_threshold: float
     best_profit: float
     rows: list[Dict[str, Any]]
@@ -231,7 +233,9 @@ def sweep_thresholds_for_profit_with_constraint(
             f"Best threshold by PROFIT with CONSTRAINT (max_action_rate={max_action_rate:.2f}) -> "
             f"t={best_t} profit={best_profit:.2f}"
         )
-        return ProfitSweepResult(best_threshold=best_t, best_profit=best_profit, rows=rows)
+        return ProfitSweepResult(
+            best_threshold=best_t, best_profit=best_profit, rows=rows
+        )
 
     # ------------------------------------------------------------
     # ✅ Quantile fallback (enterprise-grade)
@@ -279,7 +283,9 @@ def sweep_thresholds_for_profit_with_constraint(
         f"No feasible threshold found for max_action_rate={max_action_rate:.2f}. "
         "Consider using finer thresholds or relaxing the constraint."
     )
-    return ProfitSweepResult(best_threshold=float(thresholds.max()), best_profit=float("nan"), rows=rows)
+    return ProfitSweepResult(
+        best_threshold=float(thresholds.max()), best_profit=float("nan"), rows=rows
+    )
 
 
 def default_cost_matrix_example() -> CostMatrix:

@@ -30,7 +30,10 @@ class Paths:
     - Bu sınıf sadece path üretir.
     - Dosyaların varlığını garanti etmez (mkdir işlemleri pipeline içinde yapılır).
     """
-    project_root: Path = field(default_factory=lambda: Path(__file__).resolve().parents[1])
+
+    project_root: Path = field(
+        default_factory=lambda: Path(__file__).resolve().parents[1]
+    )
 
     data_dir: Path = field(init=False)
     data_raw: Path = field(init=False)
@@ -67,7 +70,10 @@ class DecisionConfig:
     - Net profit eşit/çok yakın olduğunda hangi modeli tercih edeceğiz?
     - Kurumsal bakış: calibration stabilitesi nedeniyle sigmoid genelde öne alınır.
     """
-    action_rates: List[float] = field(default_factory=lambda: [0.05, 0.10, 0.15, 0.20, 0.30])
+
+    action_rates: List[float] = field(
+        default_factory=lambda: [0.05, 0.10, 0.15, 0.20, 0.30]
+    )
     prefer_models: List[str] = field(
         default_factory=lambda: [
             "challenger_xgboost_calibrated_sigmoid",
@@ -150,6 +156,7 @@ class CostConfig:
     tn_value:
       True Negative çoğu durumda 0 tutulur.
     """
+
     tp_value: float = 180.0
     fp_value: float = -20.0
     fn_value: float = -200.0
@@ -168,6 +175,7 @@ class ExperimentConfig:
     - baseline model parametreleri
     - ✅ decisioning config (cost + constraint) içerir
     """
+
     # Target kolonu
     target_col: str = "is_canceled"
 

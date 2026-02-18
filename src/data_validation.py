@@ -42,21 +42,26 @@ def build_raw_schema(target_col: str = "is_canceled") -> DataFrameSchema:
     return DataFrameSchema(
         columns={
             # ── Booking identifiers ──
-            "hotel": Column(str, Check.isin(["Resort Hotel", "City Hotel"]), nullable=False),
-            "arrival_date_year": Column(int, Check.in_range(2010, 2030), nullable=False),
+            "hotel": Column(
+                str, Check.isin(["Resort Hotel", "City Hotel"]), nullable=False
+            ),
+            "arrival_date_year": Column(
+                int, Check.in_range(2010, 2030), nullable=False
+            ),
             "arrival_date_month": Column(str, nullable=False),
-            "arrival_date_week_number": Column(int, Check.in_range(1, 53), nullable=True),
-            "arrival_date_day_of_month": Column(int, Check.in_range(1, 31), nullable=True),
-
+            "arrival_date_week_number": Column(
+                int, Check.in_range(1, 53), nullable=True
+            ),
+            "arrival_date_day_of_month": Column(
+                int, Check.in_range(1, 31), nullable=True
+            ),
             # ── Stay duration ──
             "stays_in_weekend_nights": Column(int, Check.ge(0), nullable=True),
             "stays_in_week_nights": Column(int, Check.ge(0), nullable=True),
-
             # ── Guest info ──
             "adults": Column(int, Check.ge(0), nullable=True),
             "children": Column(float, Check.ge(0), nullable=True),  # float due to NaN
             "babies": Column(int, Check.ge(0), nullable=True),
-
             # ── Booking meta ──
             "lead_time": Column(int, Check.ge(0), nullable=False),
             "is_repeated_guest": Column(int, Check.isin([0, 1]), nullable=True),
@@ -64,15 +69,16 @@ def build_raw_schema(target_col: str = "is_canceled") -> DataFrameSchema:
             "previous_bookings_not_canceled": Column(int, Check.ge(0), nullable=True),
             "booking_changes": Column(int, Check.ge(0), nullable=True),
             "adr": Column(float, nullable=True),
-
             # ── Target ──
             target_col: Column(
                 nullable=False,
                 checks=Check(
-                    lambda s: s.astype(str).str.lower().str.strip().isin(
-                        ["0", "1", "yes", "no"]
-                    ).all(),
-                    error=f"Target column '{target_col}' must contain 0/1 or yes/no"
+                    lambda s: s.astype(str)
+                    .str.lower()
+                    .str.strip()
+                    .isin(["0", "1", "yes", "no"])
+                    .all(),
+                    error=f"Target column '{target_col}' must contain 0/1 or yes/no",
                 ),
             ),
         },
@@ -107,8 +113,10 @@ def build_processed_schema(
             columns[col] = Column(
                 nullable=True,
                 checks=[
-                    Check(lambda s: pd.to_numeric(s, errors="coerce").notna().all(),
-                           error=f"Column '{col}' has non-numeric values after processing"),
+                    Check(
+                        lambda s: pd.to_numeric(s, errors="coerce").notna().all(),
+                        error=f"Column '{col}' has non-numeric values after processing",
+                    ),
                 ],
             )
 
@@ -155,6 +163,7 @@ def build_inference_schema(
 @dataclass
 class DistributionReport:
     """Distribution validation results."""
+
     passed: bool
     violations: List[Dict[str, Any]]
     summary: str
@@ -179,20 +188,24 @@ def validate_distributions(
 
     for col, stats in reference_stats.items():
         if col not in df.columns:
-            violations.append({
-                "column": col,
-                "check": "existence",
-                "message": f"Column '{col}' missing from dataframe",
-            })
+            violations.append(
+                {
+                    "column": col,
+                    "check": "existence",
+                    "message": f"Column '{col}' missing from dataframe",
+                }
+            )
             continue
 
         series = pd.to_numeric(df[col], errors="coerce").dropna()
         if series.empty:
-            violations.append({
-                "column": col,
-                "check": "non_empty",
-                "message": f"Column '{col}' is entirely null/non-numeric",
-            })
+            violations.append(
+                {
+                    "column": col,
+                    "check": "non_empty",
+                    "message": f"Column '{col}' is entirely null/non-numeric",
+                }
+            )
             continue
 
         ref_mean = stats.get("mean", 0.0)
@@ -201,17 +214,19 @@ def validate_distributions(
 
         # Mean drift check
         if ref_std > 0 and abs(cur_mean - ref_mean) > tolerance * ref_std:
-            violations.append({
-                "column": col,
-                "check": "mean_drift",
-                "message": (
-                    f"Mean drift: current={cur_mean:.4f}, "
-                    f"reference={ref_mean:.4f}, "
-                    f"threshold=±{tolerance}*{ref_std:.4f}"
-                ),
-                "current_mean": cur_mean,
-                "reference_mean": ref_mean,
-            })
+            violations.append(
+                {
+                    "column": col,
+                    "check": "mean_drift",
+                    "message": (
+                        f"Mean drift: current={cur_mean:.4f}, "
+                        f"reference={ref_mean:.4f}, "
+                        f"threshold=±{tolerance}*{ref_std:.4f}"
+                    ),
+                    "current_mean": cur_mean,
+                    "reference_mean": ref_mean,
+                }
+            )
 
         # Range check
         ref_min = stats.get("min")
@@ -219,19 +234,23 @@ def validate_distributions(
         if ref_min is not None:
             cur_min = float(series.min())
             if cur_min < ref_min * 0.5 - abs(ref_min):  # generous lower bound
-                violations.append({
-                    "column": col,
-                    "check": "range_min",
-                    "message": f"Min out of range: current={cur_min}, reference_min={ref_min}",
-                })
+                violations.append(
+                    {
+                        "column": col,
+                        "check": "range_min",
+                        "message": f"Min out of range: current={cur_min}, reference_min={ref_min}",
+                    }
+                )
         if ref_max is not None:
             cur_max = float(series.max())
             if cur_max > ref_max * 2.0 + abs(ref_max):  # generous upper bound
-                violations.append({
-                    "column": col,
-                    "check": "range_max",
-                    "message": f"Max out of range: current={cur_max}, reference_max={ref_max}",
-                })
+                violations.append(
+                    {
+                        "column": col,
+                        "check": "range_max",
+                        "message": f"Max out of range: current={cur_max}, reference_max={ref_max}",
+                    }
+                )
 
     passed = len(violations) == 0
     summary = (
@@ -263,10 +282,14 @@ def validate_raw_data(
     schema = build_raw_schema(target_col)
     try:
         schema.validate(df, lazy=True)
-        logger.info(f"✅ Raw data validation passed: {len(df)} rows, {len(df.columns)} cols")
+        logger.info(
+            f"✅ Raw data validation passed: {len(df)} rows, {len(df.columns)} cols"
+        )
         return None
     except SchemaErrors as e:
-        logger.error(f"❌ Raw data validation failed: {len(e.failure_cases)} failure(s)")
+        logger.error(
+            f"❌ Raw data validation failed: {len(e.failure_cases)} failure(s)"
+        )
         if raise_on_error:
             raise
         return e
@@ -288,7 +311,9 @@ def validate_processed_data(
         logger.info(f"✅ Processed data validation passed: {len(df)} rows")
         return None
     except SchemaErrors as e:
-        logger.error(f"❌ Processed data validation failed: {len(e.failure_cases)} failure(s)")
+        logger.error(
+            f"❌ Processed data validation failed: {len(e.failure_cases)} failure(s)"
+        )
         if raise_on_error:
             raise
         return e
@@ -308,7 +333,9 @@ def validate_inference_payload(
         logger.info(f"✅ Inference payload validation passed: {len(df)} rows")
         return None
     except SchemaErrors as e:
-        logger.error(f"❌ Inference payload validation failed: {len(e.failure_cases)} failure(s)")
+        logger.error(
+            f"❌ Inference payload validation failed: {len(e.failure_cases)} failure(s)"
+        )
         if raise_on_error:
             raise
         return e

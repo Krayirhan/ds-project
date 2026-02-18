@@ -57,7 +57,9 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
     run_id = run_id or new_run_id()
 
     train_fit_df, cal_df, test_df = _load_splits(paths, cfg)
-    logger.info(f"Split sizes | train_fit={len(train_fit_df)} cal={len(cal_df)} test={len(test_df)}")
+    logger.info(
+        f"Split sizes | train_fit={len(train_fit_df)} cal={len(cal_df)} test={len(test_df)}"
+    )
 
     candidates = train_candidate_models(
         train_fit_df,
@@ -83,15 +85,19 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
     # ── Optional MLflow tracking ───────────────────────────────────
     tracker = ExperimentTracker()
     with tracker.start_run(run_name=f"train_{run_id}"):
-        tracker.log_params({
-            "run_id": run_id,
-            "seed": cfg.seed,
-            "cv_folds": cfg.cv_folds,
-            "test_size": cfg.test_size,
-            "target_col": cfg.target_col,
-            "include_challenger": cfg.model.include_challenger,
-            "git_sha": os.getenv("GITHUB_SHA") or os.getenv("CI_COMMIT_SHA") or "local",
-        })
+        tracker.log_params(
+            {
+                "run_id": run_id,
+                "seed": cfg.seed,
+                "cv_folds": cfg.cv_folds,
+                "test_size": cfg.test_size,
+                "target_col": cfg.target_col,
+                "include_challenger": cfg.model.include_challenger,
+                "git_sha": os.getenv("GITHUB_SHA")
+                or os.getenv("CI_COMMIT_SHA")
+                or "local",
+            }
+        )
 
         for model_name, result in candidates.items():
             model_path = run_model_dir / f"{model_name}.joblib"
@@ -106,10 +112,12 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
             logger.info(f"Saved model -> {model_path}")
 
             # MLflow: log CV metrics per model
-            tracker.log_metrics({
-                f"{model_name}_roc_auc_mean": float(result.cv_scores.mean()),
-                f"{model_name}_roc_auc_std": float(result.cv_scores.std()),
-            })
+            tracker.log_metrics(
+                {
+                    f"{model_name}_roc_auc_mean": float(result.cv_scores.mean()),
+                    f"{model_name}_roc_auc_std": float(result.cv_scores.std()),
+                }
+            )
 
             calibration_report[model_name] = {}
             for method in ("sigmoid", "isotonic"):
@@ -134,7 +142,9 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
                             tracker.log_metric(f"{cal_name}_{mk}", float(mv))
                 except Exception as e:
                     calibration_report[model_name][method] = {"error": str(e)}
-                    logger.exception(f"Calibration failed for {model_name}/{method}: {e}")
+                    logger.exception(
+                        f"Calibration failed for {model_name}/{method}: {e}"
+                    )
 
         json_write(run_metrics_dir / "model_registry.json", model_registry)
         json_write(run_metrics_dir / "model_checksums.json", model_checksums)
@@ -149,11 +159,17 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
             {
                 "run_id": run_id,
                 "train_path": str(train_path),
-                "train_sha256": sha256_file(str(train_path)) if train_path.exists() else None,
+                "train_sha256": (
+                    sha256_file(str(train_path)) if train_path.exists() else None
+                ),
                 "cal_path": str(cal_path_ref),
-                "cal_sha256": sha256_file(str(cal_path_ref)) if cal_path_ref.exists() else None,
+                "cal_sha256": (
+                    sha256_file(str(cal_path_ref)) if cal_path_ref.exists() else None
+                ),
                 "test_path": str(test_path_ref),
-                "test_sha256": sha256_file(str(test_path_ref)) if test_path_ref.exists() else None,
+                "test_sha256": (
+                    sha256_file(str(test_path_ref)) if test_path_ref.exists() else None
+                ),
                 "train_rows": len(train_fit_df),
                 "cal_rows": len(cal_df),
                 "test_rows": len(test_df),
@@ -163,7 +179,11 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
         )
 
         # MLflow: log metric artifacts
-        for artifact_name in ("cv_summary.json", "calibration_metrics.json", "model_registry.json"):
+        for artifact_name in (
+            "cv_summary.json",
+            "calibration_metrics.json",
+            "model_registry.json",
+        ):
             tracker.log_artifact(run_metrics_dir / artifact_name)
 
     first_result = next(iter(candidates.values()))
@@ -177,7 +197,11 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
     json_write(run_feature_spec, feature_spec_payload)
     copy_to_latest(run_feature_spec, paths.reports / "feature_spec.json")
 
-    mark_latest(paths.models, run_id, extra={"model_registry": str(run_metrics_dir / "model_registry.json")})
+    mark_latest(
+        paths.models,
+        run_id,
+        extra={"model_registry": str(run_metrics_dir / "model_registry.json")},
+    )
     mark_latest(paths.reports_metrics, run_id)
 
     logger.info(f"Training completed. run_id={run_id}")

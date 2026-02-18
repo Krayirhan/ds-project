@@ -25,6 +25,7 @@ from .utils import get_logger
 
 logger = get_logger("features")
 
+
 @dataclass(frozen=True)
 class FeatureSpec:
     numeric: List[str]
@@ -48,6 +49,7 @@ class FeatureSpec:
             categorical=list(payload.get("categorical", [])),
         )
 
+
 def infer_feature_spec(df: pd.DataFrame, target_col: str) -> FeatureSpec:
     """
     Otomatik feature type inference.
@@ -62,6 +64,7 @@ def infer_feature_spec(df: pd.DataFrame, target_col: str) -> FeatureSpec:
     logger.info(f"Feature spec | numeric={len(numeric)} categorical={len(categorical)}")
     return FeatureSpec(numeric=numeric, categorical=categorical)
 
+
 def build_preprocessor(spec: FeatureSpec) -> ColumnTransformer:
     """
     Dönüşüm blokları.
@@ -70,15 +73,19 @@ def build_preprocessor(spec: FeatureSpec) -> ColumnTransformer:
     - LogisticRegression gibi lineer modellerde ölçek farkı optimizasyonu zorlar.
     - Scaling ile convergence ve stabilite artar.
     """
-    numeric_pipe = Pipeline(steps=[
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-    ])
+    numeric_pipe = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+        ]
+    )
 
-    categorical_pipe = Pipeline(steps=[
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("onehot", OneHotEncoder(handle_unknown="ignore")),
-    ])
+    categorical_pipe = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("onehot", OneHotEncoder(handle_unknown="ignore")),
+        ]
+    )
 
     preprocessor = ColumnTransformer(
         transformers=[

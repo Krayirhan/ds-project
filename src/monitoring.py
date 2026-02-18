@@ -47,8 +47,16 @@ def psi_categorical(ref: pd.Series, cur: pd.Series) -> float:
     if not cats:
         return 0.0
 
-    ref_counts = ref_s.value_counts(normalize=True).reindex(cats, fill_value=0.0).to_numpy(dtype=float)
-    cur_counts = cur_s.value_counts(normalize=True).reindex(cats, fill_value=0.0).to_numpy(dtype=float)
+    ref_counts = (
+        ref_s.value_counts(normalize=True)
+        .reindex(cats, fill_value=0.0)
+        .to_numpy(dtype=float)
+    )
+    cur_counts = (
+        cur_s.value_counts(normalize=True)
+        .reindex(cats, fill_value=0.0)
+        .to_numpy(dtype=float)
+    )
 
     eps = 1e-9
     ref_counts = np.clip(ref_counts, eps, None)
@@ -58,7 +66,9 @@ def psi_categorical(ref: pd.Series, cur: pd.Series) -> float:
     return float(np.sum((cur_counts - ref_counts) * np.log(cur_counts / ref_counts)))
 
 
-def data_drift_report(df_ref: pd.DataFrame, df_cur: pd.DataFrame, feature_spec: FeatureSpec) -> Dict[str, Any]:
+def data_drift_report(
+    df_ref: pd.DataFrame, df_cur: pd.DataFrame, feature_spec: FeatureSpec
+) -> Dict[str, Any]:
     per_feature: Dict[str, Any] = {}
 
     for c in feature_spec.numeric:
@@ -77,7 +87,9 @@ def data_drift_report(df_ref: pd.DataFrame, df_cur: pd.DataFrame, feature_spec: 
                 "psi": psi_categorical(df_ref[c], df_cur[c]),
             }
 
-    psi_values = [v["psi"] for v in per_feature.values() if isinstance(v.get("psi"), (int, float))]
+    psi_values = [
+        v["psi"] for v in per_feature.values() if isinstance(v.get("psi"), (int, float))
+    ]
     return {
         "n_features_compared": len(per_feature),
         "max_psi": float(max(psi_values)) if psi_values else 0.0,
@@ -86,7 +98,9 @@ def data_drift_report(df_ref: pd.DataFrame, df_cur: pd.DataFrame, feature_spec: 
     }
 
 
-def prediction_drift_report(ref_proba: np.ndarray, cur_proba: np.ndarray) -> Dict[str, Any]:
+def prediction_drift_report(
+    ref_proba: np.ndarray, cur_proba: np.ndarray
+) -> Dict[str, Any]:
     ref = np.asarray(ref_proba, dtype=float)
     cur = np.asarray(cur_proba, dtype=float)
     bins = np.linspace(0.0, 1.0, 11)
@@ -125,9 +139,21 @@ def outcome_monitoring_report(
     if n == 0:
         return {"n_rows": 0}
 
-    proba = pd.to_numeric(actions_df["proba"].iloc[:n], errors="coerce").to_numpy(dtype=float)
-    action = pd.to_numeric(actions_df["action"].iloc[:n], errors="coerce").fillna(0).astype(int).to_numpy()
-    y = pd.to_numeric(outcome_df[actual_col].iloc[:n], errors="coerce").fillna(0).astype(int).to_numpy()
+    proba = pd.to_numeric(actions_df["proba"].iloc[:n], errors="coerce").to_numpy(
+        dtype=float
+    )
+    action = (
+        pd.to_numeric(actions_df["action"].iloc[:n], errors="coerce")
+        .fillna(0)
+        .astype(int)
+        .to_numpy()
+    )
+    y = (
+        pd.to_numeric(outcome_df[actual_col].iloc[:n], errors="coerce")
+        .fillna(0)
+        .astype(int)
+        .to_numpy()
+    )
 
     auc = float(roc_auc_score(y, proba)) if len(np.unique(y)) > 1 else None
     brier = float(brier_score_loss(y, proba))
@@ -172,8 +198,10 @@ def build_alerts(
     thresholds: AlertThresholds,
 ) -> Dict[str, Any]:
     alerts: Dict[str, Any] = {
-        "data_drift": data_drift.get("max_psi", 0.0) >= thresholds.data_drift_psi_threshold,
-        "prediction_drift": prediction_drift.get("psi", 0.0) >= thresholds.prediction_drift_psi_threshold,
+        "data_drift": data_drift.get("max_psi", 0.0)
+        >= thresholds.data_drift_psi_threshold,
+        "prediction_drift": prediction_drift.get("psi", 0.0)
+        >= thresholds.prediction_drift_psi_threshold,
         "profit_drop": False,
         "action_rate_deviation": False,
     }
@@ -184,14 +212,20 @@ def build_alerts(
     if outcome_report and isinstance(expected_profit, (int, float)):
         realized = outcome_report.get("realized_profit")
         if isinstance(realized, (int, float)):
-            drop_ratio = 1.0 - (realized / expected_profit) if expected_profit != 0 else 0.0
-            alerts["profit_drop"] = bool(drop_ratio >= thresholds.profit_drop_ratio_alert)
+            drop_ratio = (
+                1.0 - (realized / expected_profit) if expected_profit != 0 else 0.0
+            )
+            alerts["profit_drop"] = bool(
+                drop_ratio >= thresholds.profit_drop_ratio_alert
+            )
             alerts["profit_drop_ratio"] = float(drop_ratio)
 
     if outcome_report and isinstance(expected_action_rate, (int, float)):
         ar = outcome_report.get("action_rate")
         if isinstance(ar, (int, float)):
-            alerts["action_rate_deviation"] = bool(abs(ar - expected_action_rate) >= thresholds.action_rate_tolerance)
+            alerts["action_rate_deviation"] = bool(
+                abs(ar - expected_action_rate) >= thresholds.action_rate_tolerance
+            )
             alerts["action_rate_delta"] = float(ar - expected_action_rate)
 
     alerts["any_alert"] = bool(any(v for k, v in alerts.items() if isinstance(v, bool)))

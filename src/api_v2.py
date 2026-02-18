@@ -101,7 +101,9 @@ class V2ReloadResponse(BaseModel):
     response_model=V2PredictProbaResponse,
     responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
 )
-def v2_predict_proba(payload: RecordsPayload, request: Request) -> V2PredictProbaResponse:
+def v2_predict_proba(
+    payload: RecordsPayload, request: Request
+) -> V2PredictProbaResponse:
     t0 = time.time()
     try:
         serving = _get_serving_state()
@@ -109,9 +111,11 @@ def v2_predict_proba(payload: RecordsPayload, request: Request) -> V2PredictProb
         if len(payload.records) > max_rows:
             raise ValueError(f"Payload too large. Max records={max_rows}")
         df = pd.DataFrame(payload.records)
-        model_name = str(getattr(serving.policy, 'selected_model', ''))
+        model_name = str(getattr(serving.policy, "selected_model", ""))
         with trace_inference("v2.predict_proba", n_rows=len(df), model_name=model_name):
-            X, schema_report = validate_and_prepare_features(df, serving.feature_spec, fail_on_missing=True)
+            X, schema_report = validate_and_prepare_features(
+                df, serving.feature_spec, fail_on_missing=True
+            )
             proba = serving.model.predict_proba(X)[:, 1]
             set_span_attribute("ml.result_count", int(len(proba)))
             set_span_attribute("ml.api_version", "v2")
@@ -183,7 +187,11 @@ def v2_decide(payload: RecordsPayload, request: Request) -> V2DecideResponse:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router_v2.post("/reload", response_model=V2ReloadResponse, responses={500: {"model": ErrorResponse}})
+@router_v2.post(
+    "/reload",
+    response_model=V2ReloadResponse,
+    responses={500: {"model": ErrorResponse}},
+)
 def v2_reload(request: Request) -> V2ReloadResponse:
     t0 = time.time()
     try:

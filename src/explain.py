@@ -64,11 +64,13 @@ def compute_permutation_importance(
 
     ranking = []
     for i in sorted_idx:
-        ranking.append({
-            "feature": feature_names[i],
-            "importance_mean": float(importances[i]),
-            "importance_std": float(stds[i]),
-        })
+        ranking.append(
+            {
+                "feature": feature_names[i],
+                "importance_mean": float(importances[i]),
+                "importance_std": float(stds[i]),
+            }
+        )
 
     return {
         "method": "permutation_importance",
@@ -91,7 +93,9 @@ def _aggregate_shap_to_original(
     - Numeric: "lead_time" → "lead_time"
     - Categorical: "hotel_Resort Hotel" → "hotel"
     """
-    result: Dict[str, np.ndarray] = {f: np.zeros(shap_values.shape[0]) for f in original_features}
+    result: Dict[str, np.ndarray] = {
+        f: np.zeros(shap_values.shape[0]) for f in original_features
+    }
     # En uzun isimler önce → partial prefix collision önlenir
     sorted_originals = sorted(original_features, key=len, reverse=True)
 
@@ -103,7 +107,9 @@ def _aggregate_shap_to_original(
                 matched = True
                 break
         if not matched:
-            logger.debug(f"SHAP: could not map transformed feature '{tname}' to original")
+            logger.debug(
+                f"SHAP: could not map transformed feature '{tname}' to original"
+            )
 
     return result
 
@@ -136,7 +142,9 @@ def compute_shap_values(
         clf = model.named_steps.get("clf")
 
         if preprocessor is None or clf is None:
-            logger.warning("Model is not a standard Pipeline with preprocess+clf. Skipping SHAP.")
+            logger.warning(
+                "Model is not a standard Pipeline with preprocess+clf. Skipping SHAP."
+            )
             return None
 
         X_sub = X_sample.iloc[:max_samples].copy()
@@ -163,15 +171,21 @@ def compute_shap_values(
                 shap_values = shap_values[1]
 
         original_features = list(X_sub.columns)
-        agg_shap = _aggregate_shap_to_original(shap_values, feature_names, original_features)
+        agg_shap = _aggregate_shap_to_original(
+            shap_values, feature_names, original_features
+        )
 
         ranking = []
-        for feat, values in sorted(agg_shap.items(), key=lambda x: -np.mean(np.abs(x[1]))):
-            ranking.append({
-                "feature": feat,
-                "mean_abs_shap": float(np.mean(np.abs(values))),
-                "mean_shap": float(np.mean(values)),
-            })
+        for feat, values in sorted(
+            agg_shap.items(), key=lambda x: -np.mean(np.abs(x[1]))
+        ):
+            ranking.append(
+                {
+                    "feature": feat,
+                    "mean_abs_shap": float(np.mean(np.abs(values))),
+                    "mean_shap": float(np.mean(values)),
+                }
+            )
 
         return {
             "method": "shap",

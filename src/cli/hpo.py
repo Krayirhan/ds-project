@@ -26,7 +26,9 @@ def cmd_hpo(
 
     dataset_path = paths.data_processed / "dataset.parquet"
     if not dataset_path.exists():
-        raise FileNotFoundError(f"Processed dataset not found: {dataset_path}. Run preprocess first.")
+        raise FileNotFoundError(
+            f"Processed dataset not found: {dataset_path}. Run preprocess first."
+        )
     df = read_parquet(dataset_path)
 
     logger.info(f"Starting HPO | n_trials={n_trials} run_id={run_id}")

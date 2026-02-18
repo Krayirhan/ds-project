@@ -66,7 +66,9 @@ def cmd_rollback_policy(paths: Paths, slot: str = "default") -> None:
     logger.info(f"Rolled back decision policy from backup for slot={slot}")
 
 
-def cmd_retry_webhook_dlq(paths: Paths, webhook_url: Optional[str] = None) -> Dict[str, int]:
+def cmd_retry_webhook_dlq(
+    paths: Paths, webhook_url: Optional[str] = None
+) -> Dict[str, int]:
     dlq_path = paths.reports_monitoring / "dead_letter_webhooks.jsonl"
     url = webhook_url or os.getenv("ALERT_WEBHOOK_URL")
     if not dlq_path.exists():

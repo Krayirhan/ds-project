@@ -46,12 +46,14 @@ def valid_raw_df(valid_raw_row) -> pd.DataFrame:
 
 @pytest.fixture
 def valid_processed_df() -> pd.DataFrame:
-    return pd.DataFrame({
-        "is_canceled": [0, 1, 0, 1, 0],
-        "lead_time": [10, 200, 50, 300, 0],
-        "adr": [80.0, 120.0, 95.0, 200.0, 60.0],
-        "hotel": ["City Hotel"] * 5,
-    })
+    return pd.DataFrame(
+        {
+            "is_canceled": [0, 1, 0, 1, 0],
+            "lead_time": [10, 200, 50, 300, 0],
+            "adr": [80.0, 120.0, 95.0, 200.0, 60.0],
+            "hotel": ["City Hotel"] * 5,
+        }
+    )
 
 
 # ─── Raw Schema Tests ──────────────────────────────────────────────────
@@ -117,11 +119,13 @@ class TestProcessedSchema:
 class TestInferenceSchema:
     def test_valid_payload(self):
         spec = {"numeric": ["lead_time", "adr"], "categorical": ["hotel"]}
-        df = pd.DataFrame({
-            "lead_time": [100],
-            "adr": [95.0],
-            "hotel": ["City Hotel"],
-        })
+        df = pd.DataFrame(
+            {
+                "lead_time": [100],
+                "adr": [95.0],
+                "hotel": ["City Hotel"],
+            }
+        )
         errors = validate_inference_payload(df, spec, raise_on_error=False)
         assert errors is None
 
