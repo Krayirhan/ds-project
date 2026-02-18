@@ -11,7 +11,7 @@ import joblib
 from ..calibration import calibrate_frozen_classifier
 from ..config import ExperimentConfig, Paths
 from ..experiment_tracking import ExperimentTracker
-from ..io import read_parquet
+from ..io import read_parquet, write_parquet
 from ..split import stratified_split
 from ..train import train_candidate_models
 from ..utils import get_logger, sha256_file
@@ -50,6 +50,16 @@ def _load_splits(paths: Paths, cfg: ExperimentConfig):
     train_fit_df, cal_df = stratified_split(
         train_df, cfg.target_col, test_size=0.20, seed=cfg.seed
     )
+
+    # Persist fallback splits so downstream commands (evaluate/predict) can rely
+    # on canonical files in fresh CI workspaces.
+    write_parquet(train_fit_df, train_path)
+    write_parquet(cal_df, cal_path)
+    write_parquet(test_df, test_path)
+    logger.info(
+        f"Persisted fallback splits | train={len(train_fit_df)} cal={len(cal_df)} test={len(test_df)}"
+    )
+
     return train_fit_df, cal_df, test_df
 
 
