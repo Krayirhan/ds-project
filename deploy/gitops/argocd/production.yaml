@@ -1,0 +1,46 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ds-project-production
+  namespace: argocd
+  labels:
+    environment: production
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.slack: ds-deployments
+    notifications.argoproj.io/subscribe.on-sync-failed.slack: ds-deployments
+    notifications.argoproj.io/subscribe.on-health-degraded.pagerduty: ds-critical
+spec:
+  project: ds-project
+
+  source:
+    repoURL: https://github.com/your-org/ds-project.git
+    targetRevision: main
+    path: deploy/helm/ds-project
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ds-project
+
+  syncPolicy:
+    # Production requires manual sync (approve step)
+    automated: null
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

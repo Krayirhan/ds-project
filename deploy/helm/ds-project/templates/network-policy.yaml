@@ -1,0 +1,32 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ds-project.fullname" . }}-restrict
+  namespace: {{ include "ds-project.namespace" . }}
+  labels:
+    {{- include "ds-project.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ds-project.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressNamespaceSelector | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.targetPort }}
+  egress:
+    {{- range .Values.networkPolicy.egressPorts }}
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: {{ .protocol }}
+          port: {{ .port }}
+    {{- end }}
+{{- end }}

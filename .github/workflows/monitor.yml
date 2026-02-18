@@ -1,0 +1,46 @@
+name: monitoring-schedule
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run monitor
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          DS_API_KEY: ${{ secrets.DS_API_KEY }}
+        run: |
+          python main.py monitor
+
+      - name: Evaluate alerts and rollback if needed
+        run: |
+          python - << 'PY'
+          import json
+          from pathlib import Path
+          p = Path("reports/monitoring/latest_monitoring_report.json")
+          if not p.exists():
+              print("No monitoring report found. Skipping rollback check.")
+              raise SystemExit(0)
+          payload = json.loads(p.read_text(encoding="utf-8"))
+          any_alert = bool(payload.get("alerts", {}).get("any_alert", False))
+          print(f"any_alert={any_alert}")
+          if any_alert:
+              raise SystemExit(42)
+          PY
+
+      - name: Rollback policy on alert
+        if: failure()
+        run: |
+          python main.py rollback-policy

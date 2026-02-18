@@ -1,0 +1,90 @@
+{{- if .Values.canary.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ds-project.fullname" . }}-canary
+  namespace: {{ include "ds-project.namespace" . }}
+  labels:
+    {{- include "ds-project.labels" . | nindent 4 }}
+    track: canary
+spec:
+  replicas: {{ .Values.canary.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ds-project.selectorLabels" . | nindent 6 }}
+      track: canary
+  template:
+    metadata:
+      labels:
+        {{- include "ds-project.selectorLabels" . | nindent 8 }}
+        track: canary
+    spec:
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          env:
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- range .Values.secretEnvVars }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: {{ .Values.probes.readiness.port }}
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ds-project.fullname" . }}-canary
+  namespace: {{ include "ds-project.namespace" . }}
+  labels:
+    {{- include "ds-project.labels" . | nindent 4 }}
+    track: canary
+spec:
+  selector:
+    {{- include "ds-project.selectorLabels" . | nindent 4 }}
+    track: canary
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+  type: {{ .Values.service.type }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ds-project.fullname" . }}-canary
+  namespace: {{ include "ds-project.namespace" . }}
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: {{ .Values.canary.weight | quote }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType }}
+            backend:
+              service:
+                name: {{ include "ds-project.fullname" $ }}-canary
+                port:
+                  number: {{ $.Values.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}

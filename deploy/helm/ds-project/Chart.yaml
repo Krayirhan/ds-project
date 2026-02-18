@@ -1,0 +1,14 @@
+apiVersion: v2
+name: ds-project
+description: Hotel cancellation decisioning ML API
+type: application
+version: 0.1.0
+appVersion: "1.1.0"
+maintainers:
+  - name: DS Team
+    email: ds-team@example.com
+keywords:
+  - ml
+  - inference
+  - hotel
+  - cancellation

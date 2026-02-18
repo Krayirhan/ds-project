@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Virtualenv / local tooling
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+
+# Data artifacts
+data/interim/
+data/processed/
+
+# Model / reports artifacts
+models/**
+!models/latest.json
+reports/metrics/
+reports/predictions/
+reports/monitoring/
+
+# OS/editor
+.DS_Store
+Thumbs.db

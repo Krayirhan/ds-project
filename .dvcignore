@@ -1,0 +1,6 @@
+# Ignore transient artifacts not tracked by DVC
+__pycache__/
+.pytest_cache/
+.venv/
+reports/predictions/
+reports/monitoring/

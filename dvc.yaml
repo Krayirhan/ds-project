@@ -1,0 +1,52 @@
+stages:
+  preprocess:
+    cmd: python main.py preprocess
+    deps:
+      - data/raw/hotel_bookings.csv
+      - src/preprocess.py
+      - src/validate.py
+      - src/io.py
+      - main.py
+    outs:
+      - data/processed/dataset.parquet
+    metrics:
+      - reports/metrics/data_lineage_preprocess.json
+
+  split:
+    cmd: python main.py split
+    deps:
+      - data/processed/dataset.parquet
+      - src/split.py
+      - src/cli/split.py
+      - main.py
+    outs:
+      - data/processed/train.parquet
+      - data/processed/cal.parquet
+      - data/processed/test.parquet
+    metrics:
+      - reports/metrics/split_metadata.json
+
+  train:
+    cmd: python main.py train
+    deps:
+      - data/processed/train.parquet
+      - data/processed/cal.parquet
+      - src/train.py
+      - src/features.py
+      - src/calibration.py
+      - main.py
+    outs:
+      - models
+    metrics:
+      - reports/metrics/latest.json
+
+  evaluate:
+    cmd: python main.py evaluate
+    deps:
+      - data/processed/test.parquet
+      - src/evaluate.py
+      - src/cost_matrix.py
+      - src/policy.py
+      - main.py
+    outs:
+      - reports/metrics

@@ -1,0 +1,38 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ds-project-api-rules
+  namespace: ds-project
+spec:
+  groups:
+    - name: ds-project-api
+      rules:
+        - alert: DSProjectHighP95Latency
+          expr: histogram_quantile(0.95, sum(rate(ds_api_request_latency_seconds_bucket[5m])) by (le)) > 0.3
+          for: 15m
+          labels:
+            severity: warning
+            service: ds-project-api
+          annotations:
+            summary: "DS API p95 latency breach"
+            description: "p95 latency above 300ms for 15m"
+
+        - alert: DSProjectHigh5xxRate
+          expr: sum(rate(ds_api_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(ds_api_requests_total[5m])), 0.001) > 0.001
+          for: 10m
+          labels:
+            severity: critical
+            service: ds-project-api
+          annotations:
+            summary: "DS API 5xx rate breach"
+            description: "5xx ratio above 0.1% for 10m"
+
+        - alert: DSProjectInferenceErrorsSpike
+          expr: sum(rate(ds_api_inference_errors_total[5m])) > 0.2
+          for: 10m
+          labels:
+            severity: warning
+            service: ds-project-api
+          annotations:
+            summary: "Inference errors are elevated"
+            description: "Inference error rate above threshold"

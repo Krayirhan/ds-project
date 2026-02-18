@@ -1,0 +1,38 @@
+# -- Staging environment overrides
+
+replicaCount: 1
+
+image:
+  tag: staging
+
+ingress:
+  hosts:
+    - host: ds-project-staging.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ds-project-staging-tls
+      hosts:
+        - ds-project-staging.example.com
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+canary:
+  enabled: false
+
+monitoring:
+  prometheusRule:
+    enabled: false

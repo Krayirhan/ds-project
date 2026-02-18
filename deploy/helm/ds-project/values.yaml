@@ -1,0 +1,122 @@
+# -- Default values for ds-project Helm chart
+# -- Override per environment via values-staging.yaml / values-production.yaml
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/your-org/ds-project
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: ds-project.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ds-project-api-tls
+      hosts:
+        - ds-project.example.com
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1000m"
+    memory: 2Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+terminationGracePeriodSeconds: 40
+
+env:
+  LOG_FORMAT: "json"
+  RATE_LIMIT_BACKEND: "redis"
+
+secretEnvVars:
+  - name: DS_API_KEY
+    secretName: ds-project-secrets
+    secretKey: DS_API_KEY
+  - name: ALERT_WEBHOOK_URL
+    secretName: ds-project-secrets
+    secretKey: ALERT_WEBHOOK_URL
+  - name: REDIS_URL
+    secretName: ds-project-secrets
+    secretKey: REDIS_URL
+
+probes:
+  liveness:
+    path: /health
+    port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readiness:
+    path: /ready
+    port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
+canary:
+  enabled: false
+  replicaCount: 1
+  weight: 10
+
+networkPolicy:
+  enabled: true
+  ingressNamespaceSelector:
+    name: ingress-nginx
+  egressPorts:
+    - protocol: TCP
+      port: 443
+    - protocol: UDP
+      port: 53
+
+monitoring:
+  prometheusRule:
+    enabled: true
+    rules:
+      - alert: DSProjectHighP95Latency
+        expr: >-
+          histogram_quantile(0.95,
+            sum(rate(ds_api_request_latency_seconds_bucket[5m])) by (le)
+          ) > 0.3
+        for: 15m
+        severity: warning
+        summary: "DS API p95 latency breach"
+        description: "p95 latency above 300ms for 15m"
+      - alert: DSProjectHigh5xxRate
+        expr: >-
+          sum(rate(ds_api_requests_total{status=~"5.."}[5m]))
+          / clamp_min(sum(rate(ds_api_requests_total[5m])), 0.001) > 0.001
+        for: 10m
+        severity: critical
+        summary: "DS API 5xx rate breach"
+        description: "5xx ratio above 0.1% for 10m"
+      - alert: DSProjectInferenceErrorsSpike
+        expr: sum(rate(ds_api_inference_errors_total[5m])) > 0.2
+        for: 10m
+        severity: warning
+        summary: "Inference errors are elevated"
+        description: "Inference error rate above threshold"

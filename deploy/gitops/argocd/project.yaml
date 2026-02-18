@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ds-project
+  namespace: argocd
+spec:
+  description: DS Project ML inference platform
+  sourceRepos:
+    - "https://github.com/your-org/ds-project.git"
+  destinations:
+    - namespace: ds-project
+      server: https://kubernetes.default.svc
+    - namespace: ds-project-staging
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

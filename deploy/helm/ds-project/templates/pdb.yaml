@@ -1,0 +1,14 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ds-project.fullname" . }}-pdb
+  namespace: {{ include "ds-project.namespace" . }}
+  labels:
+    {{- include "ds-project.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "ds-project.selectorLabels" . | nindent 6 }}
+{{- end }}

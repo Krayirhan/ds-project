@@ -1,0 +1,120 @@
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# DS Project — Local Development Stack
+# Usage:
+#   docker compose -f docker-compose.dev.yml up --build
+#   docker compose -f docker-compose.dev.yml down -v
+# ---------------------------------------------------------------------------
+
+services:
+  # ---------- ML API ----------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ds-project-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DS_API_KEY=dev-api-key-12345
+      - LOG_FORMAT=json
+      - RATE_LIMIT_BACKEND=redis
+      - REDIS_URL=redis://redis:6379/0
+      - OTEL_ENABLED=true
+      - OTEL_SERVICE_NAME=ds-project-api
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - OTEL_DEPLOYMENT_ENV=development
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    volumes:
+      - ./models:/app/models:ro
+      - ./reports:/app/reports:ro
+      - ./params.yaml:/app/params.yaml:ro
+    networks:
+      - ds-net
+
+  # ---------- Redis (rate-limiter + caching) ----------
+  redis:
+    image: redis:7-alpine
+    container_name: ds-project-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis-data:/data
+    networks:
+      - ds-net
+
+  # ---------- Prometheus ----------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: ds-project-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/dev/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - ds-net
+
+  # ---------- Grafana ----------
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: ds-project-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./deploy/dev/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/ds-project.json:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - jaeger
+    networks:
+      - ds-net
+
+  # ---------- Jaeger (distributed tracing) ----------
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: ds-project-jaeger
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - ds-net
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  ds-net:
+    driver: bridge

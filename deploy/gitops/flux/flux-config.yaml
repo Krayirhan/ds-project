@@ -1,0 +1,65 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: ds-project
+  namespace: flux-system
+spec:
+  interval: 1m
+  url: https://github.com/your-org/ds-project.git
+  ref:
+    branch: main
+  secretRef:
+    name: ds-project-git-auth
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ds-project-staging
+  namespace: ds-project-staging
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: deploy/helm/ds-project
+      sourceRef:
+        kind: GitRepository
+        name: ds-project
+        namespace: flux-system
+  valuesFiles:
+    - deploy/helm/ds-project/values.yaml
+    - deploy/helm/ds-project/values-staging.yaml
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ds-project-production
+  namespace: ds-project
+spec:
+  interval: 5m
+  # Production: requires manual gate via suspend: true until approved
+  suspend: true
+  chart:
+    spec:
+      chart: deploy/helm/ds-project
+      sourceRef:
+        kind: GitRepository
+        name: ds-project
+        namespace: flux-system
+  valuesFiles:
+    - deploy/helm/ds-project/values.yaml
+    - deploy/helm/ds-project/values-production.yaml
+  install:
+    createNamespace: true
+    remediation:
+      retries: 5
+  upgrade:
+    remediation:
+      retries: 5

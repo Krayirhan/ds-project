@@ -1,0 +1,24 @@
+{{- if .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "ds-project.fullname" . }}-rules
+  namespace: {{ include "ds-project.namespace" . }}
+  labels:
+    {{- include "ds-project.labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: {{ include "ds-project.fullname" . }}
+      rules:
+        {{- range .Values.monitoring.prometheusRule.rules }}
+        - alert: {{ .alert }}
+          expr: {{ .expr }}
+          for: {{ .for }}
+          labels:
+            severity: {{ .severity }}
+            service: {{ include "ds-project.fullname" $ }}
+          annotations:
+            summary: {{ .summary | quote }}
+            description: {{ .description | quote }}
+        {{- end }}
+{{- end }}
