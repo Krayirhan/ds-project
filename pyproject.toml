@@ -11,3 +11,11 @@ dependencies = []
 
 [tool.setuptools.packages.find]
 include = ["src", "src.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+src = ["src"]
+target-version = "py310"
