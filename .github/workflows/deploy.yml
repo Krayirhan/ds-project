@@ -60,20 +60,36 @@ jobs:
     needs: build
     if: github.event.inputs.skip_staging != 'true'
     environment: staging
+    outputs:
+      did_deploy: ${{ steps.staging_guard.outputs.enabled }}
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check staging kubeconfig
+        id: staging_guard
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.KUBE_CONFIG_STAGING }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ KUBE_CONFIG_STAGING is empty. Skipping staging deployment steps."
+          fi
+
       - name: Install Helm
+        if: steps.staging_guard.outputs.enabled == 'true'
         uses: azure/setup-helm@v3
         with:
           version: v3.14.0
 
       - name: Configure kubectl
+        if: steps.staging_guard.outputs.enabled == 'true'
         uses: azure/k8s-set-context@v4
         with:
           kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
 
       - name: Deploy to staging namespace
+        if: steps.staging_guard.outputs.enabled == 'true'
         run: |
           helm upgrade --install ds-project-staging ${{ env.HELM_CHART_PATH }} \
             --namespace ds-project-staging \
@@ -85,6 +101,7 @@ jobs:
             --timeout 5m
 
       - name: Wait for rollout
+        if: steps.staging_guard.outputs.enabled == 'true'
         run: |
           kubectl rollout status deployment/ds-project-staging \
             --namespace ds-project-staging \
@@ -94,22 +111,37 @@ jobs:
   smoke-staging:
     runs-on: ubuntu-latest
     needs: deploy-staging
-    if: ${{ needs['deploy-staging'].result == 'success' }}
+    if: needs['deploy-staging'].result == 'success' && needs['deploy-staging'].outputs.did_deploy == 'true'
+    environment: staging
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check staging smoke secrets
+        id: smoke_guard
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.KUBE_CONFIG_STAGING }}" ] && [ -n "${{ secrets.STAGING_API_KEY }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ Staging smoke secrets are missing. Skipping smoke steps."
+          fi
+
       - name: Configure kubectl
+        if: steps.smoke_guard.outputs.enabled == 'true'
         uses: azure/k8s-set-context@v4
         with:
           kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
 
       - name: Port-forward staging API
+        if: steps.smoke_guard.outputs.enabled == 'true'
         run: |
           kubectl port-forward svc/ds-project-staging 8000:80 \
             --namespace ds-project-staging &
           sleep 5
 
       - name: Health check
+        if: steps.smoke_guard.outputs.enabled == 'true'
         run: |
           response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health)
           if [ "$response" != "200" ]; then
@@ -119,6 +151,7 @@ jobs:
           echo "✅ Health check passed"
 
       - name: Readiness check
+        if: steps.smoke_guard.outputs.enabled == 'true'
         run: |
           response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ready)
           if [ "$response" != "200" ]; then
@@ -128,6 +161,7 @@ jobs:
           echo "✅ Readiness check passed"
 
       - name: Metrics endpoint check
+        if: steps.smoke_guard.outputs.enabled == 'true'
         run: |
           response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/metrics)
           if [ "$response" != "200" ]; then
@@ -137,6 +171,7 @@ jobs:
           echo "✅ Metrics endpoint passed"
 
       - name: API v1 decide smoke test
+        if: steps.smoke_guard.outputs.enabled == 'true'
         run: |
           response=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST http://localhost:8000/v1/decide \
@@ -168,17 +203,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check production kubeconfig
+        id: prod_guard
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.KUBE_CONFIG_PRODUCTION }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ KUBE_CONFIG_PRODUCTION is empty. Skipping production deployment steps."
+          fi
+
       - name: Install Helm
+        if: steps.prod_guard.outputs.enabled == 'true'
         uses: azure/setup-helm@v3
         with:
           version: v3.14.0
 
       - name: Configure kubectl
+        if: steps.prod_guard.outputs.enabled == 'true'
         uses: azure/k8s-set-context@v4
         with:
           kubeconfig: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
 
       - name: Deploy to production
+        if: steps.prod_guard.outputs.enabled == 'true'
         run: |
           helm upgrade --install ds-project ${{ env.HELM_CHART_PATH }} \
             --namespace ds-project \
@@ -190,12 +239,14 @@ jobs:
             --timeout 10m
 
       - name: Wait for rollout
+        if: steps.prod_guard.outputs.enabled == 'true'
         run: |
           kubectl rollout status deployment/ds-project \
             --namespace ds-project \
             --timeout=300s
 
       - name: Post-deploy health check
+        if: steps.prod_guard.outputs.enabled == 'true'
         run: |
           sleep 10
           kubectl exec -n ds-project \
@@ -203,11 +254,11 @@ jobs:
             -- python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read())"
 
       - name: Notify deployment success
-        if: success()
+        if: success() && steps.prod_guard.outputs.enabled == 'true'
         run: |
           echo "🚀 Production deployment completed: image=${{ needs.build.outputs.image_tag }}"
 
       - name: Notify deployment failure
-        if: failure()
+        if: failure() && steps.prod_guard.outputs.enabled == 'true'
         run: |
           echo "🔴 Production deployment FAILED: image=${{ needs.build.outputs.image_tag }}"

@@ -9,8 +9,12 @@ import numpy as np
 import pandas as pd
 
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.frozen import FrozenEstimator
 from sklearn.metrics import brier_score_loss, log_loss
+
+try:
+    from sklearn.frozen import FrozenEstimator  # sklearn >= 1.6
+except Exception:  # pragma: no cover - compatibility path for older sklearn
+    FrozenEstimator = None
 
 from .utils import get_logger
 
@@ -92,10 +96,18 @@ def calibrate_frozen_classifier(
     if method not in ("sigmoid", "isotonic"):
         raise ValueError("method must be 'sigmoid' or 'isotonic'")
 
-    calibrator = CalibratedClassifierCV(
-        estimator=FrozenEstimator(fitted_model),
-        method=method,
-    )
+    if FrozenEstimator is not None:
+        calibrator = CalibratedClassifierCV(
+            estimator=FrozenEstimator(fitted_model),
+            method=method,
+        )
+    else:
+        # sklearn < 1.6: FrozenEstimator yok; legacy prefit kalibrasyonunu kullan.
+        calibrator = CalibratedClassifierCV(
+            estimator=fitted_model,
+            method=method,
+            cv="prefit",
+        )
 
     # Burada fit edilen şey "calibration layer"dır.
     calibrator.fit(X_cal, y_cal)
