@@ -35,10 +35,15 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
 
     # ── Katman 0: Veri tazeliği (staleness) ──
     staleness = check_data_staleness(
-        str(raw_path), max_age_days=cfg.validation.max_staleness_days
+        str(raw_path), max_age_days=int(cfg.validation.staleness.threshold)
     )
-    if staleness.is_stale and cfg.validation.block_on_stale_data:
-        raise ValueError(f"Stale data blocked by policy: {staleness.summary}")
+    if staleness.is_stale:
+        if cfg.validation.staleness.severity == "hard_fail":
+            raise ValueError(f"Stale data blocked by policy: {staleness.summary}")
+        elif cfg.validation.staleness.severity == "soft_fail":
+            logger.warning(f"🟡 SOFT_FAIL [staleness]: {staleness.summary}")
+        else:
+            logger.warning(f"⚠️  WARN [staleness]: {staleness.summary}")
 
     # ── Katman 1: Temel kontroller (hızlı fail) ──
     basic_schema_checks(df, cfg.target_col)
@@ -49,12 +54,14 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
     dup_report = detect_duplicates(df)
     anomaly_report = detect_row_anomalies(df)
     dup_ratio = dup_report.n_duplicates / max(len(df), 1)
-    if dup_ratio > cfg.validation.duplicate_ratio_threshold:
-        msg = f"Duplicate ratio {dup_ratio:.2%} > threshold {cfg.validation.duplicate_ratio_threshold:.2%}"
-        if cfg.validation.block_on_duplicate:
+    if dup_ratio > cfg.validation.duplicate.threshold:
+        msg = f"Duplicate ratio {dup_ratio:.2%} > threshold {cfg.validation.duplicate.threshold:.2%}"
+        if cfg.validation.duplicate.severity == "hard_fail":
             raise ValueError(f"Duplicate check blocked by policy: {msg}")
+        elif cfg.validation.duplicate.severity == "soft_fail":
+            logger.warning(f"🟡 SOFT_FAIL [duplicate]: {msg}")
         else:
-            logger.warning(f"⚠️  {msg} (warn-only policy)")
+            logger.warning(f"⚠️  WARN [duplicate]: {msg}")
 
     # ── Katman 1c: Schema parmak izi ──
     schema_fp = get_schema_fingerprint(df, include_stats=True)
@@ -63,7 +70,7 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
     logger.info("Running Pandera raw data schema validation...")
     validate_raw_data(
         df, target_col=cfg.target_col,
-        raise_on_error=cfg.validation.block_on_raw_schema_error,
+        raise_on_error=(cfg.validation.raw_schema.severity == "hard_fail"),
     )
 
     df = preprocess_basic(
@@ -84,7 +91,7 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
         target_col=cfg.target_col,
         numeric_cols=spec.numeric,
         categorical_cols=spec.categorical,
-        raise_on_error=cfg.validation.block_on_processed_schema_error,
+        raise_on_error=(cfg.validation.processed_schema.severity == "hard_fail"),
     )
 
     # ── Katman 3b: ValidationProfile (policy-aware, tek nokta) ──
@@ -98,7 +105,7 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
     )
     if not profile.passed:
         raise ValueError(
-            f"Validation profile FAILED [preprocess]: blocked_by={profile.blocked_by}"
+            f"Validation profile FAILED [preprocess]: hard_failures={profile.hard_failures}"
         )
 
     # ── Katman 4: Referans istatistikleri üret (drift kontrolü için) ──

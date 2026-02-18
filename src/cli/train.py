@@ -97,7 +97,7 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
     validate_processed_data(
         train_fit_df,
         target_col=cfg.target_col,
-        raise_on_error=cfg.validation.block_on_processed_schema_error,
+        raise_on_error=(cfg.validation.processed_schema.severity == "hard_fail"),
     )
     # ── ValidationProfile (policy-aware) ──
     profile = run_validation_profile(
@@ -108,7 +108,7 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
     )
     if not profile.passed:
         raise ValueError(
-            f"Validation profile FAILED [train]: blocked_by={profile.blocked_by}"
+            f"Validation profile FAILED [train]: hard_failures={profile.hard_failures}"
         )
 
     candidates = train_candidate_models(

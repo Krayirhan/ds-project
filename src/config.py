@@ -16,9 +16,10 @@ Bu sayede:
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -109,105 +110,295 @@ class UpliftConfig:
     )
 
 
+# ── Severity sabitleri ────────────────────────────────────────────────
+Severity = Literal["warn", "soft_fail", "hard_fail"]
+"""
+warn      → Sadece WARNING log; pipeline devam eder, sonuç işaretlenmez.
+soft_fail → WARNING log + ValidationProfileReport.soft_failures listesine eklenir;
+            caller kendi politikasına göre devam edip etmemeye karar verir.
+hard_fail → ValueError fırlatır; pipeline durur.
+"""
+
+# ── Per-kolon PSI/JS eşiği (isteğe bağlı override) ───────────────────
+ColumnDriftThreshold = Dict[str, float]
+"""Örn: {"lead_time": 0.15, "adr": 0.20}  — belirtilmeyenler global eşiği alır."""
+
+
+@dataclass(frozen=True)
+class CheckConfig:
+    """
+    Tek bir validasyon kontrolünün tam konfigürasyonu.
+
+    severity   : warn | soft_fail | hard_fail
+    enabled    : False → kontrol tamamen atlanır (feature flag gibi)
+    threshold  : Sayısal eşik (oran, sigma, gün — kontrole göre anlam değişir)
+    """
+    severity: Severity = "warn"
+    enabled: bool = True
+    threshold: float = 0.0    # anlamsız varsayılan; her kontrol kendi default'unu kullanır
+
+
 @dataclass(frozen=True)
 class ValidationPolicy:
     """
-    Pipeline boyunca hangi validasyon ihlallerinin pipeline'ı durduracağını
-    (block) ve hangilerinin yalnızca uyarı (warn) üretip devam edeceğini
+    Pipeline boyunca tüm validasyon kontrollerinin severity'sini ve eşiklerini
     tek noktadan yönetir.
 
-    Tüm eşikler config'ten gelir → kod değişmeden politika güncellenebilir.
+    Severity seviyeleri:
+      warn      → log-only, devam et
+      soft_fail → log + raporla, caller karar verir
+      hard_fail → ValueError, pipeline durur
 
-    Kullanım profilleri:
-    - strict=True  → CI/CD, production deployment gate
-    - strict=False → exploratory run, eski veri yeniden işleme
+    Environment profilleri:
+      ValidationPolicy.for_env("dev")     → relaxed
+      ValidationPolicy.for_env("staging") → moderate
+      ValidationPolicy.for_env("prod")    → strict
+
+    Phase profilleri (her environment içinde phase override'ı mümkün):
+      ValidationPolicy.for_phase("predict") → inference için özelleştirilmiş
     """
-    # ── Blok / warn politikaları ──────────────────────────────────────
-    # True → eşik aşılırsa ValueError fırlatır (pipeline durur)
-    # False → sadece WARNING log üretir
 
-    # Duplicate
-    block_on_duplicate: bool = False          # Warn-only varsayılan
-    duplicate_ratio_threshold: float = 0.02   # %2 üzeri → alarm
+    # ── Duplicate ────────────────────────────────────────────────────
+    duplicate: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=0.02)
+    )
 
-    # Volume anomalisi
-    block_on_volume_anomaly: bool = True       # Ciddi kalite riski → block
-    volume_tolerance_ratio: float = 0.50      # ±%50
+    # ── Volume anomalisi ─────────────────────────────────────────────
+    volume: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="hard_fail", enabled=True, threshold=0.50)
+    )
 
-    # Staleness
-    block_on_stale_data: bool = False          # Warn-only; CI ortamında True yapılabilir
-    max_staleness_days: float = 180.0
+    # ── Data staleness ───────────────────────────────────────────────
+    staleness: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=180.0)
+    )
 
-    # Post-imputation NaN
-    block_on_nan_after_impute: bool = True     # Daima block — impütasyon hatasına tolerans yok
+    # ── Post-imputation NaN ──────────────────────────────────────────
+    nan_after_impute: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="hard_fail", enabled=True, threshold=0.0)
+    )
 
-    # Distribution / drift (eğitim/izleme)
-    block_on_distribution_drift: bool = False  # Monitor: warn-only
-    distribution_tolerance_sigma: float = 3.0  # |Δmean| / ref_std eşiği
+    # ── Raw schema (Pandera) ─────────────────────────────────────────
+    raw_schema: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="hard_fail", enabled=True, threshold=0.0)
+    )
 
-    # PSI drift
-    block_on_psi_drift: bool = False
-    psi_warn_threshold: float = 0.10           # Orta drift
-    psi_block_threshold: float = 0.25          # Şiddetli drift → block
+    # ── Processed schema (Pandera) ───────────────────────────────────
+    processed_schema: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="hard_fail", enabled=True, threshold=0.0)
+    )
 
-    # Label drift
-    block_on_label_drift: bool = False
-    label_drift_tolerance: float = 0.10
+    # ── Distribution drift (mean/sigma) ─────────────────────────────
+    distribution_drift: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=3.0)
+    )
 
-    # Training-serving skew
-    block_on_serving_skew: bool = False
-    serving_skew_tolerance_sigma: float = 2.0
+    # ── PSI drift ───────────────────────────────────────────────────
+    # threshold = global warn eşiği; hard_fail için psi_block_threshold kullanılır
+    psi_drift: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="soft_fail", enabled=True, threshold=0.10)
+    )
+    psi_block_threshold: float = 0.25          # Bu PSI değerini aşan kolon → hard_fail gibi davranır
+    psi_metric: Literal["psi", "js"] = "psi"  # js → Jensen-Shannon divergence (simetrik, 0-1 arası)
+    psi_n_bins: int = 10
+    # Per-kolon override: {"lead_time": 0.15} → o kolon için global yerine bu eşik
+    column_drift_thresholds: ColumnDriftThreshold = field(default_factory=dict)
+    # Kritik kolonlar — bu kolonlarda drift → otomatik hard_fail (column_drift_thresholds'dan bağımsız)
+    critical_columns: List[str] = field(default_factory=list)
 
-    # Raw schema
-    block_on_raw_schema_error: bool = True     # Ham veri kontratı kırılırsa → block
+    # ── Label drift ─────────────────────────────────────────────────
+    label_drift: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="soft_fail", enabled=True, threshold=0.10)
+    )
 
-    # Processed schema
-    block_on_processed_schema_error: bool = True
+    # ── Training-serving skew ────────────────────────────────────────
+    serving_skew: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=2.0)
+    )
 
-    # Inference payload (serving — non-blocking by design)
-    strict_inference_schema: bool = False      # True → fazla/eksik kolon ValueError
-    log_extra_inference_cols: bool = True      # Fazla kolon → her zaman logla
+    # ── Inference payload ────────────────────────────────────────────
+    inference_schema: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=0.0)
+    )
+    strict_inference_schema: bool = False   # True → beklenmeyen kolon → SchemaError
+
+    # ── Correlation drift ────────────────────────────────────────────
+    correlation_drift: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=0.20)
+    )
+
+    # ── Row anomaly ──────────────────────────────────────────────────
+    row_anomaly: CheckConfig = field(
+        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=0.0)
+    )
+
+    # ─────────────────────────────────────────────────────────────────
+    # Environment factory methods
+    # ─────────────────────────────────────────────────────────────────
+    @classmethod
+    def for_env(cls, env: str | None = None) -> "ValidationPolicy":
+        """
+        Environment bazlı hazır profil.
+
+        env parametresi verilmezse DS_ENV ortam değişkenine bakılır.
+        Bilinmeyen env → "dev" profili (güvenli fallback).
+
+        Kullanım:
+            cfg.validation = ValidationPolicy.for_env()           # DS_ENV'e göre
+            cfg.validation = ValidationPolicy.for_env("prod")     # Açık seçim
+        """
+        resolved = (env or os.getenv("DS_ENV", "dev")).lower().strip()
+        if resolved in ("prod", "production"):
+            return cls._prod()
+        elif resolved in ("staging", "stage"):
+            return cls._staging()
+        else:
+            return cls._dev()
 
     @classmethod
-    def strict(cls) -> "ValidationPolicy":
-        """CI / production gate için her şeyi bloke eden profil."""
+    def _dev(cls) -> "ValidationPolicy":
+        """Dev: Her şey warn-only. Hızlı iterasyon öncelikli."""
+        H = CheckConfig
         return cls(
-            block_on_duplicate=True,
-            duplicate_ratio_threshold=0.01,
-            block_on_volume_anomaly=True,
-            block_on_stale_data=True,
-            max_staleness_days=30.0,
-            block_on_nan_after_impute=True,
-            block_on_distribution_drift=True,
-            distribution_tolerance_sigma=2.0,
-            block_on_psi_drift=True,
-            psi_warn_threshold=0.10,
-            psi_block_threshold=0.20,
-            block_on_label_drift=True,
-            label_drift_tolerance=0.05,
-            block_on_serving_skew=True,
-            serving_skew_tolerance_sigma=1.5,
-            block_on_raw_schema_error=True,
-            block_on_processed_schema_error=True,
-            strict_inference_schema=True,
-        )
-
-    @classmethod
-    def relaxed(cls) -> "ValidationPolicy":
-        """Exploratory / backfill için sadece log üreten profil."""
-        return cls(
-            block_on_duplicate=False,
-            block_on_volume_anomaly=False,
-            block_on_stale_data=False,
-            block_on_nan_after_impute=False,
-            block_on_distribution_drift=False,
-            block_on_psi_drift=False,
-            block_on_label_drift=False,
-            block_on_serving_skew=False,
-            block_on_raw_schema_error=False,
-            block_on_processed_schema_error=False,
+            duplicate=H("warn", True, 0.05),
+            volume=H("warn", True, 0.70),
+            staleness=H("warn", True, 365.0),
+            nan_after_impute=H("soft_fail", True, 0.0),
+            raw_schema=H("soft_fail", True, 0.0),
+            processed_schema=H("soft_fail", True, 0.0),
+            distribution_drift=H("warn", True, 4.0),
+            psi_drift=H("warn", True, 0.15),
+            psi_block_threshold=0.30,
+            psi_metric="psi",
+            critical_columns=[],
+            label_drift=H("warn", True, 0.15),
+            serving_skew=H("warn", True, 3.0),
+            inference_schema=H("warn", True, 0.0),
             strict_inference_schema=False,
+            correlation_drift=H("warn", True, 0.30),
+            row_anomaly=H("warn", True, 0.0),
         )
+
+    @classmethod
+    def _staging(cls) -> "ValidationPolicy":
+        """Staging: soft_fail → caller loglar ama pipeline devam eder; kritik → hard_fail."""
+        H = CheckConfig
+        return cls(
+            duplicate=H("soft_fail", True, 0.02),
+            volume=H("hard_fail", True, 0.50),
+            staleness=H("soft_fail", True, 90.0),
+            nan_after_impute=H("hard_fail", True, 0.0),
+            raw_schema=H("hard_fail", True, 0.0),
+            processed_schema=H("hard_fail", True, 0.0),
+            distribution_drift=H("soft_fail", True, 3.0),
+            psi_drift=H("soft_fail", True, 0.10),
+            psi_block_threshold=0.25,
+            psi_metric="psi",
+            critical_columns=["lead_time", "adr", "is_canceled"],
+            label_drift=H("soft_fail", True, 0.08),
+            serving_skew=H("soft_fail", True, 2.0),
+            inference_schema=H("soft_fail", True, 0.0),
+            strict_inference_schema=False,
+            correlation_drift=H("soft_fail", True, 0.20),
+            row_anomaly=H("warn", True, 0.0),
+        )
+
+    @classmethod
+    def _prod(cls) -> "ValidationPolicy":
+        """Prod: Tüm kritik kontroller hard_fail. PSI/JS tabanlı drift izleme."""
+        H = CheckConfig
+        return cls(
+            duplicate=H("hard_fail", True, 0.01),
+            volume=H("hard_fail", True, 0.30),
+            staleness=H("hard_fail", True, 30.0),
+            nan_after_impute=H("hard_fail", True, 0.0),
+            raw_schema=H("hard_fail", True, 0.0),
+            processed_schema=H("hard_fail", True, 0.0),
+            distribution_drift=H("hard_fail", True, 2.0),
+            psi_drift=H("hard_fail", True, 0.10),
+            psi_block_threshold=0.20,
+            psi_metric="js",                               # JS → prod'da daha simetrik
+            psi_n_bins=15,
+            critical_columns=["lead_time", "adr", "adults", "stays_in_week_nights"],
+            column_drift_thresholds={                      # Kritik kolonlara daha sıkı eşik
+                "lead_time": 0.08,
+                "adr": 0.08,
+                "adults": 0.12,
+            },
+            label_drift=H("hard_fail", True, 0.05),
+            serving_skew=H("hard_fail", True, 1.5),
+            inference_schema=H("hard_fail", True, 0.0),
+            strict_inference_schema=True,
+            correlation_drift=H("hard_fail", True, 0.15),
+            row_anomaly=H("soft_fail", True, 0.0),
+        )
+
+    # ── Phase factory methods ─────────────────────────────────────────
+    @classmethod
+    def for_phase(
+        cls,
+        phase: Literal["preprocess", "train", "predict", "monitor"],
+        env: str | None = None,
+    ) -> "ValidationPolicy":
+        """
+        Hem environment hem phase'e göre özelleştirilmiş profil döner.
+
+        Phase farkları:
+          preprocess → raw schema + duplicate + volume kritik
+          train      → processed schema + NaN + distribution kritik
+          predict    → inference payload + serving skew + strict mode
+          monitor    → drift (PSI/JS) + label drift + correlation kritik
+        """
+        base = cls.for_env(env)
+        resolved_env = (env or os.getenv("DS_ENV", "dev")).lower()
+        is_prod = resolved_env in ("prod", "production")
+        H = CheckConfig
+
+        if phase == "preprocess":
+            # Predict ve monitor'de olmayan kontroller burada kritik
+            return cls(
+                **{k: v for k, v in base.__dict__.items()},
+            )
+
+        elif phase == "train":
+            # Inference kontrollerini devre dışı bırak (anlamsız bu aşamada)
+            d = {k: v for k, v in base.__dict__.items()}
+            d["inference_schema"] = H("warn", False, 0.0)   # disabled
+            d["serving_skew"] = H("warn", False, 0.0)       # disabled
+            return cls(**d)
+
+        elif phase == "predict":
+            # Drift ve schema kontrollerini inference odaklı yeniden ağırlıklandır
+            d = {k: v for k, v in base.__dict__.items()}
+            d["raw_schema"] = H("warn", False, 0.0)          # ham veri yok
+            d["processed_schema"] = H("warn", False, 0.0)    # ham veri yok
+            d["duplicate"] = H("warn", False, 0.0)           # inference'ta anlamsız
+            d["staleness"] = H("warn", False, 0.0)           # inference'ta anlamsız
+            # Inference payload → prod'da hard_fail
+            d["inference_schema"] = (
+                H("hard_fail", True, 0.0) if is_prod else H("soft_fail", True, 0.0)
+            )
+            d["strict_inference_schema"] = is_prod
+            return cls(**d)
+
+        elif phase == "monitor":
+            # Drift kontrolleri burada en kritik
+            d = {k: v for k, v in base.__dict__.items()}
+            d["raw_schema"] = H("warn", False, 0.0)
+            d["processed_schema"] = H("warn", False, 0.0)
+            d["nan_after_impute"] = H("warn", False, 0.0)
+            # PSI + label drift → prod'da hard_fail
+            d["psi_drift"] = (
+                H("hard_fail", True, base.psi_drift.threshold) if is_prod
+                else H("soft_fail", True, base.psi_drift.threshold)
+            )
+            d["label_drift"] = (
+                H("hard_fail", True, base.label_drift.threshold) if is_prod
+                else H("soft_fail", True, base.label_drift.threshold)
+            )
+            return cls(**d)
+
+        return base
 
 
 @dataclass(frozen=True)
