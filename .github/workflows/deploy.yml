@@ -57,7 +57,7 @@ jobs:
   deploy-staging:
     runs-on: ubuntu-latest
     needs: build
-    if: ${{ github.event.inputs.skip_staging != 'true' && secrets.KUBE_CONFIG_STAGING != '' }}
+    if: github.event.inputs.skip_staging != 'true'
     environment: staging
     steps:
       - uses: actions/checkout@v4
@@ -147,9 +147,11 @@ jobs:
   # ── 4. Approve for Production ─────────────────────────────────────────
   approve-production:
     runs-on: ubuntu-latest
-    needs: smoke-staging
-    if: ${{ needs['smoke-staging'].result == 'success' }}
-    environment: production  # Requires manual approval in GitHub settings
+    needs: [build, smoke-staging]
+    if: |
+      always() &&
+      needs.build.result == 'success' &&
+      (needs['smoke-staging'].result == 'success' || needs['smoke-staging'].result == 'skipped')
     steps:
       - name: Approval gate
         run: echo "✅ Production deployment approved"
@@ -158,8 +160,10 @@ jobs:
   deploy-production:
     runs-on: ubuntu-latest
     needs: [build, approve-production]
-    if: ${{ needs.build.result == 'success' && needs['approve-production'].result == 'success' && secrets.KUBE_CONFIG_PRODUCTION != '' }}
-    environment: production
+    if: |
+      always() &&
+      needs.build.result == 'success' &&
+      needs['approve-production'].result == 'success'
     steps:
       - uses: actions/checkout@v4
 

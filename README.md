@@ -1,20 +1,80 @@
-# ds_project — Production DS Pipeline
+# ds_project — Üretim Seviyesi Veri Bilimi Pipeline'ı
 
-## Quickstart
+Bu proje, otel rezervasyon iptal tahmini için uçtan uca bir veri bilimi ve MLOps hattı sunar. 
+Amaç; modeli **tekrarlanabilir**, **izlenebilir**, **güvenli** ve **üretime uygun** şekilde geliştirmek, yayınlamak ve işletmektir.
+
+## İçindekiler
+
+- [Proje Özeti](#proje-ozeti)
+- [Temel Yetenekler](#temel-yetenekler)
+- [Teknoloji ve Mimari](#teknoloji-ve-mimari)
+- [Hızlı Başlangıç](#hızlı-başlangıç)
+- [Model Eğitimi ve Tahmin Akışı](#model-eğitimi-ve-tahmin-akışı)
+- [API Servisi](#api-servisi)
+- [İzleme ve Alarm Yönetimi](#izleme-ve-alarm-yönetimi)
+- [Rollout / Rollback](#rollout--rollback)
+- [Test Stratejisi](#test-stratejisi)
+- [Container ve Kubernetes Dağıtımı](#container-ve-kubernetes-dağıtımı)
+- [CI/CD](#cicd)
+- [Performans ve Yük Testleri](#performans-ve-yük-testleri)
+- [Veri Soygeçmişi ve Versiyonlama](#veri-soygeçmişi-ve-versiyonlama)
+- [Operasyonel Dokümantasyon](#operasyonel-dokümantasyon)
+- [Ortam Değişkenleri](#ortam-değişkenleri)
+
+## Proje Özeti
+
+`ds_project`, klasik modelleme adımlarını (ön işleme, eğitim, değerlendirme, tahmin) üretim ihtiyaçlarıyla birleştirir:
+
+- politika tabanlı karar mekanizması,
+- kalibrasyon ve maliyet duyarlı değerlendirme,
+- API üzerinden online inference,
+- gözlemlenebilirlik (health/readiness/metrics),
+- drift ve performans izleme,
+- otomatik rollback senaryoları,
+- konteyner ve Kubernetes dağıtımı.
+
+## Temel Yetenekler
+
+- Uçtan uca ML yaşam döngüsü (preprocess → train → evaluate → predict)
+- API tabanlı skor ve karar servisleme
+- Prometheus metrikleri ve operasyonel health endpoint'leri
+- PSI/KS tabanlı drift analizi
+- AUC, Brier ve realize edilen kârlılık takibi
+- Canary dağıtım ve blue/green politika geçişleri
+- DVC ile pipeline tekrarlanabilirliği ve soygeçmiş takibi
+
+## Teknoloji ve Mimari
+
+- **Dil/Runtime:** Python 3.10+
+- **Paketleme:** [pyproject.toml](pyproject.toml)
+- **Pipeline:** [dvc.yaml](dvc.yaml)
+- **API ve servis kodu:** [src](src)
+- **Dağıtım artefaktları:** [deploy](deploy)
+- **Testler:** [tests](tests)
+- **Raporlar ve metrikler:** [reports](reports)
+
+## Hızlı Başlangıç
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+## Model Eğitimi ve Tahmin Akışı
+
+```bash
 python main.py preprocess
 python main.py train
 python main.py evaluate
 python main.py predict
 ```
 
-## API Serving
+Bu akış sonrası model artefaktları [models](models) altında, metrik ve değerlendirme çıktıları ise [reports](reports) altında üretilir.
 
-Set API key first:
+## API Servisi
+
+Önce gerekli ortam değişkenlerini tanımlayın:
 
 ```bash
 set DS_API_KEY=your-secret-key
@@ -23,41 +83,49 @@ set REDIS_URL=redis://localhost:6379/0
 python main.py serve-api --host 0.0.0.0 --port 8000
 ```
 
-Endpoints:
-- `GET /health` (liveness)
-- `GET /ready` (readiness with model+policy loaded)
-- `GET /metrics` (Prometheus)
-- `POST /predict_proba`
-- `POST /decide`
-- `POST /reload` (reload model+policy without restart)
+### Endpoint'ler
 
-Send header:
+- `GET /health` → liveness
+- `GET /ready` → model ve policy yüklü mü kontrolü
+- `GET /metrics` → Prometheus metrikleri
+- `POST /predict_proba` → olasılık çıktısı
+- `POST /decide` → politika tabanlı karar
+- `POST /reload` → servis yeniden başlatmadan model/policy yenileme
+
+İsteklerde header:
+
 - `x-api-key: <DS_API_KEY>`
 
-Rate limit backends:
-- `memory` (single pod/dev)
-- `redis` (distributed, multi-replica production)
+Rate limit backend seçenekleri:
 
-## Monitoring
+- `memory` → tek pod / geliştirme ortamı
+- `redis` → dağıtık ve çok replika üretim ortamı
+
+## İzleme ve Alarm Yönetimi
+
+İzleme işini çalıştırmak için:
 
 ```bash
 python main.py monitor
 ```
 
-Outputs:
+Çıktılar:
+
 - `reports/monitoring/<run_id>/monitoring_report.json`
 - `reports/monitoring/latest_monitoring_report.json`
 
-Supports:
-- data drift (PSI)
-- prediction drift (PSI + KS)
-- outcome monitoring (AUC, Brier, realized profit)
-- alert flags
+Kapsanan kontroller:
 
-Webhook alerts:
-- set `ALERT_WEBHOOK_URL`
+- veri drift (PSI)
+- tahmin drift (PSI + KS)
+- outcome metrikleri (AUC, Brier, realized profit)
+- alarm bayrakları
 
-Dead-letter queue retry:
+Webhook alarmı için:
+
+- `ALERT_WEBHOOK_URL` değişkenini tanımlayın.
+
+Dead-letter queue yeniden deneme:
 
 ```bash
 python main.py retry-webhook-dlq --url https://example.com/webhook
@@ -65,60 +133,66 @@ python main.py retry-webhook-dlq --url https://example.com/webhook
 
 ## Rollout / Rollback
 
-Promote a run policy:
+Belirli bir run policy'sini promote etmek:
 
 ```bash
 python main.py promote-policy --run-id 20260217_220731
 ```
 
-Blue/green slot promotion:
+Blue/green slot bazlı promote:
 
 ```bash
 python main.py promote-policy --run-id 20260217_220731 --slot blue
 python main.py promote-policy --run-id 20260217_220731 --slot green
 ```
 
-Rollback to previous policy:
+Önceki policy'e rollback:
 
 ```bash
 python main.py rollback-policy
 ```
 
-Slot rollback:
+Slot bazlı rollback:
 
 ```bash
 python main.py rollback-policy --slot blue
 ```
 
-## Tests
+## Test Stratejisi
 
 ```bash
 pytest
 ```
 
-Includes:
-- policy unit tests
-- schema validation tests
-- end-to-end smoke test
+Test kapsamı:
 
-## Container
+- policy birim testleri
+- şema doğrulama testleri
+- uçtan uca smoke testler
+
+## Container ve Kubernetes Dağıtımı
+
+### Docker
 
 ```bash
 docker build -t ds-project:latest .
 docker run -e DS_API_KEY=your-secret-key -p 8000:8000 ds-project:latest
 ```
 
-## Kubernetes
+### Kubernetes
 
-Manifests under [deploy/k8s](deploy/k8s):
+Manifestler: [deploy/k8s](deploy/k8s)
+
+İçerik:
+
 - namespace, deployment, service
 - HPA
 - network policy
 - PDB
-- secret example
-- canary deployment and canary ingress
+- secret örneği
+- canary deployment ve canary ingress
 
-Apply:
+Örnek uygulama sırası:
 
 ```bash
 kubectl apply -f deploy/k8s/namespace.yaml
@@ -132,68 +206,54 @@ kubectl apply -f deploy/k8s/canary-deployment.yaml
 kubectl apply -f deploy/k8s/canary-ingress.yaml
 ```
 
-Canary traffic split:
-- `deploy/k8s/canary-ingress.yaml` uses NGINX canary annotations
-- default weight is 10%
+Canary trafik bölüşümü [deploy/k8s/canary-ingress.yaml](deploy/k8s/canary-ingress.yaml) içindeki NGINX annotation'ları ile yönetilir (varsayılan ağırlık: %10).
 
 ## CI/CD
 
-GitHub Actions workflows:
-- `.github/workflows/ci.yml`
-- `.github/workflows/monitor.yml`
-- `.github/workflows/security.yml`
+Başlıca workflow dosyaları:
 
-`monitor.yml` includes automatic policy rollback if monitoring reports `any_alert=true`.
+- [.github/workflows/ci.yml](.github/workflows/ci.yml)
+- [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
+- [.github/workflows/monitor.yml](.github/workflows/monitor.yml)
+- [.github/workflows/security.yml](.github/workflows/security.yml)
 
-## Load / Performance Tests
+Not: [monitor.yml](.github/workflows/monitor.yml), izleme raporunda `any_alert=true` olduğunda otomatik policy rollback akışını tetikler.
 
-Locust:
+## Performans ve Yük Testleri
+
+### Locust
 
 ```bash
 locust -f perf/locustfile.py --host http://127.0.0.1:8000
 ```
 
-k6:
+### k6
 
 ```bash
 k6 run perf/k6_smoke.js
 ```
 
-SLO checks are encoded in k6 thresholds (`p95 < 300ms`, `p99 < 800ms`).
+SLO kontrolleri k6 threshold'larında tanımlıdır (ör. `p95 < 300ms`, `p99 < 800ms`).
 
-## Data Lineage / Versioning
+## Veri Soygeçmişi ve Versiyonlama
 
-- DVC pipeline definition: [dvc.yaml](dvc.yaml)
-- Experiment parameters: [params.yaml](params.yaml)
-- Preprocess lineage artifact: `reports/metrics/data_lineage_preprocess.json`
-- Train lineage artifact: `reports/metrics/<run_id>/data_lineage.json`
+- Pipeline tanımı: [dvc.yaml](dvc.yaml)
+- Parametreler: [params.yaml](params.yaml)
+- Preprocess lineage artefaktı: `reports/metrics/data_lineage_preprocess.json`
+- Train lineage artefaktı: `reports/metrics/<run_id>/data_lineage.json`
 
-Use:
+Pipeline'ı yeniden üretmek için:
 
 ```bash
 dvc repro
 ```
 
-## Runtime Dashboard & Alert Routing
+## Operasyonel Dokümantasyon
 
-- Prometheus rules: `deploy/monitoring/prometheus-rule.yaml`
-- Alertmanager routing (Slack + PagerDuty): `deploy/monitoring/alertmanager-config.yaml`
-- Grafana dashboard JSON: `deploy/monitoring/grafana-dashboard.json`
+- Mimari: [docs/architecture.md](docs/architecture.md)
+- Runbook: [docs/runbook.md](docs/runbook.md)
+- SLO: [docs/slo.md](docs/slo.md)
 
-## Contracts and Integrity
+## Ortam Değişkenleri
 
-- Policy includes `policy_version` and `feature_schema_version`
-- Serving verifies model SHA256 checksum against policy
-- Predict/API fail-fast on contract mismatch
-
-## Runbook
-
-See [docs/runbook.md](docs/runbook.md).
-
-## SLO
-
-See [docs/slo.md](docs/slo.md).
-
-## Environment Variables
-
-See [.env.example](.env.example).
+Detaylı değişken listesi için [\.env.example](.env.example) dosyasını kullanın.
