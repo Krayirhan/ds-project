@@ -16,6 +16,7 @@ from ..data_validation import (
     validate_row_counts,
     generate_reference_categories,
     generate_reference_correlations,
+    run_validation_profile,
 )
 from ..experiment_tracking import ExperimentTracker
 from ..io import read_parquet, write_parquet
@@ -94,8 +95,21 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
     # ── Eğitim verisi şema doğrulaması ──
     logger.info("Validating training data schema before model fitting...")
     validate_processed_data(
-        train_fit_df, target_col=cfg.target_col, raise_on_error=True
+        train_fit_df,
+        target_col=cfg.target_col,
+        raise_on_error=cfg.validation.block_on_processed_schema_error,
     )
+    # ── ValidationProfile (policy-aware) ──
+    profile = run_validation_profile(
+        train_fit_df,
+        target_col=cfg.target_col,
+        policy=cfg.validation,
+        phase="train",
+    )
+    if not profile.passed:
+        raise ValueError(
+            f"Validation profile FAILED [train]: blocked_by={profile.blocked_by}"
+        )
 
     candidates = train_candidate_models(
         train_fit_df,

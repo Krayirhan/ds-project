@@ -44,10 +44,11 @@ def validate_and_prepare_features(
     df_input: pd.DataFrame,
     feature_spec_payload: Dict[str, Any],
     fail_on_missing: bool = True,
+    strict_schema: bool = False,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
-    # ── Pandera inference şema doğrulaması ──
+    # ── Pandera inference şema doğrulaması (strict modu policy'den gelir) ──
     pandera_errors = validate_inference_payload(
-        df_input, feature_spec_payload, raise_on_error=False
+        df_input, feature_spec_payload, raise_on_error=strict_schema, strict=strict_schema
     )
     if pandera_errors is not None:
         logger.warning(

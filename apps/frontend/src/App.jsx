@@ -783,159 +783,72 @@ export default function App() {
 
             {/* === Adım 1: Doğrulama === */}
             <section className="card">
-              <div className="small">1️⃣ Veri Doğrulama — 4 Katmanlı Savunma (Data Validation)</div>
+              <div className="small">1️⃣ Veri Doğrulama — 5 Katmanlı Savunma (Data Validation)</div>
               <div className="explain">
-                Pipeline boyunca 4 ayrı doğrulama katmanı sırayla devreye girer.
+                Ham veriden inference'a kadar 5 ayrı noktada doğrulama devreye girer.
                 Her katman farklı bir aşamada veri kalitesini güvence altına alır.
               </div>
 
-              {/* Katman 1: Temel */}
-              <div className="small" style={{marginTop:12,color:'#b8860b',borderBottom:'1px solid #ccc',paddingBottom:4}}>
-                Katman 1 — Temel Şema Kontrolleri <span style={{fontSize:11,color:'#666'}}>(validate.py → preprocess CLI)</span>
-              </div>
               <div className="tableWrap">
                 <table>
-                  <thead><tr><th>Kontrol</th><th>Açıklama</th><th>Koşul</th><th>Durum</th></tr></thead>
+                  <thead>
+                    <tr>
+                      <th style={{width:28}}>#</th>
+                      <th>Katman</th>
+                      <th>Ne Zaman?</th>
+                      <th>Kaynak</th>
+                      <th>Kontroller</th>
+                      <th>Durum</th>
+                    </tr>
+                  </thead>
                   <tbody>
-                    <tr><td>Veri boş mu?</td><td>Veri setinin en az 1 satır içermesi gerekir</td><td>len(df) &gt; 0</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Hedef sütun var mı?</td><td><code>is_canceled</code> sütununun varlık kontrolü</td><td>Sütun mevcut olmalı</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Yinelenen sütun</td><td>Aynı isimde birden fazla sütun olmamalı</td><td>Benzersiz sütun adları</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Hedef etiketler</td><td>Hedef değerler yalnızca izin verilen kümeden olmalı</td><td>∈ {'{"yes", "no"}'}</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Null raporu</td><td>Her sütunun null oranı loglanır</td><td>Bilgilendirme amaçlı</td><td style={{color:'green'}}>✅ Aktif</td></tr>
+                    <tr>
+                      <td style={{textAlign:'center',fontWeight:'bold',color:'#b8860b'}}>1</td>
+                      <td><strong>Temel Şema</strong></td>
+                      <td>Önişleme başında</td>
+                      <td><code>validate.py</code></td>
+                      <td>Boş veri · Hedef sütun varlığı · Yinelenen sütun · Etiket kümesi · Null oranı raporu</td>
+                      <td style={{color:'green',whiteSpace:'nowrap'}}>✅ Aktif</td>
+                    </tr>
+                    <tr>
+                      <td style={{textAlign:'center',fontWeight:'bold',color:'#0055aa'}}>2</td>
+                      <td><strong>Pandera Ham Veri</strong></td>
+                      <td>Önişleme başında</td>
+                      <td><code>data_validation.py</code></td>
+                      <td>17 sütun için tip kontrolü · Sayısal aralık (lead_time ≥ 0, adr ≥ -10 …) · Kategori kümesi (hotel, meal …) · is_canceled ∈ {'{yes,no}'}​</td>
+                      <td style={{color:'green',whiteSpace:'nowrap'}}>✅ Aktif</td>
+                    </tr>
+                    <tr>
+                      <td style={{textAlign:'center',fontWeight:'bold',color:'#880088'}}>3</td>
+                      <td><strong>İşlenmiş Veri</strong></td>
+                      <td>Önişleme + eğitim öncesi</td>
+                      <td><code>data_validation.py</code></td>
+                      <td>Hedef 0/1 tamsayı · Sayısal sütunlarda NaN/Inf yok · İmpütasyon sonrası NaN → ValueError</td>
+                      <td style={{color:'green',whiteSpace:'nowrap'}}>✅ Aktif</td>
+                    </tr>
+                    <tr>
+                      <td style={{textAlign:'center',fontWeight:'bold',color:'#cc3300'}}>4</td>
+                      <td><strong>Inference Payload</strong></td>
+                      <td>Her API isteğinde</td>
+                      <td><code>predict.py</code></td>
+                      <td>Eksik / fazla sütun tespiti · Sayısal tip zorlaması · Kategorik → string · Pandera şema (non-blocking, uyarı loglar) · Drift kontrolü</td>
+                      <td style={{color:'green',whiteSpace:'nowrap'}}>✅ Aktif</td>
+                    </tr>
+                    <tr>
+                      <td style={{textAlign:'center',fontWeight:'bold',color:'#006644'}}>5</td>
+                      <td><strong>Dağılım İzleme</strong></td>
+                      <td>Monitor CLI / canlı izleme</td>
+                      <td><code>data_validation.py</code></td>
+                      <td>Referans ortalama/std/min/max (reference_stats.json) · |Δmean|/std &gt; eşik → uyarı · Aralık dışı değer · Referans kategori seti · Unseen category tespiti</td>
+                      <td style={{color:'green',whiteSpace:'nowrap'}}>✅ Aktif</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
 
-              {/* Katman 2: Pandera Ham Veri */}
-              <div className="small" style={{marginTop:16,color:'#0055aa',borderBottom:'1px solid #ccc',paddingBottom:4}}>
-                Katman 2 — Pandera Ham Veri Şeması <span style={{fontSize:11,color:'#666'}}>(data_validation.py → preprocess CLI)</span>
-              </div>
-              <div className="explain" style={{fontSize:12}}>17 sütun için tip, aralık ve kategori doğrulaması yapılır. Hata varsa uyarı loglanır.</div>
-              <div className="tableWrap">
-                <table>
-                  <thead><tr><th>Sütun</th><th>Tip</th><th>Kural</th><th>Durum</th></tr></thead>
-                  <tbody>
-                    <tr><td>hotel</td><td>str</td><td>∈ {'{"Resort Hotel", "City Hotel"}'}</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>lead_time</td><td>int</td><td>≥ 0, ≤ 800</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>arrival_date_year</td><td>int</td><td>≥ 2015, ≤ 2030</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>arrival_date_month</td><td>str</td><td>12 ay isminden biri</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>stays_in_weekend_nights</td><td>int</td><td>≥ 0</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>stays_in_week_nights</td><td>int</td><td>≥ 0</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>adults</td><td>int</td><td>≥ 0</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>children</td><td>float (nullable)</td><td>≥ 0</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>babies</td><td>int</td><td>≥ 0</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>meal</td><td>str</td><td>∈ {'{"BB","HB","SC","Undefined","FB"}'}</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>market_segment</td><td>str</td><td>Nullable, dizi</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>is_repeated_guest</td><td>int</td><td>∈ {'{"0, 1"}'}</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>previous_cancellations</td><td>int</td><td>≥ 0</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>booking_changes</td><td>int</td><td>≥ 0</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>adr</td><td>float</td><td>≥ -10 (negatif düzeltme payı)</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>total_of_special_requests</td><td>int</td><td>≥ 0</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>is_canceled</td><td>str</td><td>∈ {'{"yes","no"}'}</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Katman 3: Pandera İşlenmiş Veri */}
-              <div className="small" style={{marginTop:16,color:'#880088',borderBottom:'1px solid #ccc',paddingBottom:4}}>
-                Katman 3 — İşlenmiş Veri Doğrulaması <span style={{fontSize:11,color:'#666'}}>(data_validation.py → preprocess + train CLI)</span>
-              </div>
-              <div className="explain" style={{fontSize:12}}>
-                Önişleme ve eğitim öncesinde hedef değişken ve sayısal sütunlar kontrol edilir.
-              </div>
-              <div className="tableWrap">
-                <table>
-                  <thead><tr><th>Kontrol</th><th>Açıklama</th><th>Koşul</th><th>Durum</th></tr></thead>
-                  <tbody>
-                    <tr><td>Hedef kodlaması</td><td>is_canceled sayısala dönüştürülmüş mü?</td><td>Yalnızca 0 veya 1</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>NaN/Inf kontrolü</td><td>Sayısal sütunlarda sonsuz/boş değer var mı?</td><td>Tüm değerler sonlu</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Katman 4: Inference */}
-              <div className="small" style={{marginTop:16,color:'#cc3300',borderBottom:'1px solid #ccc',paddingBottom:4}}>
-                Katman 4 — Çıkarım (Inference) Doğrulaması <span style={{fontSize:11,color:'#666'}}>(data_validation.py → predict.py)</span>
-              </div>
-              <div className="explain" style={{fontSize:12}}>
-                API'ye gelen tahmin istekleri Pandera şemasından geçirilir (non-blocking — uyarı loglar, bloklamaz).
-              </div>
-              <div className="tableWrap">
-                <table>
-                  <thead><tr><th>Kontrol</th><th>Açıklama</th><th>Koşul</th><th>Durum</th></tr></thead>
-                  <tbody>
-                    <tr><td>Feature spec eşleşmesi</td><td>Gelen özellikler feature_spec.json ile uyumlu mu?</td><td>Beklenen sütunlar mevcut</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Sayısal tip</td><td>Sayısal özellikler gerçekten sayısal mı?</td><td>Tip dönüştürme kontrolü</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>pandera_schema_passed</td><td>Doğrulama sonucu tahmin raporuna eklenir</td><td>Boolean bayrak</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Katman 5: Dağılım İzleme */}
-              <div className="small" style={{marginTop:16,color:'#006644',borderBottom:'1px solid #ccc',paddingBottom:4}}>
-                Katman 5 — Dağılım Kayması İzleme <span style={{fontSize:11,color:'#666'}}>(data_validation.py → monitor CLI)</span>
-              </div>
-              <div className="explain" style={{fontSize:12}}>
-                Eğitim sırasında üretilen referans istatistiklerle güncel veriyi karşılaştırır.
-                Ortalama kayması veya aralık dışı değerler tespit edilirse uyarı loglanır.
-              </div>
-              <div className="tableWrap">
-                <table>
-                  <thead><tr><th>Kontrol</th><th>Açıklama</th><th>Koşul</th><th>Durum</th></tr></thead>
-                  <tbody>
-                    <tr><td>Referans istatistikler</td><td>Eğitim verisinden üretilen ortalama, min, max, std</td><td>reference_stats.json mevcut</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Ortalama kayması</td><td>Mevcut ortalama, referansa göre &gt;50% kaydı mı?</td><td>|Δmean| / ref_std &lt; eşik</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Aralık dışı değer</td><td>Min/max referans aralığını aşıyor mu?</td><td>ref_min ≤ val ≤ ref_max</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Kontrol Durumu Tablosu */}
-              <div className="small" style={{marginTop:20,color:'#333',borderBottom:'1px solid #ccc',paddingBottom:4}}>
-                🔍 Inference Doğrulama Kontrolleri (predict.py)
-              </div>
-              <div className="tableWrap">
-                <table>
-                  <thead><tr><th>Kontrol</th><th>Durum</th></tr></thead>
-                  <tbody>
-                    <tr><td>Eksik sütun kontrolü (feature_spec'e göre)</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Fazla sütun tespiti + loglama</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Sayısal sütunlara pd.to_numeric zorlaması</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Kategorik sütunları string'e çevirme</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Pandera schema doğrulaması</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Dağılım/drift kontrolü</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Özet Karşılaştırma Tablosu */}
-              <div className="small" style={{marginTop:20,color:'#333',borderBottom:'1px solid #ccc',paddingBottom:4}}>
-                📊 Özet Tablo — Pipeline Doğrulama Katmanları
-              </div>
-              <div className="tableWrap">
-                <table>
-                  <thead><tr><th>Katman</th><th>Olması Gereken</th><th>Yazılmış</th><th>Aktif</th></tr></thead>
-                  <tbody>
-                    <tr><td>Ham veri şema kontrolü</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅ (2 versiyon)</td><td style={{color:'green'}}>✅ Her ikisi de aktif</td></tr>
-                    <tr><td>İşlenmiş veri kontrolü</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Inference payload kontrolü</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅ (2 versiyon)</td><td style={{color:'green'}}>✅ Her ikisi de aktif</td></tr>
-                    <tr><td>Dağılım drift kontrolü</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Referans istatistik üretimi</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Önişleme sonrası doğrulama</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅ Aktif</td></tr>
-                    <tr><td>Veri sızıntısı kontrolü</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅</td><td style={{color:'green'}}>✅ Aktif (leakage_cols)</td></tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Toplam Özet */}
-              <div style={{marginTop:16,padding:'10px 14px',background:'#f0fff0',border:'1px solid #8fbc8f',fontSize:13}}>
-                <strong>📊 Toplam:</strong> 5 katman, <strong>30+ aktif doğrulama kuralı</strong> — tüm pipeline boyunca (ham veri → önişleme → eğitim → çıkarım → izleme).
-                <br/>
-                <span style={{fontSize:11,color:'#555'}}>
-                  Kaynak: validate.py (Katman 1) + data_validation.py / Pandera (Katman 2–5)
-                </span>
-                <br/>
-                <span style={{fontSize:12,color:'green',fontWeight:'bold'}}>✅ 7/7 katman aktif — tüm doğrulama altyapısı tam kapasite çalışıyor.</span>
+              <div style={{marginTop:14,padding:'9px 14px',background:'#f0fff0',border:'1px solid #8fbc8f',fontSize:12,lineHeight:1.6}}>
+                <strong>Toplam:</strong> 5 katman · <strong>30+ kural</strong> · Ham veri → Önişleme → Eğitim → Inference → İzleme
+                <span style={{marginLeft:16,color:'green',fontWeight:'bold'}}>✅ 5/5 katman aktif</span>
               </div>
             </section>
 

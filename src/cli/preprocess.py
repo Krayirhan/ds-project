@@ -17,6 +17,7 @@ from ..data_validation import (
     get_schema_fingerprint,
     generate_reference_categories,
     generate_reference_correlations,
+    run_validation_profile,
 )
 from ..features import infer_feature_spec
 from ..io import read_csv, write_parquet
@@ -33,7 +34,11 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
     df = read_csv(raw_path)
 
     # ── Katman 0: Veri tazeliği (staleness) ──
-    staleness = check_data_staleness(str(raw_path), max_age_days=180)
+    staleness = check_data_staleness(
+        str(raw_path), max_age_days=cfg.validation.max_staleness_days
+    )
+    if staleness.is_stale and cfg.validation.block_on_stale_data:
+        raise ValueError(f"Stale data blocked by policy: {staleness.summary}")
 
     # ── Katman 1: Temel kontroller (hızlı fail) ──
     basic_schema_checks(df, cfg.target_col)
@@ -43,13 +48,23 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
     # ── Katman 1b: Duplicate & row anomaly tespiti ──
     dup_report = detect_duplicates(df)
     anomaly_report = detect_row_anomalies(df)
+    dup_ratio = dup_report.n_duplicates / max(len(df), 1)
+    if dup_ratio > cfg.validation.duplicate_ratio_threshold:
+        msg = f"Duplicate ratio {dup_ratio:.2%} > threshold {cfg.validation.duplicate_ratio_threshold:.2%}"
+        if cfg.validation.block_on_duplicate:
+            raise ValueError(f"Duplicate check blocked by policy: {msg}")
+        else:
+            logger.warning(f"⚠️  {msg} (warn-only policy)")
 
     # ── Katman 1c: Schema parmak izi ──
     schema_fp = get_schema_fingerprint(df, include_stats=True)
 
     # ── Katman 2: Pandera şema doğrulaması (tip, aralık, nullable) ──
     logger.info("Running Pandera raw data schema validation...")
-    validate_raw_data(df, target_col=cfg.target_col, raise_on_error=True)
+    validate_raw_data(
+        df, target_col=cfg.target_col,
+        raise_on_error=cfg.validation.block_on_raw_schema_error,
+    )
 
     df = preprocess_basic(
         df=df,
@@ -69,8 +84,22 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
         target_col=cfg.target_col,
         numeric_cols=spec.numeric,
         categorical_cols=spec.categorical,
-        raise_on_error=True,
+        raise_on_error=cfg.validation.block_on_processed_schema_error,
     )
+
+    # ── Katman 3b: ValidationProfile (policy-aware, tek nokta) ──
+    profile = run_validation_profile(
+        df,
+        target_col=cfg.target_col,
+        numeric_cols=spec.numeric,
+        categorical_cols=spec.categorical,
+        policy=cfg.validation,
+        phase="preprocess",
+    )
+    if not profile.passed:
+        raise ValueError(
+            f"Validation profile FAILED [preprocess]: blocked_by={profile.blocked_by}"
+        )
 
     # ── Katman 4: Referans istatistikleri üret (drift kontrolü için) ──
     ref_stats = generate_reference_stats(df, numeric_cols=spec.numeric)

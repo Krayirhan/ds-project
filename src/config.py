@@ -110,6 +110,107 @@ class UpliftConfig:
 
 
 @dataclass(frozen=True)
+class ValidationPolicy:
+    """
+    Pipeline boyunca hangi validasyon ihlallerinin pipeline'ı durduracağını
+    (block) ve hangilerinin yalnızca uyarı (warn) üretip devam edeceğini
+    tek noktadan yönetir.
+
+    Tüm eşikler config'ten gelir → kod değişmeden politika güncellenebilir.
+
+    Kullanım profilleri:
+    - strict=True  → CI/CD, production deployment gate
+    - strict=False → exploratory run, eski veri yeniden işleme
+    """
+    # ── Blok / warn politikaları ──────────────────────────────────────
+    # True → eşik aşılırsa ValueError fırlatır (pipeline durur)
+    # False → sadece WARNING log üretir
+
+    # Duplicate
+    block_on_duplicate: bool = False          # Warn-only varsayılan
+    duplicate_ratio_threshold: float = 0.02   # %2 üzeri → alarm
+
+    # Volume anomalisi
+    block_on_volume_anomaly: bool = True       # Ciddi kalite riski → block
+    volume_tolerance_ratio: float = 0.50      # ±%50
+
+    # Staleness
+    block_on_stale_data: bool = False          # Warn-only; CI ortamında True yapılabilir
+    max_staleness_days: float = 180.0
+
+    # Post-imputation NaN
+    block_on_nan_after_impute: bool = True     # Daima block — impütasyon hatasına tolerans yok
+
+    # Distribution / drift (eğitim/izleme)
+    block_on_distribution_drift: bool = False  # Monitor: warn-only
+    distribution_tolerance_sigma: float = 3.0  # |Δmean| / ref_std eşiği
+
+    # PSI drift
+    block_on_psi_drift: bool = False
+    psi_warn_threshold: float = 0.10           # Orta drift
+    psi_block_threshold: float = 0.25          # Şiddetli drift → block
+
+    # Label drift
+    block_on_label_drift: bool = False
+    label_drift_tolerance: float = 0.10
+
+    # Training-serving skew
+    block_on_serving_skew: bool = False
+    serving_skew_tolerance_sigma: float = 2.0
+
+    # Raw schema
+    block_on_raw_schema_error: bool = True     # Ham veri kontratı kırılırsa → block
+
+    # Processed schema
+    block_on_processed_schema_error: bool = True
+
+    # Inference payload (serving — non-blocking by design)
+    strict_inference_schema: bool = False      # True → fazla/eksik kolon ValueError
+    log_extra_inference_cols: bool = True      # Fazla kolon → her zaman logla
+
+    @classmethod
+    def strict(cls) -> "ValidationPolicy":
+        """CI / production gate için her şeyi bloke eden profil."""
+        return cls(
+            block_on_duplicate=True,
+            duplicate_ratio_threshold=0.01,
+            block_on_volume_anomaly=True,
+            block_on_stale_data=True,
+            max_staleness_days=30.0,
+            block_on_nan_after_impute=True,
+            block_on_distribution_drift=True,
+            distribution_tolerance_sigma=2.0,
+            block_on_psi_drift=True,
+            psi_warn_threshold=0.10,
+            psi_block_threshold=0.20,
+            block_on_label_drift=True,
+            label_drift_tolerance=0.05,
+            block_on_serving_skew=True,
+            serving_skew_tolerance_sigma=1.5,
+            block_on_raw_schema_error=True,
+            block_on_processed_schema_error=True,
+            strict_inference_schema=True,
+        )
+
+    @classmethod
+    def relaxed(cls) -> "ValidationPolicy":
+        """Exploratory / backfill için sadece log üreten profil."""
+        return cls(
+            block_on_duplicate=False,
+            block_on_volume_anomaly=False,
+            block_on_stale_data=False,
+            block_on_nan_after_impute=False,
+            block_on_distribution_drift=False,
+            block_on_psi_drift=False,
+            block_on_label_drift=False,
+            block_on_serving_skew=False,
+            block_on_raw_schema_error=False,
+            block_on_processed_schema_error=False,
+            strict_inference_schema=False,
+        )
+
+
+@dataclass(frozen=True)
 class MonitoringConfig:
     data_drift_psi_threshold: float = 0.20
     prediction_drift_psi_threshold: float = 0.20
@@ -206,6 +307,7 @@ class ExperimentConfig:
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
     contract: ContractConfig = field(default_factory=ContractConfig)
+    validation: ValidationPolicy = field(default_factory=ValidationPolicy)
 
 
 def load_experiment_config(params_path: Optional[Path] = None) -> ExperimentConfig:

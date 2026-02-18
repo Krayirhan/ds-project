@@ -154,11 +154,18 @@ def build_processed_schema(
 # ─── Inference Payload Schema ──────────────────────────────────────────
 def build_inference_schema(
     feature_spec: Dict[str, Any],
+    strict: bool = False,
 ) -> DataFrameSchema:
     """
     Inference-time schema — API payload kontratı.
 
-    feature_spec: {"numeric": [...], "categorical": [...]} dict
+    Args:
+        feature_spec : {"numeric": [...], "categorical": [...]} dict
+        strict       : True → beklenmeyen kolon varsa SchemaError fırlatır
+                       (ValidationPolicy.strict_inference_schema ile kontrol edilir)
+                       False → esneklik modunda yalnızca beklenen kolonları kontrol eder
+
+    Not: Prod ortamda strict=True önerilir; data contract drift'ini erken yakalar.
     """
     columns: Dict[str, Column] = {}
 
@@ -170,7 +177,7 @@ def build_inference_schema(
 
     return DataFrameSchema(
         columns=columns,
-        strict=False,
+        strict=strict,     # strict=True → ekstra kolon → SchemaError
         coerce=True,
         name="InferencePayloadSchema",
         description="Schema contract for inference-time API payload",
@@ -341,11 +348,25 @@ def validate_inference_payload(
     df: pd.DataFrame,
     feature_spec: Dict[str, Any],
     raise_on_error: bool = True,
+    strict: bool = False,
 ) -> pa.errors.SchemaErrors | None:
     """
     API inference payload schema kontratını doğrula.
+
+    Args:
+        strict : True → beklenmeyen (fazla) kolonlar SchemaError fırlatır.
+                 ValidationPolicy.strict_inference_schema ile kontrol edilir.
     """
-    schema = build_inference_schema(feature_spec)
+    # Fazla kolon tespiti — strict olmasa bile logla
+    expected = set(feature_spec.get("numeric", [])) | set(feature_spec.get("categorical", []))
+    extra_cols = set(df.columns) - expected
+    if extra_cols:
+        logger.warning(
+            f"⚠️  Inference payload: {len(extra_cols)} unexpected column(s) "
+            f"not in feature_spec → {sorted(extra_cols)}"
+        )
+
+    schema = build_inference_schema(feature_spec, strict=strict)
     try:
         schema.validate(df, lazy=True)
         logger.info(f"✅ Inference payload validation passed: {len(df)} rows")
@@ -1053,3 +1074,267 @@ def generate_reference_categories(
             cats[col] = sorted(df[col].dropna().astype(str).unique().tolist())
     logger.info(f"Reference categories generated for {len(cats)} columns")
     return cats
+
+
+# ─── 19. PSI (Population Stability Index) ─────────────────────────────
+@dataclass
+class PSIReport:
+    """Per-column PSI scores and overall drift verdict."""
+    scores: Dict[str, float]     # {col: psi_score}
+    warn_cols: List[str]         # 0.10 ≤ PSI < 0.25
+    drift_cols: List[str]        # PSI ≥ 0.25
+    overall_passed: bool
+    summary: str
+
+
+def _psi_score(expected: np.ndarray, actual: np.ndarray, n_bins: int = 10) -> float:
+    """
+    Population Stability Index iki dağılım arasında hesaplar.
+
+    PSI < 0.10  → stabil
+    0.10 ≤ PSI < 0.25 → orta drift (uyarı)
+    PSI ≥ 0.25  → ciddi drift (alarm)
+    """
+    lo = min(expected.min(), actual.min())
+    hi = max(expected.max(), actual.max())
+    if hi <= lo:
+        return 0.0
+
+    bins = np.linspace(lo, hi, n_bins + 1)
+    exp_cnt, _ = np.histogram(expected, bins=bins)
+    act_cnt, _ = np.histogram(actual, bins=bins)
+
+    # Sıfır bölme / log(0) güvenliği için küçük epsilon ekle
+    eps = 1e-8
+    exp_pct = (exp_cnt + eps) / (len(expected) + eps * n_bins)
+    act_pct = (act_cnt + eps) / (len(actual) + eps * n_bins)
+
+    return float(np.sum((act_pct - exp_pct) * np.log(act_pct / exp_pct)))
+
+
+def compute_psi(
+    df_reference: pd.DataFrame,
+    df_current: pd.DataFrame,
+    numeric_cols: List[str],
+    warn_threshold: float = 0.10,
+    block_threshold: float = 0.25,
+    n_bins: int = 10,
+) -> PSIReport:
+    """
+    Referans ve güncel veri arasındaki PSI'yi her sayısal kolon için hesaplar.
+
+    warn_threshold:  0.10 — orta drift, WARN log
+    block_threshold: 0.25 — ciddi drift, ERROR log (caller bloke edebilir)
+    """
+    scores: Dict[str, float] = {}
+    warn_cols: List[str] = []
+    drift_cols: List[str] = []
+
+    for col in numeric_cols:
+        if col not in df_reference.columns or col not in df_current.columns:
+            continue
+        ref_arr = pd.to_numeric(df_reference[col], errors="coerce").dropna().values
+        cur_arr = pd.to_numeric(df_current[col], errors="coerce").dropna().values
+        if len(ref_arr) < 5 or len(cur_arr) < 5:
+            continue
+
+        psi = _psi_score(ref_arr, cur_arr, n_bins=n_bins)
+        scores[col] = round(psi, 6)
+
+        if psi >= block_threshold:
+            drift_cols.append(col)
+            logger.error(
+                f"❌ PSI drift [{col}]: {psi:.4f} ≥ block_threshold={block_threshold}"
+            )
+        elif psi >= warn_threshold:
+            warn_cols.append(col)
+            logger.warning(
+                f"⚠️  PSI drift [{col}]: {psi:.4f} ≥ warn_threshold={warn_threshold}"
+            )
+
+    overall_passed = len(drift_cols) == 0
+    summary = (
+        f"PSI check: {len(scores)} columns | "
+        f"stable={len(scores) - len(warn_cols) - len(drift_cols)} "
+        f"warn={len(warn_cols)} drift={len(drift_cols)}"
+    )
+    if overall_passed:
+        logger.info(f"✅ {summary}")
+    else:
+        logger.error(f"❌ {summary}")
+
+    return PSIReport(
+        scores=scores,
+        warn_cols=warn_cols,
+        drift_cols=drift_cols,
+        overall_passed=overall_passed,
+        summary=summary,
+    )
+
+
+# ─── 20. run_validation_profile() — Tek Nokta Yöneticisi ─────────────
+@dataclass
+class ValidationProfileReport:
+    """
+    run_validation_profile() çıktısı.
+
+    passed: Tüm bloke edici kontroller geçtiyse True
+    blocked_by: Hangi kontrol(ler) pipeline'ı durdurdu
+    warnings: Sadece uyarı üretenler
+    details: Her kontrol adının ayrıntılı raporunu taşır
+    """
+    passed: bool
+    blocked_by: List[str]
+    warnings: List[str]
+    details: Dict[str, Any]
+
+
+def run_validation_profile(
+    df: pd.DataFrame,
+    *,
+    target_col: str = "is_canceled",
+    numeric_cols: Optional[List[str]] = None,
+    categorical_cols: Optional[List[str]] = None,
+    reference_stats: Optional[Dict[str, Any]] = None,
+    reference_df: Optional[pd.DataFrame] = None,
+    policy: Optional[Any] = None,   # ValidationPolicy (type hint döngüsünü kırıyor)
+    phase: str = "preprocess",      # preprocess | train | monitor
+) -> ValidationProfileReport:
+    """
+    Tüm gerekli validasyon kontrol noktalarını tek bir çağrıyla çalıştırır.
+
+    Hangi kontrollerin pipeline'ı bloke edeceği ve hangilerinin sadece
+    uyarı üreteceği ``policy`` (ValidationPolicy) üzerinden yönetilir.
+
+    Args:
+        df           : Doğrulanacak DataFrame
+        target_col   : Hedef sütun adı
+        numeric_cols : Sayısal özellik listesi (None → otomatik çıkarır)
+        categorical_cols: Kategorik özellik listesi
+        reference_stats : reference_stats.json içeriği (drift kontrolü için)
+        reference_df : Referans DataFrame (PSI için)
+        policy       : ValidationPolicy nesnesi (None → varsayılan)
+        phase        : "preprocess" | "train" | "monitor"
+
+    Returns:
+        ValidationProfileReport — passed=False ise caller ValueError fırlatmalı
+    """
+    # Geç import — döngüsel bağımlılık yok
+    from .config import ValidationPolicy as _VP
+
+    pol: "_VP" = policy if policy is not None else _VP()
+
+    blocked_by: List[str] = []
+    warnings_list: List[str] = []
+    details: Dict[str, Any] = {}
+
+    def _check(name: str, report_summary: str, is_violation: bool, should_block: bool) -> None:
+        details[name] = report_summary
+        if is_violation:
+            if should_block:
+                blocked_by.append(name)
+                logger.error(f"🚫 BLOCKED [{name}]: {report_summary}")
+            else:
+                warnings_list.append(name)
+                logger.warning(f"⚠️  WARN [{name}]: {report_summary}")
+
+    # ── Duplicate ──────────────────────────────────────────────────────
+    dup = detect_duplicates(df)
+    dup_ratio = dup.n_duplicates / max(len(df), 1)
+    _check(
+        "duplicate",
+        dup.summary,
+        is_violation=(dup_ratio > pol.duplicate_ratio_threshold),
+        should_block=pol.block_on_duplicate,
+    )
+
+    # ── Volume ────────────────────────────────────────────────────────
+    if reference_stats and "n_rows" in reference_stats:
+        vol = validate_data_volume(
+            df,
+            expected_rows=int(reference_stats["n_rows"]),
+            tolerance_ratio=pol.volume_tolerance_ratio,
+        )
+        _check(
+            "volume",
+            vol.summary,
+            is_violation=vol.is_anomalous,
+            should_block=pol.block_on_volume_anomaly,
+        )
+
+    # ── Row anomaly (uyarı seviyesi; her zaman warn-only) ────────────
+    anom = detect_row_anomalies(df)
+    if anom.n_anomalies > 0:
+        warnings_list.append("row_anomaly")
+        details["row_anomaly"] = anom.summary
+
+    # ── Distribution drift ────────────────────────────────────────────
+    if reference_stats and numeric_cols:
+        # Sadece sayısal istatistik içeren kolonları filtrele
+        numeric_stats = {
+            k: v for k, v in reference_stats.items()
+            if isinstance(v, dict) and "mean" in v and k in (numeric_cols or [])
+        }
+        if numeric_stats:
+            drift = validate_distributions(
+                df, numeric_stats, tolerance=pol.distribution_tolerance_sigma
+            )
+            _check(
+                "distribution_drift",
+                drift.summary,
+                is_violation=not drift.passed,
+                should_block=pol.block_on_distribution_drift,
+            )
+
+    # ── PSI ────────────────────────────────────────────────────────────
+    if reference_df is not None and numeric_cols:
+        psi = compute_psi(
+            df_reference=reference_df,
+            df_current=df,
+            numeric_cols=numeric_cols,
+            warn_threshold=pol.psi_warn_threshold,
+            block_threshold=pol.psi_block_threshold,
+        )
+        details["psi"] = psi.summary
+        if psi.warn_cols:
+            warnings_list.append("psi_warn")
+        if not psi.overall_passed:
+            if pol.block_on_psi_drift:
+                blocked_by.append("psi_drift")
+                logger.error(f"🚫 BLOCKED [psi_drift]: {psi.summary}")
+            else:
+                warnings_list.append("psi_drift")
+
+    # ── Label drift ───────────────────────────────────────────────────
+    if reference_stats and "label_positive_rate" in reference_stats and target_col in df.columns:
+        ld = detect_label_drift(
+            df,
+            target_col=target_col,
+            ref_positive_rate=float(reference_stats["label_positive_rate"]),
+            tolerance=pol.label_drift_tolerance,
+        )
+        _check(
+            "label_drift",
+            ld.summary,
+            is_violation=ld.is_drifted,
+            should_block=pol.block_on_label_drift,
+        )
+
+    overall_passed = len(blocked_by) == 0
+
+    profile_summary = (
+        f"ValidationProfile [{phase}]: "
+        f"{'PASSED ✅' if overall_passed else 'FAILED 🚫'} | "
+        f"blocked={blocked_by} | warnings={warnings_list}"
+    )
+    if overall_passed:
+        logger.info(profile_summary)
+    else:
+        logger.error(profile_summary)
+
+    return ValidationProfileReport(
+        passed=overall_passed,
+        blocked_by=blocked_by,
+        warnings=warnings_list,
+        details=details,
+    )
