@@ -70,7 +70,11 @@ def _load_serving_state() -> ServingState:
 async def lifespan(app: FastAPI):
     init_tracing(service_name="ds-project-api")
     instrument_fastapi(app)
-    app.state.serving = _load_serving_state()
+    try:
+        app.state.serving = _load_serving_state()
+    except Exception as exc:
+        logger.warning("Could not load serving state: %s — API starts degraded", exc)
+        app.state.serving = None
     app.state.rate_limiter = _build_runtime_rate_limiter()
     app.state.shutting_down = False
     yield
@@ -117,8 +121,14 @@ def _error_response(
 def _get_serving_state() -> ServingState:
     serving = getattr(app.state, "serving", None)
     if serving is None:
-        serving = _load_serving_state()
-        app.state.serving = serving
+        try:
+            serving = _load_serving_state()
+            app.state.serving = serving
+        except Exception:
+            raise HTTPException(
+                status_code=503,
+                detail="Model not loaded — service unavailable",
+            )
     return serving
 
 
@@ -220,7 +230,14 @@ def health() -> HealthResponse:
 
 @app.get("/ready")
 def ready() -> ReadyResponse:
-    serving = _get_serving_state()
+    serving = getattr(app.state, "serving", None)
+    if serving is None:
+        return {
+            "status": "degraded",
+            "service": "not_ready",
+            "model": None,
+            "policy_path": None,
+        }
     return {
         "status": "ok",
         "service": "ready",
