@@ -10,7 +10,7 @@ from ..experiment_tracking import ExperimentTracker
 from ..hpo import run_hpo
 from ..io import read_parquet
 from ..utils import get_logger
-from ._helpers import json_write, mark_latest, new_run_id
+from ._helpers import json_write, new_run_id
 
 logger = get_logger("cli.hpo")
 

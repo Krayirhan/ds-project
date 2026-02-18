@@ -20,8 +20,8 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import pandera as pa
-from pandera import Check, Column, DataFrameSchema, Index
-from pandera.errors import SchemaError, SchemaErrors
+from pandera import Check, Column, DataFrameSchema
+from pandera.errors import SchemaErrors
 
 from .utils import get_logger
 

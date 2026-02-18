@@ -8,7 +8,7 @@ from typing import Optional
 import joblib
 
 from ..config import ExperimentConfig, Paths
-from ..io import read_parquet, write_parquet
+from ..io import write_parquet
 from ..policy import load_decision_policy
 from ..predict import load_feature_spec, predict_with_policy
 from ..utils import get_logger, sha256_file

@@ -6,8 +6,7 @@ import json
 import os
 import shutil
 import urllib.request
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from ..config import Paths
 from ..utils import get_logger

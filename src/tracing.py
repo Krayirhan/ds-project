@@ -125,7 +125,6 @@ def trace_span(
         return
 
     try:
-        from opentelemetry import trace as trace_api
 
         with tracer.start_as_current_span(name) as span:
             if attributes:

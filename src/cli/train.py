@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import joblib
@@ -12,7 +11,7 @@ import joblib
 from ..calibration import calibrate_frozen_classifier
 from ..config import ExperimentConfig, Paths
 from ..experiment_tracking import ExperimentTracker
-from ..io import read_parquet, write_parquet
+from ..io import read_parquet
 from ..split import stratified_split
 from ..train import train_candidate_models
 from ..utils import get_logger, sha256_file
