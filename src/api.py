@@ -7,12 +7,12 @@ import uuid
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 
 from .api_shared import (
     ServingState,
     RecordsPayload,
     HealthResponse,
-    ReadyResponse,
     PredictProbaResponse,
     DecideResponse,
     ReloadResponse,
@@ -229,15 +229,18 @@ def health() -> HealthResponse:
 
 
 @app.get("/ready")
-def ready() -> ReadyResponse:
+def ready():
     serving = getattr(app.state, "serving", None)
     if serving is None:
-        return {
-            "status": "degraded",
-            "service": "not_ready",
-            "model": None,
-            "policy_path": None,
-        }
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "degraded",
+                "service": "not_ready",
+                "model": None,
+                "policy_path": None,
+            },
+        )
     return {
         "status": "ok",
         "service": "ready",
