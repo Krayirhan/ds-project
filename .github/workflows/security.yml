@@ -33,8 +33,12 @@ jobs:
           path: .
           format: spdx-json
           output-file: sbom.spdx.json
+          github-token: ${{ github.token }}
+          upload-artifact: false
+          upload-release-assets: false
 
       - name: Upload SBOM artifact
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
         uses: actions/upload-artifact@v4
         with:
           name: sbom-spdx
