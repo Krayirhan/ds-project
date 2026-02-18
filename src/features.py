@@ -15,7 +15,7 @@ Burada:
 - categorical: most_frequent impute + OneHotEncoder
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Any, Tuple
 import numpy as np
 import pandas as pd
