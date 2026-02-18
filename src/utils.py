@@ -36,6 +36,10 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
 
     Neden handler kontrolü var?
     - Aynı logger tekrar oluşturulursa duplicate log basılabilir.
+
+    LOG_LEVEL env var:
+    - DEBUG, INFO, WARNING, ERROR, CRITICAL değerlerini kabul eder.
+    - Yalnızca handler kurulurken okunur; her çağrıda override edilmez.
     """
     logger = logging.getLogger(name)
     if not logger.handlers:
@@ -49,7 +53,10 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
             )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-    logger.setLevel(level)
+        # LOG_LEVEL env var'dan oku; bulunamazsa caller'ın istediği level'ı kullan
+        env_level_str = os.getenv("LOG_LEVEL", "").upper()
+        resolved_level = getattr(logging, env_level_str, None) or level
+        logger.setLevel(resolved_level)
     return logger
 
 

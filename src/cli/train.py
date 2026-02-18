@@ -10,6 +10,13 @@ import joblib
 
 from ..calibration import calibrate_frozen_classifier
 from ..config import ExperimentConfig, Paths
+from ..data_validation import (
+    generate_reference_stats,
+    validate_processed_data,
+    validate_row_counts,
+    generate_reference_categories,
+    generate_reference_correlations,
+)
 from ..experiment_tracking import ExperimentTracker
 from ..io import read_parquet, write_parquet
 from ..split import stratified_split
@@ -71,6 +78,25 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
         f"Split sizes | train_fit={len(train_fit_df)} cal={len(cal_df)} test={len(test_df)}"
     )
 
+    # ── Satır sayısı tutarlılığı ──
+    row_check = None
+    dataset_path = paths.data_processed / "dataset.parquet"
+    if dataset_path.exists():
+        dataset_df = read_parquet(dataset_path)
+        row_check = validate_row_counts(
+            dataset_rows=len(dataset_df),
+            train_rows=len(train_fit_df),
+            cal_rows=len(cal_df),
+            test_rows=len(test_df),
+        )
+        del dataset_df  # free memory
+
+    # ── Eğitim verisi şema doğrulaması ──
+    logger.info("Validating training data schema before model fitting...")
+    validate_processed_data(
+        train_fit_df, target_col=cfg.target_col, raise_on_error=True
+    )
+
     candidates = train_candidate_models(
         train_fit_df,
         cfg.target_col,
@@ -83,6 +109,10 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
     run_metrics_dir = paths.reports_metrics / run_id
     run_model_dir.mkdir(parents=True, exist_ok=True)
     run_metrics_dir.mkdir(parents=True, exist_ok=True)
+
+    # Deferred row count write (computed before training)
+    if row_check is not None:
+        json_write(run_metrics_dir / "row_count_check.json", row_check)
 
     X_cal = cal_df.drop(columns=[cfg.target_col])
     y_cal = cal_df[cfg.target_col].astype(int).values
@@ -206,6 +236,76 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
     run_feature_spec = run_metrics_dir / "feature_spec.json"
     json_write(run_feature_spec, feature_spec_payload)
     copy_to_latest(run_feature_spec, paths.reports / "feature_spec.json")
+
+    # ── Schema contract artifact kopyala (versioned schema metadata) ──
+    schema_contract_src = paths.reports_metrics / "schema_contract.json"
+    if schema_contract_src.exists():
+        run_schema_contract = run_metrics_dir / "schema_contract.json"
+        copy_to_latest(schema_contract_src, run_schema_contract)
+
+    # ── Referans istatistikleri kaydet (dağılım drift kontrolü için) ──
+    ref_stats = generate_reference_stats(
+        train_fit_df,
+        numeric_cols=first_result.feature_spec.numeric,
+    )
+    run_ref_stats = run_metrics_dir / "reference_stats.json"
+    json_write(run_ref_stats, ref_stats)
+    copy_to_latest(run_ref_stats, paths.reports_metrics / "reference_stats.json")
+    logger.info(
+        f"Reference stats saved for {len(ref_stats)} numeric features → {run_ref_stats}"
+    )
+
+    # ── Referans kategoriler kaydet (unseen category kontrolü için) ──
+    ref_cats = generate_reference_categories(
+        train_fit_df, categorical_cols=first_result.feature_spec.categorical,
+    )
+    run_ref_cats = run_metrics_dir / "reference_categories.json"
+    json_write(run_ref_cats, ref_cats)
+    copy_to_latest(run_ref_cats, paths.reports_metrics / "reference_categories.json")
+
+    # ── Referans korelasyonlar kaydet (correlation drift için) ──
+    ref_corr = generate_reference_correlations(
+        train_fit_df,
+        numeric_cols=first_result.feature_spec.numeric,
+        target_col=cfg.target_col,
+        top_k=15,
+    )
+    run_ref_corr = run_metrics_dir / "reference_correlations.json"
+    json_write(run_ref_corr, ref_corr)
+    copy_to_latest(run_ref_corr, paths.reports_metrics / "reference_correlations.json")
+
+    # ── Feature importance kaydet (importance drift için) ──
+    try:
+        first_model = first_result.model
+        clf = first_model.named_steps.get("clf")
+        if hasattr(clf, "feature_importances_"):
+            feat_names = first_result.feature_spec.all_features
+            importance = dict(zip(feat_names, [float(v) for v in clf.feature_importances_]))
+        elif hasattr(clf, "coef_"):
+            feat_names = first_result.feature_spec.all_features
+            # For linear models use absolute coefficient values
+            preprocessor = first_model.named_steps.get("preprocess")
+            if preprocessor is not None:
+                try:
+                    out_names = preprocessor.get_feature_names_out()
+                    importance = dict(zip([str(n) for n in out_names], [float(abs(v)) for v in clf.coef_[0]]))
+                except Exception:
+                    importance = dict(zip(feat_names, [float(abs(v)) for v in clf.coef_[0][:len(feat_names)]]))
+            else:
+                importance = dict(zip(feat_names, [float(abs(v)) for v in clf.coef_[0][:len(feat_names)]]))
+        else:
+            importance = {}
+        if importance:
+            run_importance = run_metrics_dir / "feature_importance.json"
+            json_write(run_importance, importance)
+            global_importance = paths.reports_metrics / "feature_importance.json"
+            prev_importance = paths.reports_metrics / "feature_importance.prev.json"
+            if global_importance.exists():
+                copy_to_latest(global_importance, prev_importance)
+            copy_to_latest(run_importance, paths.reports_metrics / "feature_importance.json")
+            logger.info(f"Feature importance saved: {len(importance)} features")
+    except Exception as e:
+        logger.warning(f"Could not extract feature importance: {e}")
 
     mark_latest(
         paths.models,

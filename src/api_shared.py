@@ -150,6 +150,43 @@ def load_serving_state() -> ServingState:
     if feature_spec.get("schema_version") != cfg.contract.feature_schema_version:
         raise RuntimeError("Feature schema contract version mismatch")
 
+    # Optional schema contract artifact check (versioned schema metadata)
+    run_schema_contract = paths.reports_metrics / run_id / "schema_contract.json"
+    global_schema_contract = paths.reports_metrics / "schema_contract.json"
+    schema_contract_path = (
+        run_schema_contract if run_schema_contract.exists() else global_schema_contract
+    )
+    if schema_contract_path.exists():
+        schema_contract = json.loads(schema_contract_path.read_text(encoding="utf-8"))
+        if (
+            schema_contract.get("schema_version")
+            != cfg.contract.feature_schema_version
+        ):
+            raise RuntimeError("Schema contract artifact version mismatch")
+        feature_spec["_schema_contract"] = schema_contract
+
+    # Inject reference stats & categories for inference-time validation
+    ref_stats_path = paths.reports_metrics / "reference_stats.json"
+    if ref_stats_path.exists():
+        feature_spec["_reference_stats"] = json.loads(
+            ref_stats_path.read_text(encoding="utf-8")
+        )
+    ref_cats_path = paths.reports_metrics / "reference_categories.json"
+    if ref_cats_path.exists():
+        feature_spec["_reference_categories"] = json.loads(
+            ref_cats_path.read_text(encoding="utf-8")
+        )
+    # Reference expected volume for per-request anomaly checks
+    lineage_path = paths.reports_metrics / "data_lineage_preprocess.json"
+    if lineage_path.exists():
+        try:
+            lineage = json.loads(lineage_path.read_text(encoding="utf-8"))
+            expected_rows = int(lineage.get("processed_rows", 0) or 0)
+            if expected_rows > 0:
+                feature_spec["_reference_volume_rows"] = expected_rows
+        except Exception:
+            pass
+
     return ServingState(
         model=model,
         policy_path=policy_path,

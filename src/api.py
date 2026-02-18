@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 import os
 import time
@@ -7,7 +8,9 @@ import uuid
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.responses import RedirectResponse
 
 from .api_shared import (
     ServingState,
@@ -21,6 +24,8 @@ from .api_shared import (
     error_response,
 )
 from .config import ExperimentConfig
+from .dashboard import init_dashboard_store, router_dashboard
+from .dashboard_auth import router_dashboard_auth
 from .metrics import (
     INFERENCE_ERRORS,
     INFERENCE_ROWS,
@@ -50,6 +55,11 @@ def _expected_api_key() -> str | None:
     return os.getenv(cfg.api_key_env_var)
 
 
+def _expected_admin_key() -> str | None:
+    """DS_ADMIN_KEY tanımlıysa /reload endpoint'i için ayrı koruma sağlar."""
+    return os.getenv("DS_ADMIN_KEY")
+
+
 def _build_runtime_rate_limiter() -> BaseRateLimiter:
     cfg = ExperimentConfig().api
     env_backend = os.getenv("RATE_LIMIT_BACKEND")
@@ -70,6 +80,7 @@ def _load_serving_state() -> ServingState:
 async def lifespan(app: FastAPI):
     init_tracing(service_name="ds-project-api")
     instrument_fastapi(app)
+    init_dashboard_store()
     try:
         app.state.serving = _load_serving_state()
     except Exception as exc:
@@ -77,6 +88,20 @@ async def lifespan(app: FastAPI):
         app.state.serving = None
     app.state.rate_limiter = _build_runtime_rate_limiter()
     app.state.shutting_down = False
+    app.state._reload_lock = asyncio.Lock()
+
+    # Multi-worker rate limit uyarısı
+    workers = int(os.getenv("WEB_CONCURRENCY", os.getenv("UVICORN_WORKERS", "1")))
+    rate_backend = (os.getenv("RATE_LIMIT_BACKEND") or ExperimentConfig().api.rate_limit_backend).strip().lower()
+    if workers > 1 and rate_backend == "memory":
+        logger.warning(
+            "RATE LIMIT UYARISI: %d worker algılandı ancak rate_limit_backend='memory'. "
+            "Her worker kendi bellek bucket'ını tutar; gerçek sınır %d/dk katına çıkabilir. "
+            "Dağıtık doğru limitler için RATE_LIMIT_BACKEND=redis kullanın.",
+            workers,
+            ExperimentConfig().api.rate_limit_per_minute * workers,
+        )
+
     yield
     app.state.shutting_down = True
 
@@ -93,12 +118,28 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+def _cors_allow_origins() -> list[str]:
+    raw = os.getenv("CORS_ALLOW_ORIGINS", "http://localhost:5173,http://localhost:3000")
+    return [x.strip() for x in raw.split(",") if x.strip()]
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_allow_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ── Register versioned routers ────────────────────────────────────────
 from .api_v1 import router_v1, _set_app_ref as _v1_set_app  # noqa: E402
 from .api_v2 import router_v2, _set_app_ref as _v2_set_app  # noqa: E402
 
 app.include_router(router_v1)
 app.include_router(router_v2)
+app.include_router(router_dashboard)
+app.include_router(router_dashboard_auth)
 _v1_set_app(app)
 _v2_set_app(app)
 
@@ -137,9 +178,19 @@ async def request_context_middleware(request: Request, call_next):
     rid = request.headers.get("x-request-id", str(uuid.uuid4()))
     request.state.request_id = rid
     started = time.time()
+    request_path = request.url.path
+    is_public_dashboard_page = request_path == "/dashboard"
+    is_public_dashboard_api = request_path.startswith("/dashboard/api/")
+    is_public_dashboard_auth = request_path.startswith("/auth/")
+    is_public_operational = request_path in {"/health", "/ready", "/metrics"}
 
     # Security gate
-    if _api_key_required():
+    if _api_key_required() and not (
+        is_public_dashboard_page
+        or is_public_dashboard_api
+        or is_public_dashboard_auth
+        or is_public_operational
+    ):
         expected = _expected_api_key()
         if not expected:
             return _error_response(
@@ -157,8 +208,9 @@ async def request_context_middleware(request: Request, call_next):
                 request_id=rid,
             )
 
-    # Rate limit gate
-    client = request.client.host if request.client else "unknown"
+    # Rate limit gate — API key varsa onu kullan (key bazlı limit), yoksa IP'ye düş
+    api_key_for_limit = request.headers.get("x-api-key")
+    client = api_key_for_limit or (request.client.host if request.client else "unknown")
     limiter = getattr(app.state, "rate_limiter", None)
     if limiter is None:
         limiter = _build_runtime_rate_limiter()
@@ -208,13 +260,13 @@ async def request_context_middleware(request: Request, call_next):
 
     latency_ms = round((time.time() - started) * 1000.0, 2)
     logger.info(
-        f"request path={request.url.path} status={response.status_code} latency_ms={latency_ms}",
+        f"request path={request_path} status={response.status_code} latency_ms={latency_ms}",
         extra={"request_id": rid},
     )
     REQUEST_COUNT.labels(
-        path=request.url.path, method=request.method, status=str(response.status_code)
+        path=request_path, method=request.method, status=str(response.status_code)
     ).inc()
-    REQUEST_LATENCY.labels(path=request.url.path, method=request.method).observe(
+    REQUEST_LATENCY.labels(path=request_path, method=request.method).observe(
         (time.time() - started)
     )
     return response
@@ -255,6 +307,11 @@ def metrics() -> Response:
     return Response(content=payload, media_type=content_type)
 
 
+@app.get("/dashboard", include_in_schema=False)
+def dashboard_redirect() -> RedirectResponse:
+    return RedirectResponse(url="http://localhost:5173", status_code=307)
+
+
 @app.post(
     "/predict_proba",
     response_model=PredictProbaResponse,
@@ -277,14 +334,19 @@ def predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
             )
             proba = serving.model.predict_proba(X)[:, 1]
             set_span_attribute("ml.result_count", int(len(proba)))
-        INFERENCE_ROWS.labels(endpoint="predict_proba").inc(len(proba))
+        INFERENCE_ROWS.labels(
+            endpoint="predict_proba",
+            model=str(getattr(serving.policy, "selected_model", "")),
+        ).inc(len(proba))
         return PredictProbaResponse(
             n=int(len(proba)),
             proba=[float(x) for x in proba],
             schema_report=schema_report,
         )
     except Exception as e:
-        INFERENCE_ERRORS.labels(endpoint="predict_proba").inc()
+        _serving = getattr(app.state, "serving", None)
+        _model = str(getattr(getattr(_serving, "policy", None), "selected_model", "") or "")
+        INFERENCE_ERRORS.labels(endpoint="predict_proba", model=_model).inc()
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -321,32 +383,49 @@ def decide(payload: RecordsPayload) -> DecideResponse:
                     else getattr(pred_report, "threshold_used", 0)
                 ),
             )
-        INFERENCE_ROWS.labels(endpoint="decide").inc(len(actions_df))
+        INFERENCE_ROWS.labels(
+            endpoint="decide",
+            model=str(serving.policy.selected_model_artifact or ""),
+        ).inc(len(actions_df))
         return DecideResponse(
             n=int(len(actions_df)),
             results=actions_df.to_dict(orient="records"),
             report=pred_report,
         )
     except Exception as e:
-        INFERENCE_ERRORS.labels(endpoint="decide").inc()
+        _serving = getattr(app.state, "serving", None)
+        _model = str(getattr(getattr(_serving, "policy", None), "selected_model_artifact", "") or "")
+        INFERENCE_ERRORS.labels(endpoint="decide", model=_model).inc()
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post(
-    "/reload", response_model=ReloadResponse, responses={500: {"model": ErrorResponse}}
+    "/reload", response_model=ReloadResponse, responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}
 )
-def reload_serving_state() -> ReloadResponse:
-    try:
-        serving = _load_serving_state()
-        app.state.serving = serving
-        return {
-            "status": "ok",
-            "message": "Serving state reloaded",
-            "model": serving.policy.selected_model,
-            "policy_path": str(serving.policy_path),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Reload failed: {e}")
+async def reload_serving_state(request: Request) -> ReloadResponse:
+    # Admin key koruması: DS_ADMIN_KEY tanımlıysa sadece x-admin-key header'ı ile çağrılabilir
+    expected_admin = _expected_admin_key()
+    if expected_admin:
+        got_admin = request.headers.get("x-admin-key")
+        if got_admin != expected_admin:
+            raise HTTPException(
+                status_code=403,
+                detail="Bu endpoint için x-admin-key header'ı gereklidir.",
+            )
+    # Thread-safe reload: aynı anda birden fazla reload isteği yarış koşuluna girmesin
+    lock: asyncio.Lock = getattr(app.state, "_reload_lock", None) or asyncio.Lock()
+    async with lock:
+        try:
+            serving = _load_serving_state()
+            app.state.serving = serving
+            return {
+                "status": "ok",
+                "message": "Serving state reloaded",
+                "model": serving.policy.selected_model,
+                "policy_path": str(serving.policy_path),
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Reload failed: {e}")
 
 
 @app.exception_handler(HTTPException)

@@ -6,6 +6,19 @@ Provides schema and distribution-level assertions for:
   2. Processed features   — validate_processed_data()
   3. Inference payload     — validate_inference_payload()
   4. Distribution checks   — validate_distributions()
+  5. Row-level anomaly     — detect_row_anomalies()
+  6. Duplicate detection   — detect_duplicates()
+  7. Post-imputation NaN   — assert_no_nans_after_imputation()
+  8. Label drift            — detect_label_drift()
+  9. Feature cardinality    — detect_unseen_categories()
+  10. Model output range    — validate_model_output()
+  11. Data volume anomaly   — validate_data_volume()
+  12. Data staleness        — check_data_staleness()
+  13. Schema versioning     — get_schema_fingerprint()
+  14. Cross-feature corr    — detect_correlation_drift()
+  15. Training-serving skew — detect_training_serving_skew()
+  16. Row count consistency — validate_row_counts()
+  17. Feature importance    — detect_feature_importance_drift()
 
 Usage:
   from src.data_validation import validate_raw_data, validate_processed_data
@@ -15,9 +28,14 @@ Usage:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+import hashlib
+import json
+import os
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 import pandera as pa
 from pandera import Check, Column, DataFrameSchema
@@ -364,3 +382,674 @@ def generate_reference_stats(
                     "q75": float(series.quantile(0.75)),
                 }
     return stats
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# NEW VALIDATION FUNCTIONS — Industry Best Practices (Google MLOps L2)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+# ─── 5. Row-Level Anomaly Detection ────────────────────────────────────
+@dataclass
+class AnomalyReport:
+    """Row-level anomaly detection results."""
+    n_anomalies: int
+    anomaly_types: Dict[str, int]
+    sample_indices: List[int]
+    summary: str
+
+
+def detect_row_anomalies(df: pd.DataFrame) -> AnomalyReport:
+    """
+    Domain-aware row-level anomaly detection for hotel bookings.
+
+    Kurallar:
+    - Sıfır misafir: adults=0 AND children=0 AND babies=0
+    - Negatif ADR (< -10)
+    - Aşırı konaklama (> 365 gece toplam)
+    - Lead time > 800 (non-realistic)
+    - adults > 50 (veri girişi hatası)
+    """
+    anomaly_flags: Dict[str, pd.Series] = {}
+
+    # Sıfır misafir — mantıksal olarak imkansız kayıt
+    if all(c in df.columns for c in ("adults", "children", "babies")):
+        adults = pd.to_numeric(df["adults"], errors="coerce").fillna(0)
+        children = pd.to_numeric(df["children"], errors="coerce").fillna(0)
+        babies = pd.to_numeric(df["babies"], errors="coerce").fillna(0)
+        anomaly_flags["zero_guests"] = (adults == 0) & (children == 0) & (babies == 0)
+
+    # Negatif ADR
+    if "adr" in df.columns:
+        adr = pd.to_numeric(df["adr"], errors="coerce")
+        anomaly_flags["negative_adr"] = adr < -10
+
+    # Aşırı konaklama süresi
+    if "stays_in_weekend_nights" in df.columns and "stays_in_week_nights" in df.columns:
+        weekend = pd.to_numeric(df["stays_in_weekend_nights"], errors="coerce").fillna(0)
+        week = pd.to_numeric(df["stays_in_week_nights"], errors="coerce").fillna(0)
+        anomaly_flags["extreme_stay"] = (weekend + week) > 365
+
+    # Aşırı lead time
+    if "lead_time" in df.columns:
+        lt = pd.to_numeric(df["lead_time"], errors="coerce")
+        anomaly_flags["extreme_lead_time"] = lt > 800
+
+    # Aşırı yetişkin sayısı
+    if "adults" in df.columns:
+        adults_v = pd.to_numeric(df["adults"], errors="coerce")
+        anomaly_flags["extreme_adults"] = adults_v > 50
+
+    any_anomaly = pd.Series(False, index=df.index)
+    type_counts: Dict[str, int] = {}
+    for name, mask in anomaly_flags.items():
+        mask = mask.fillna(False)
+        cnt = int(mask.sum())
+        if cnt > 0:
+            type_counts[name] = cnt
+            any_anomaly = any_anomaly | mask
+
+    n_total = int(any_anomaly.sum())
+    sample = list(any_anomaly[any_anomaly].head(20).index)
+
+    summary = (
+        f"Row anomaly scan: {n_total} anomalous row(s) across "
+        f"{len(type_counts)} type(s) in {len(df)} rows"
+    )
+    if type_counts:
+        logger.warning(summary)
+        for name, cnt in type_counts.items():
+            logger.warning(f"  → {name}: {cnt} row(s)")
+    else:
+        logger.info(f"Row anomaly scan: 0 anomalies in {len(df)} rows ✅")
+
+    return AnomalyReport(
+        n_anomalies=n_total,
+        anomaly_types=type_counts,
+        sample_indices=sample,
+        summary=summary,
+    )
+
+
+# ─── 6. Duplicate Detection ───────────────────────────────────────────
+@dataclass
+class DuplicateReport:
+    """Duplicate row detection results."""
+    n_duplicates: int
+    n_total: int
+    duplicate_ratio: float
+    summary: str
+
+
+def detect_duplicates(df: pd.DataFrame, subset: Optional[List[str]] = None) -> DuplicateReport:
+    """
+    Tam veya kısmi duplicate satır tespiti.
+    """
+    dup_mask = df.duplicated(subset=subset, keep="first")
+    n_dup = int(dup_mask.sum())
+    ratio = n_dup / len(df) if len(df) > 0 else 0.0
+    summary = f"Duplicates: {n_dup}/{len(df)} ({ratio:.2%})"
+
+    if n_dup > 0:
+        logger.warning(f"⚠️ {summary}")
+    else:
+        logger.info(f"✅ {summary}")
+
+    return DuplicateReport(
+        n_duplicates=n_dup,
+        n_total=len(df),
+        duplicate_ratio=ratio,
+        summary=summary,
+    )
+
+
+# ─── 7. Post-Imputation NaN Assertion ─────────────────────────────────
+def assert_no_nans_after_imputation(
+    df: pd.DataFrame,
+    exclude_cols: Optional[List[str]] = None,
+) -> Dict[str, int]:
+    """
+    İmputation sonrası hiç NaN kalmamalı.
+    Kalan varsa uyarı loglar ve sütun→count dict döner.
+    """
+    exclude = set(exclude_cols or [])
+    cols = [c for c in df.columns if c not in exclude]
+    nan_counts: Dict[str, int] = {}
+    for c in cols:
+        n = int(df[c].isna().sum())
+        if n > 0:
+            nan_counts[c] = n
+
+    if nan_counts:
+        logger.warning(
+            f"⚠️ Post-imputation NaN found in {len(nan_counts)} column(s): "
+            f"{nan_counts}"
+        )
+    else:
+        logger.info(f"✅ Post-imputation NaN check passed: 0 NaN in {len(cols)} columns")
+
+    return nan_counts
+
+
+# ─── 8. Label Drift Detection ─────────────────────────────────────────
+@dataclass
+class LabelDriftReport:
+    """Label (target) distribution drift results."""
+    ref_positive_rate: float
+    cur_positive_rate: float
+    drift_magnitude: float
+    is_drifted: bool
+    summary: str
+
+
+def detect_label_drift(
+    df_cur: pd.DataFrame,
+    target_col: str,
+    ref_positive_rate: float,
+    tolerance: float = 0.10,
+) -> LabelDriftReport:
+    """
+    Hedef değişken dağılım değişimi (label drift / concept drift proxy).
+
+    Eğitimde %37 iptal varsa, canlıda %60'a çıktıysa → concept drift sinyali.
+    """
+    y = pd.to_numeric(df_cur[target_col], errors="coerce").dropna()
+    cur_rate = float(y.mean()) if len(y) > 0 else 0.0
+    drift = abs(cur_rate - ref_positive_rate)
+    is_drifted = drift > tolerance
+
+    summary = (
+        f"Label drift: ref={ref_positive_rate:.3f}, cur={cur_rate:.3f}, "
+        f"Δ={drift:.3f}, threshold={tolerance:.3f} → "
+        f"{'DRIFT DETECTED ⚠️' if is_drifted else 'OK ✅'}"
+    )
+    if is_drifted:
+        logger.warning(summary)
+    else:
+        logger.info(summary)
+
+    return LabelDriftReport(
+        ref_positive_rate=ref_positive_rate,
+        cur_positive_rate=cur_rate,
+        drift_magnitude=drift,
+        is_drifted=is_drifted,
+        summary=summary,
+    )
+
+
+# ─── 9. Feature Cardinality — Unseen Categories ───────────────────────
+@dataclass
+class CardinalityReport:
+    """Unseen category detection results."""
+    unseen: Dict[str, List[str]]
+    n_unseen_total: int
+    summary: str
+
+
+def detect_unseen_categories(
+    df: pd.DataFrame,
+    reference_categories: Dict[str, List[str]],
+) -> CardinalityReport:
+    """
+    Eğitimde görmediğimiz yeni kategori değeri geldiğinde tespit.
+
+    reference_categories: {"hotel": ["Resort Hotel", "City Hotel"], ...}
+    """
+    unseen: Dict[str, List[str]] = {}
+    total = 0
+
+    for col, known in reference_categories.items():
+        if col not in df.columns:
+            continue
+        current_cats = set(df[col].dropna().astype(str).unique())
+        known_set = set(str(v) for v in known)
+        new_cats = sorted(current_cats - known_set)
+        if new_cats:
+            unseen[col] = new_cats
+            total += len(new_cats)
+            logger.warning(f"⚠️ Unseen categories in '{col}': {new_cats}")
+
+    summary = f"Cardinality check: {total} unseen category value(s) in {len(unseen)} column(s)"
+    if total == 0:
+        logger.info(f"✅ {summary}")
+
+    return CardinalityReport(unseen=unseen, n_unseen_total=total, summary=summary)
+
+
+# ─── 10. Model Output Range Validation ────────────────────────────────
+@dataclass
+class OutputValidationReport:
+    """Model output validation results."""
+    n_rows: int
+    n_out_of_range: int
+    n_nan: int
+    min_val: float
+    max_val: float
+    passed: bool
+    summary: str
+
+
+def validate_model_output(
+    proba: np.ndarray,
+    tolerance: float = 1e-6,
+) -> OutputValidationReport:
+    """
+    Model predict_proba çıktısının [0,1] aralığında ve NaN-free olduğunu doğrula.
+    Kalibrasyon sonrası bozuk olasılık üretilebilir.
+    """
+    arr = np.asarray(proba, dtype=float)
+    n_nan = int(np.isnan(arr).sum())
+    valid = arr[~np.isnan(arr)]
+    n_out = int(np.sum((valid < -tolerance) | (valid > 1.0 + tolerance)))
+    min_v = float(np.min(valid)) if len(valid) > 0 else float("nan")
+    max_v = float(np.max(valid)) if len(valid) > 0 else float("nan")
+    passed = n_nan == 0 and n_out == 0
+
+    summary = (
+        f"Model output validation: n={len(arr)}, "
+        f"NaN={n_nan}, out_of_range={n_out}, "
+        f"min={min_v:.6f}, max={max_v:.6f} → "
+        f"{'PASS ✅' if passed else 'FAIL ⚠️'}"
+    )
+    if not passed:
+        logger.warning(summary)
+    else:
+        logger.info(summary)
+
+    return OutputValidationReport(
+        n_rows=len(arr),
+        n_out_of_range=n_out,
+        n_nan=n_nan,
+        min_val=min_v,
+        max_val=max_v,
+        passed=passed,
+        summary=summary,
+    )
+
+
+# ─── 11. Data Volume Anomaly ──────────────────────────────────────────
+@dataclass
+class VolumeReport:
+    """Data volume anomaly results."""
+    current_rows: int
+    expected_range: Tuple[int, int]
+    is_anomalous: bool
+    summary: str
+
+
+def validate_data_volume(
+    df: pd.DataFrame,
+    expected_rows: int,
+    tolerance_ratio: float = 0.5,
+) -> VolumeReport:
+    """
+    Gelen veri satır sayısı normalin çok altında veya üstündeyse uyarı.
+
+    expected_rows: Referans satır sayısı (ör: eğitim verisinden)
+    tolerance_ratio: ±%50 varsayılan
+    """
+    lo = max(1, int(expected_rows * (1 - tolerance_ratio)))
+    hi = int(expected_rows * (1 + tolerance_ratio))
+    n = len(df)
+    is_anom = n < lo or n > hi
+
+    summary = (
+        f"Data volume: {n} rows (expected [{lo}, {hi}]) → "
+        f"{'ANOMALOUS ⚠️' if is_anom else 'OK ✅'}"
+    )
+    if is_anom:
+        logger.warning(summary)
+    else:
+        logger.info(summary)
+
+    return VolumeReport(
+        current_rows=n,
+        expected_range=(lo, hi),
+        is_anomalous=is_anom,
+        summary=summary,
+    )
+
+
+# ─── 12. Data Staleness ───────────────────────────────────────────────
+@dataclass
+class StalenessReport:
+    """Data staleness results."""
+    file_modified: Optional[str]
+    age_days: Optional[float]
+    is_stale: bool
+    summary: str
+
+
+def check_data_staleness(
+    file_path: str,
+    max_age_days: float = 90.0,
+) -> StalenessReport:
+    """
+    Ham veri dosyasının yaşını kontrol et.
+    """
+    try:
+        mtime = os.path.getmtime(file_path)
+        mod_dt = datetime.fromtimestamp(mtime, tz=timezone.utc)
+        age = (datetime.now(timezone.utc) - mod_dt).total_seconds() / 86400
+        is_stale = age > max_age_days
+
+        summary = (
+            f"Data staleness: {file_path} is {age:.1f} days old "
+            f"(max={max_age_days}) → "
+            f"{'STALE ⚠️' if is_stale else 'FRESH ✅'}"
+        )
+        if is_stale:
+            logger.warning(summary)
+        else:
+            logger.info(summary)
+
+        return StalenessReport(
+            file_modified=mod_dt.isoformat(),
+            age_days=age,
+            is_stale=is_stale,
+            summary=summary,
+        )
+    except Exception as e:
+        summary = f"Data staleness: cannot check {file_path} — {e}"
+        logger.warning(summary)
+        return StalenessReport(
+            file_modified=None,
+            age_days=None,
+            is_stale=False,
+            summary=summary,
+        )
+
+
+# ─── 13. Schema Versioning / Fingerprint ──────────────────────────────
+def get_schema_fingerprint(
+    df: pd.DataFrame,
+    include_stats: bool = False,
+) -> Dict[str, Any]:
+    """
+    DataFrame'in şema parmak izini üret (sütunlar + tipler).
+    Schema değiştiğinde takip mekanizması sağlar.
+    """
+    schema_info = {
+        "columns": sorted(df.columns.tolist()),
+        "dtypes": {c: str(df[c].dtype) for c in sorted(df.columns)},
+        "n_columns": len(df.columns),
+    }
+    if include_stats:
+        schema_info["n_rows"] = len(df)
+        schema_info["null_counts"] = {c: int(df[c].isna().sum()) for c in df.columns}
+
+    raw = json.dumps(schema_info, sort_keys=True)
+    schema_info["fingerprint"] = hashlib.sha256(raw.encode()).hexdigest()[:16]
+    logger.info(f"Schema fingerprint: {schema_info['fingerprint']} ({len(df.columns)} cols)")
+    return schema_info
+
+
+# ─── 14. Cross-Feature Correlation Drift ──────────────────────────────
+@dataclass
+class CorrelationDriftReport:
+    """Cross-feature correlation drift results."""
+    drifted_pairs: List[Dict[str, Any]]
+    n_drifted: int
+    summary: str
+
+
+def detect_correlation_drift(
+    df_cur: pd.DataFrame,
+    reference_corr: Dict[str, float],
+    numeric_cols: List[str],
+    threshold: float = 0.20,
+) -> CorrelationDriftReport:
+    """
+    İki özellik arasındaki korelasyon değişimi.
+
+    reference_corr: {"col_a__col_b": 0.45, ...} — eğitim sırasında hesaplanan
+    """
+    drifted: List[Dict[str, Any]] = []
+
+    available = [c for c in numeric_cols if c in df_cur.columns]
+    if len(available) < 2:
+        return CorrelationDriftReport(
+            drifted_pairs=[], n_drifted=0,
+            summary="Correlation drift: not enough numeric columns",
+        )
+
+    cur_corr_matrix = df_cur[available].apply(
+        pd.to_numeric, errors="coerce"
+    ).corr(method="pearson")
+
+    for pair_key, ref_val in reference_corr.items():
+        parts = pair_key.split("__")
+        if len(parts) != 2:
+            continue
+        a, b = parts
+        if a not in cur_corr_matrix.columns or b not in cur_corr_matrix.columns:
+            continue
+        cur_val = float(cur_corr_matrix.loc[a, b])
+        delta = abs(cur_val - ref_val)
+        if delta > threshold:
+            drifted.append({
+                "pair": pair_key,
+                "ref_corr": ref_val,
+                "cur_corr": cur_val,
+                "delta": delta,
+            })
+
+    summary = (
+        f"Correlation drift: {len(drifted)} pair(s) drifted "
+        f"(threshold={threshold}) out of {len(reference_corr)} tracked"
+    )
+    if drifted:
+        logger.warning(f"⚠️ {summary}")
+        for d in drifted:
+            logger.warning(f"  → {d['pair']}: ref={d['ref_corr']:.3f} cur={d['cur_corr']:.3f} Δ={d['delta']:.3f}")
+    else:
+        logger.info(f"✅ {summary}")
+
+    return CorrelationDriftReport(
+        drifted_pairs=drifted, n_drifted=len(drifted), summary=summary,
+    )
+
+
+def generate_reference_correlations(
+    df: pd.DataFrame,
+    numeric_cols: List[str],
+    target_col: str,
+    top_k: int = 20,
+) -> Dict[str, float]:
+    """
+    Eğitim verisinden referans korelasyon çiftlerini üret.
+    En yüksek target korelasyonlu top_k feature çiftini izler.
+    """
+    available = [c for c in numeric_cols if c in df.columns]
+    if len(available) < 2:
+        return {}
+
+    num_df = df[available + [target_col]].apply(pd.to_numeric, errors="coerce")
+    target_corr = num_df.corr()[target_col].drop(target_col, errors="ignore").abs()
+    top_features = target_corr.nlargest(min(top_k, len(target_corr))).index.tolist()
+
+    corr_matrix = num_df[top_features].corr()
+    pairs: Dict[str, float] = {}
+    for i, a in enumerate(top_features):
+        for b in top_features[i + 1:]:
+            pairs[f"{a}__{b}"] = float(corr_matrix.loc[a, b])
+    # Also include target correlations
+    for feat in top_features:
+        pairs[f"{feat}__{target_col}"] = float(num_df[[feat, target_col]].corr().iloc[0, 1])
+
+    logger.info(f"Reference correlations generated: {len(pairs)} pairs from {len(top_features)} features")
+    return pairs
+
+
+# ─── 15. Training-Serving Skew (Per-Request) ──────────────────────────
+@dataclass
+class SkewReport:
+    """Training-serving skew results."""
+    skewed_features: List[Dict[str, Any]]
+    n_skewed: int
+    summary: str
+
+
+def detect_training_serving_skew(
+    df_serving: pd.DataFrame,
+    reference_stats: Dict[str, Dict[str, float]],
+    numeric_cols: List[str],
+    tolerance: float = 2.0,
+) -> SkewReport:
+    """
+    Inference sırasında gelen batch'in eğitim dağılımından sapmasını ölç.
+    validate_distributions'dan farkı: daha sıkı tolerance ve per-request çalışır.
+    """
+    skewed: List[Dict[str, Any]] = []
+
+    for col in numeric_cols:
+        if col not in df_serving.columns or col not in reference_stats:
+            continue
+        series = pd.to_numeric(df_serving[col], errors="coerce").dropna()
+        if series.empty:
+            continue
+
+        ref = reference_stats[col]
+        ref_mean = ref.get("mean", 0.0)
+        ref_std = ref.get("std", 1.0)
+        cur_mean = float(series.mean())
+
+        if ref_std > 0 and abs(cur_mean - ref_mean) > tolerance * ref_std:
+            skewed.append({
+                "column": col,
+                "ref_mean": ref_mean,
+                "cur_mean": cur_mean,
+                "z_score": abs(cur_mean - ref_mean) / ref_std,
+            })
+
+    summary = (
+        f"Training-serving skew: {len(skewed)} feature(s) skewed "
+        f"(tolerance={tolerance}σ) out of {len(numeric_cols)} checked"
+    )
+    if skewed:
+        logger.warning(f"⚠️ {summary}")
+    else:
+        logger.info(f"✅ {summary}")
+
+    return SkewReport(
+        skewed_features=skewed, n_skewed=len(skewed), summary=summary,
+    )
+
+
+# ─── 16. Row Count Consistency ────────────────────────────────────────
+def validate_row_counts(
+    dataset_rows: int,
+    train_rows: int,
+    cal_rows: int,
+    test_rows: int,
+    tolerance: int = 5,
+) -> Dict[str, Any]:
+    """
+    İşlenmiş veri → split sonrası satır sayısı tutarlılığı.
+    """
+    split_total = train_rows + cal_rows + test_rows
+    diff = abs(dataset_rows - split_total)
+    passed = diff <= tolerance
+
+    result = {
+        "dataset_rows": dataset_rows,
+        "split_total": split_total,
+        "train": train_rows,
+        "cal": cal_rows,
+        "test": test_rows,
+        "difference": diff,
+        "passed": passed,
+    }
+
+    if not passed:
+        logger.warning(
+            f"⚠️ Row count mismatch: dataset={dataset_rows} vs splits={split_total} (Δ={diff})"
+        )
+    else:
+        logger.info(
+            f"✅ Row count consistent: dataset={dataset_rows} = splits={split_total}"
+        )
+
+    return result
+
+
+# ─── 17. Feature Importance Drift ─────────────────────────────────────
+@dataclass
+class ImportanceDriftReport:
+    """Feature importance drift results."""
+    changed_features: List[Dict[str, Any]]
+    n_changed: int
+    rank_correlation: Optional[float]
+    summary: str
+
+
+def detect_feature_importance_drift(
+    current_importance: Dict[str, float],
+    reference_importance: Dict[str, float],
+    top_k: int = 10,
+    rank_drop_threshold: int = 5,
+) -> ImportanceDriftReport:
+    """
+    Feature importance sıralaması değişimi.
+    Önemli bir feature aniden sıfıra düşerse → data pipeline hatası sinyali.
+    """
+    # Rank by importance
+    ref_ranked = sorted(reference_importance.items(), key=lambda x: -x[1])
+    cur_ranked = sorted(current_importance.items(), key=lambda x: -x[1])
+
+    ref_rank = {name: i for i, (name, _) in enumerate(ref_ranked)}
+    cur_rank = {name: i for i, (name, _) in enumerate(cur_ranked)}
+
+    changed: List[Dict[str, Any]] = []
+    for name in list(ref_rank.keys())[:top_k]:
+        r_ref = ref_rank.get(name, -1)
+        r_cur = cur_rank.get(name, len(cur_rank))
+        rank_diff = r_cur - r_ref
+        if abs(rank_diff) >= rank_drop_threshold:
+            changed.append({
+                "feature": name,
+                "ref_rank": r_ref,
+                "cur_rank": r_cur,
+                "rank_change": rank_diff,
+                "ref_importance": reference_importance.get(name, 0.0),
+                "cur_importance": current_importance.get(name, 0.0),
+            })
+
+    # Spearman rank correlation of shared features
+    shared = sorted(set(ref_rank.keys()) & set(cur_rank.keys()))
+    rank_corr = None
+    if len(shared) >= 3:
+        from scipy import stats as sp_stats
+        ref_ranks = [ref_rank[f] for f in shared]
+        cur_ranks = [cur_rank[f] for f in shared]
+        rank_corr = float(sp_stats.spearmanr(ref_ranks, cur_ranks).statistic)
+
+    summary = (
+        f"Feature importance drift: {len(changed)} feature(s) changed rank by ≥{rank_drop_threshold}"
+        + (f", rank_corr={rank_corr:.3f}" if rank_corr is not None else "")
+    )
+    if changed:
+        logger.warning(f"⚠️ {summary}")
+    else:
+        logger.info(f"✅ {summary}")
+
+    return ImportanceDriftReport(
+        changed_features=changed,
+        n_changed=len(changed),
+        rank_correlation=rank_corr,
+        summary=summary,
+    )
+
+
+# ─── 18. Reference Categories Generation ──────────────────────────────
+def generate_reference_categories(
+    df: pd.DataFrame,
+    categorical_cols: List[str],
+) -> Dict[str, List[str]]:
+    """Eğitim verisindeki kategorik sütunların benzersiz değerlerini kaydet."""
+    cats: Dict[str, List[str]] = {}
+    for col in categorical_cols:
+        if col in df.columns:
+            cats[col] = sorted(df[col].dropna().astype(str).unique().tolist())
+    logger.info(f"Reference categories generated for {len(cats)} columns")
+    return cats

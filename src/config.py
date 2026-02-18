@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -206,3 +206,57 @@ class ExperimentConfig:
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
     api: ApiConfig = field(default_factory=ApiConfig)
     contract: ContractConfig = field(default_factory=ContractConfig)
+
+
+def load_experiment_config(params_path: Optional[Path] = None) -> ExperimentConfig:
+    """
+    params.yaml dosyasından ExperimentConfig yükler — tek kaynak prensibi.
+
+    DVC pipeline'ı params.yaml'ı versiyon kontrolüne alır.
+    Bu fonksiyon sayesinde kod ile yaml arasında değer çiftlenmesi olmaz.
+
+    Dosya bulunamazsa ya da bir anahtar eksikse varsayılan değerler kullanılır
+    (güvenli fallback — test ortamı veya minimal kurulum için).
+
+    Kullanım:
+        cfg = load_experiment_config()               # otomatik proje kökü
+        cfg = load_experiment_config(Path("p.yaml")) # özel yol
+    """
+    if params_path is None:
+        params_path = Path(__file__).resolve().parents[1] / "params.yaml"
+
+    if not params_path.exists():
+        return ExperimentConfig()
+
+    try:
+        import yaml  # PyYAML — requirements-prod.txt'te mevcut (dvc bağımlılığı)
+    except ImportError:
+        return ExperimentConfig()
+
+    try:
+        with params_path.open("r", encoding="utf-8") as fh:
+            raw: Dict[str, Any] = yaml.safe_load(fh) or {}
+    except Exception:
+        return ExperimentConfig()
+
+    exp = raw.get("experiment", {}) or {}
+    cost = raw.get("cost_matrix", {}) or {}
+    decision = raw.get("decision", {}) or {}
+
+    return ExperimentConfig(
+        target_col=str(exp.get("target_col", "is_canceled")),
+        test_size=float(exp.get("test_size", 0.20)),
+        seed=int(exp.get("seed", 42)),
+        cv_folds=int(exp.get("cv_folds", 5)),
+        cost=CostConfig(
+            tp_value=float(cost.get("tp_value", 180.0)),
+            fp_value=float(cost.get("fp_value", -20.0)),
+            fn_value=float(cost.get("fn_value", -200.0)),
+            tn_value=float(cost.get("tn_value", 0.0)),
+        ),
+        decision=DecisionConfig(
+            action_rates=list(
+                decision.get("action_rates", [0.05, 0.10, 0.15, 0.20, 0.30])
+            ),
+        ),
+    )

@@ -48,7 +48,8 @@ Amaç; modeli **tekrarlanabilir**, **izlenebilir**, **güvenli** ve **üretime u
 - **Dil/Runtime:** Python 3.10+
 - **Paketleme:** [pyproject.toml](pyproject.toml)
 - **Pipeline:** [dvc.yaml](dvc.yaml)
-- **API ve servis kodu:** [src](src)
+- **API ve servis kodu:** [src](src), [apps/backend](apps/backend)
+- **Frontend (fullstack UI):** [apps/frontend](apps/frontend)
 - **Dağıtım artefaktları:** [deploy](deploy)
 - **Testler:** [tests](tests)
 - **Raporlar ve metrikler:** [reports](reports)
@@ -91,6 +92,12 @@ python main.py serve-api --host 0.0.0.0 --port 8000
 - `POST /predict_proba` → olasılık çıktısı
 - `POST /decide` → politika tabanlı karar
 - `POST /reload` → servis yeniden başlatmadan model/policy yenileme
+- `GET /dashboard/api/overview` → dashboard veri endpoint'i (train/test metrikleri)
+- `GET /dashboard/api/runs` → run listesi
+- `GET /dashboard/api/db-status` → veritabanı bağlantı durumu
+- `POST /auth/login` → dashboard giriş
+- `POST /auth/logout` → dashboard çıkış
+- `GET /auth/me` → aktif oturum bilgisi
 
 İsteklerde header:
 
@@ -100,6 +107,39 @@ Rate limit backend seçenekleri:
 
 - `memory` → tek pod / geliştirme ortamı
 - `redis` → dağıtık ve çok replika üretim ortamı
+
+## Fullstack Web (Önerilen Mimari)
+
+Bu projede önerilen yapı:
+
+- Backend: FastAPI (`src`) + entrypoint (`apps/backend/main.py`)
+- Frontend: React/Vite (`apps/frontend`)
+- ML çekirdeği: mevcut pipeline (`src/train.py`, `src/evaluate.py`, `src/predict.py`)
+
+Frontend'i lokal çalıştırma:
+
+```bash
+cd apps/frontend
+npm install
+npm run dev -- --host 0.0.0.0 --port 5173
+```
+
+Varsayılan URL:
+
+- Frontend UI: `http://localhost:5173`
+- Backend API: `http://localhost:8000`
+
+Kurumsal dashboard sayfaları:
+
+- Genel Bakış
+- Model Analizi
+- Run Geçmişi
+- Sistem ve Veritabanı
+
+Dashboard giriş bilgileri (dev ortamı):
+
+- kullanıcı adı: `admin`
+- şifre: `ChangeMe123!`
 
 ## İzleme ve Alarm Yönetimi
 
@@ -178,6 +218,18 @@ Test kapsamı:
 docker build -t ds-project:latest .
 docker run -e DS_API_KEY=your-secret-key -p 8000:8000 ds-project:latest
 ```
+
+### Docker Compose (API + Frontend + Redis + PostgreSQL + Monitoring)
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+Önemli URL'ler:
+
+- API: `http://localhost:8000`
+- Frontend Dashboard: `http://localhost:5173`
+- PostgreSQL: `localhost:5432` (`ds_dashboard`)
 
 ### Kubernetes
 

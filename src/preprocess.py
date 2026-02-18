@@ -53,7 +53,7 @@ def preprocess_basic(
         raise ValueError(
             f"Unknown target labels: {sorted(unknown)} | label_map keys={sorted(label_map.keys())}"
         )
-    df[target_col] = y.map(label_map).astype(int)
+    df[target_col] = y.map(label_map).astype("int64")
 
     # 3) Tamamen boş kolonları düşür (baseline)
     empty_cols = [c for c in df.columns if df[c].isna().all()]
@@ -73,5 +73,15 @@ def preprocess_basic(
                 mode = df[c].mode(dropna=True)
                 fill = mode.iloc[0] if len(mode) else "UNKNOWN"
                 df[c] = df[c].fillna(fill)
+
+    # 5) Post-imputation NaN assertion — imputation başarısız olduysa pipeline'ı durdur
+    from .data_validation import assert_no_nans_after_imputation
+    nan_remains = assert_no_nans_after_imputation(df, exclude_cols=[target_col])
+    if nan_remains:
+        raise ValueError(
+            f"Imputation tamamlanamadı — {len(nan_remains)} kolonda NaN kaldı: "
+            f"{list(nan_remains.keys())}. "
+            "Missing value stratejisini kontrol edin."
+        )
 
     return df

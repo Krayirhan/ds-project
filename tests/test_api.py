@@ -32,7 +32,13 @@ def test_decide_requires_api_key():
 def test_wrong_api_key_is_rejected():
     os.environ.setdefault("DS_API_KEY", "test-key")
     with TestClient(app) as client:
-        r = client.get("/ready", headers={"x-api-key": "wrong"})
+        # /ready operasyonel endpoint olduğu için API key muafiyeti vardır.
+        # Korumalı bir endpoint test ediyoruz.
+        r = client.post(
+            "/predict_proba",
+            json={"records": []},
+            headers={"x-api-key": "wrong"},
+        )
         assert r.status_code == 401
         body = r.json()
         assert body["error_code"] == "unauthorized"

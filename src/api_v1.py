@@ -7,7 +7,10 @@ Maintains backward compatibility.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+import asyncio
+import os
+
+from fastapi import APIRouter, HTTPException, Request
 import pandas as pd
 
 from .api_shared import (
@@ -68,14 +71,19 @@ def v1_predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
             )
             proba = serving.model.predict_proba(X)[:, 1]
             set_span_attribute("ml.result_count", int(len(proba)))
-        INFERENCE_ROWS.labels(endpoint="v1.predict_proba").inc(len(proba))
+        INFERENCE_ROWS.labels(
+            endpoint="v1.predict_proba",
+            model=str(getattr(serving.policy, "selected_model", "")),
+        ).inc(len(proba))
         return PredictProbaResponse(
             n=int(len(proba)),
             proba=[float(x) for x in proba],
             schema_report=schema_report,
         )
     except Exception as e:
-        INFERENCE_ERRORS.labels(endpoint="v1.predict_proba").inc()
+        _serving = getattr(_app_ref.state if _app_ref else None, "serving", None)
+        _model = str(getattr(getattr(_serving, "policy", None), "selected_model", "") or "")
+        INFERENCE_ERRORS.labels(endpoint="v1.predict_proba", model=_model).inc()
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -104,30 +112,40 @@ def v1_decide(payload: RecordsPayload) -> DecideResponse:
                 model_used=serving.policy.selected_model_artifact,
             )
             set_span_attribute("ml.result_count", int(len(actions_df)))
-        INFERENCE_ROWS.labels(endpoint="v1.decide").inc(len(actions_df))
+        INFERENCE_ROWS.labels(
+            endpoint="v1.decide",
+            model=str(serving.policy.selected_model_artifact or ""),
+        ).inc(len(actions_df))
         return DecideResponse(
             n=int(len(actions_df)),
             results=actions_df.to_dict(orient="records"),
             report=pred_report,
         )
     except Exception as e:
-        INFERENCE_ERRORS.labels(endpoint="v1.decide").inc()
+        _serving = getattr(_app_ref.state if _app_ref else None, "serving", None)
+        _model = str(getattr(getattr(_serving, "policy", None), "selected_model_artifact", "") or "")
+        INFERENCE_ERRORS.labels(endpoint="v1.decide", model=_model).inc()
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @router_v1.post(
-    "/reload", response_model=ReloadResponse, responses={500: {"model": ErrorResponse}}
+    "/reload", response_model=ReloadResponse, responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}
 )
-def v1_reload() -> ReloadResponse:
-    try:
-        serving = load_serving_state()
-        if _app_ref is not None:
-            _app_ref.state.serving = serving
-        return {
-            "status": "ok",
-            "message": "Serving state reloaded",
-            "model": serving.policy.selected_model,
-            "policy_path": str(serving.policy_path),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Reload failed: {e}")
+async def v1_reload(request: Request) -> ReloadResponse:
+    expected_admin = os.getenv("DS_ADMIN_KEY")
+    if expected_admin and request.headers.get("x-admin-key") != expected_admin:
+        raise HTTPException(status_code=403, detail="x-admin-key header gereklidir.")
+    lock = getattr(_app_ref.state if _app_ref else None, "_reload_lock", None) or asyncio.Lock()
+    async with lock:
+        try:
+            serving = load_serving_state()
+            if _app_ref is not None:
+                _app_ref.state.serving = serving
+            return {
+                "status": "ok",
+                "message": "Serving state reloaded",
+                "model": serving.policy.selected_model,
+                "policy_path": str(serving.policy_path),
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Reload failed: {e}")

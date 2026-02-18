@@ -17,13 +17,13 @@ REQUEST_LATENCY = Histogram(
 INFERENCE_ROWS = Counter(
     "ds_api_inference_rows_total",
     "Total number of records processed by inference endpoints",
-    ["endpoint"],
+    ["endpoint", "model"],
 )
 
 INFERENCE_ERRORS = Counter(
     "ds_api_inference_errors_total",
     "Total number of inference errors",
-    ["endpoint"],
+    ["endpoint", "model"],
 )
 
 

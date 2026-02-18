@@ -9,6 +9,8 @@ Enhanced API with:
 
 from __future__ import annotations
 
+import asyncio
+import os
 import time
 from typing import List, Optional
 
@@ -119,7 +121,10 @@ def v2_predict_proba(
             proba = serving.model.predict_proba(X)[:, 1]
             set_span_attribute("ml.result_count", int(len(proba)))
             set_span_attribute("ml.api_version", "v2")
-        INFERENCE_ROWS.labels(endpoint="v2.predict_proba").inc(len(proba))
+        INFERENCE_ROWS.labels(
+            endpoint="v2.predict_proba",
+            model=model_name,
+        ).inc(len(proba))
 
         rid = getattr(request.state, "request_id", None)
         return V2PredictProbaResponse(
@@ -134,7 +139,9 @@ def v2_predict_proba(
             ),
         )
     except Exception as e:
-        INFERENCE_ERRORS.labels(endpoint="v2.predict_proba").inc()
+        _serving = getattr(_app_ref.state if _app_ref else None, "serving", None)
+        _model = str(getattr(getattr(_serving, "policy", None), "selected_model", "") or "")
+        INFERENCE_ERRORS.labels(endpoint="v2.predict_proba", model=_model).inc()
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -168,7 +175,10 @@ def v2_decide(payload: RecordsPayload, request: Request) -> V2DecideResponse:
                 else getattr(pred_report, "threshold_used", 0)
             )
             set_span_attribute("ml.threshold_used", threshold)
-        INFERENCE_ROWS.labels(endpoint="v2.decide").inc(len(actions_df))
+        INFERENCE_ROWS.labels(
+            endpoint="v2.decide",
+            model=model_name,
+        ).inc(len(actions_df))
 
         rid = getattr(request.state, "request_id", None)
         return V2DecideResponse(
@@ -183,33 +193,40 @@ def v2_decide(payload: RecordsPayload, request: Request) -> V2DecideResponse:
             ),
         )
     except Exception as e:
-        INFERENCE_ERRORS.labels(endpoint="v2.decide").inc()
+        _serving = getattr(_app_ref.state if _app_ref else None, "serving", None)
+        _model = str(getattr(getattr(_serving, "policy", None), "selected_model_artifact", "") or "")
+        INFERENCE_ERRORS.labels(endpoint="v2.decide", model=_model).inc()
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @router_v2.post(
     "/reload",
     response_model=V2ReloadResponse,
-    responses={500: {"model": ErrorResponse}},
+    responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-def v2_reload(request: Request) -> V2ReloadResponse:
+async def v2_reload(request: Request) -> V2ReloadResponse:
     t0 = time.time()
-    try:
-        serving = load_serving_state()
-        if _app_ref is not None:
-            _app_ref.state.serving = serving
-        rid = getattr(request.state, "request_id", None)
-        return V2ReloadResponse(
-            status="ok",
-            message="Serving state reloaded",
-            model=serving.policy.selected_model,
-            policy_path=str(serving.policy_path),
-            meta=V2Meta(
-                api_version="v2",
-                model_used=serving.policy.selected_model,
-                latency_ms=round((time.time() - t0) * 1000, 2),
-                request_id=rid,
-            ),
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Reload failed: {e}")
+    expected_admin = os.getenv("DS_ADMIN_KEY")
+    if expected_admin and request.headers.get("x-admin-key") != expected_admin:
+        raise HTTPException(status_code=403, detail="x-admin-key header gereklidir.")
+    lock = getattr(_app_ref.state if _app_ref else None, "_reload_lock", None) or asyncio.Lock()
+    async with lock:
+        try:
+            serving = load_serving_state()
+            if _app_ref is not None:
+                _app_ref.state.serving = serving
+            rid = getattr(request.state, "request_id", None)
+            return V2ReloadResponse(
+                status="ok",
+                message="Serving state reloaded",
+                model=serving.policy.selected_model,
+                policy_path=str(serving.policy_path),
+                meta=V2Meta(
+                    api_version="v2",
+                    model_used=serving.policy.selected_model,
+                    latency_ms=round((time.time() - t0) * 1000, 2),
+                    request_id=rid,
+                ),
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Reload failed: {e}")

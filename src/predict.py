@@ -13,6 +13,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from .data_validation import (
+    validate_inference_payload,
+    detect_training_serving_skew,
+    detect_unseen_categories,
+    validate_model_output,
+    detect_row_anomalies,
+    validate_data_volume,
+)
 from .features import FeatureSpec
 from .policy import DecisionPolicy, apply, compute_incremental_profit_scores
 from .utils import get_logger
@@ -37,6 +45,16 @@ def validate_and_prepare_features(
     feature_spec_payload: Dict[str, Any],
     fail_on_missing: bool = True,
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    # ── Pandera inference şema doğrulaması ──
+    pandera_errors = validate_inference_payload(
+        df_input, feature_spec_payload, raise_on_error=False
+    )
+    if pandera_errors is not None:
+        logger.warning(
+            f"Pandera inference validation: {len(pandera_errors.failure_cases)} issue(s) — "
+            "proceeding with best-effort feature preparation"
+        )
+
     spec = FeatureSpec.from_dict(feature_spec_payload)
 
     expected = set(spec.all_features)
@@ -87,12 +105,57 @@ def validate_and_prepare_features(
         ):
             work[c] = work[c].astype("string")
 
+    # ── Training-serving skew detection (per-request) ──
+    skew_report = None
+    ref_stats = feature_spec_payload.get("_reference_stats")
+    if ref_stats:
+        skew_report = detect_training_serving_skew(
+            df_serving=work, reference_stats=ref_stats,
+            numeric_cols=spec.numeric, tolerance=2.0,
+        )
+
+    # ── Unseen category detection ──
+    cardinality_report = None
+    ref_cats = feature_spec_payload.get("_reference_categories")
+    if ref_cats:
+        cardinality_report = detect_unseen_categories(work, ref_cats)
+
+    # ── Row-level anomaly detection (inference payload) ──
+    anomaly_report = detect_row_anomalies(work)
+
+    # ── Data volume anomaly (per-request batch size) ──
+    volume_report = None
+    expected_rows = feature_spec_payload.get("_reference_volume_rows")
+    if isinstance(expected_rows, int) and expected_rows > 0:
+        volume_report = validate_data_volume(
+            work, expected_rows=expected_rows, tolerance_ratio=0.90
+        )
+
     report = {
         "missing_columns": missing_cols,
         "extra_columns": extra_cols,
         "feature_count_expected": len(spec.all_features),
         "feature_count_input": int(df_input.shape[1]),
         "feature_count_used": int(work.shape[1]),
+        "pandera_schema_passed": pandera_errors is None,
+        "training_serving_skew": {
+            "n_skewed": skew_report.n_skewed if skew_report else 0,
+            "skewed_features": [s["column"] for s in skew_report.skewed_features] if skew_report else [],
+        },
+        "unseen_categories": {
+            "n_unseen": cardinality_report.n_unseen_total if cardinality_report else 0,
+            "columns": list(cardinality_report.unseen.keys()) if cardinality_report else [],
+        },
+        "row_anomalies": {
+            "n_anomalies": anomaly_report.n_anomalies,
+            "anomaly_types": anomaly_report.anomaly_types,
+            "sample_indices": anomaly_report.sample_indices,
+        },
+        "data_volume": {
+            "expected_range": list(volume_report.expected_range) if volume_report else None,
+            "is_anomalous": volume_report.is_anomalous if volume_report else None,
+            "summary": volume_report.summary if volume_report else "skipped",
+        },
     }
     return work, report
 
@@ -109,6 +172,17 @@ def predict_with_policy(
     )
 
     proba = model.predict_proba(X)[:, 1]
+
+    # ── Model output range validation [0,1] ──
+    output_report = validate_model_output(proba)
+    if not output_report.passed:
+        logger.warning(
+            f"Model output validation FAILED: {output_report.n_nan} NaN, "
+            f"{output_report.n_out_of_range} out of range"
+        )
+        # Clamp to [0,1] for safety
+        proba = np.clip(np.nan_to_num(proba, nan=0.5), 0.0, 1.0)
+
     ranking_scores = compute_incremental_profit_scores(
         df_input=df_input, proba=proba, policy=policy
     )

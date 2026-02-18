@@ -12,6 +12,7 @@ src/api_v2.py
 src/calibration.py
 src/config.py
 src/cost_matrix.py
+src/dashboard.py
 src/data_validation.py
 src/evaluate.py
 src/experiment_tracking.py
@@ -45,6 +46,7 @@ src/cli/train.py
 tests/test_api.py
 tests/test_calibration.py
 tests/test_cost_matrix.py
+tests/test_dashboard.py
 tests/test_data_validation.py
 tests/test_evaluate.py
 tests/test_io.py
