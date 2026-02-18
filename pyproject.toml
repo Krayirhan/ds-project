@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "ds-project"
+version = "0.1.0"
+description = "Hotel booking cancellation prediction"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+include = ["src*"]
