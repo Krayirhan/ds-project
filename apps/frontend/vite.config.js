@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const BACKEND_TARGET = process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000';
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -8,35 +10,39 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/dashboard/api': {
-        target: 'http://localhost:8000',
+        target: BACKEND_TARGET,
         changeOrigin: true,
       },
       '/auth': {
-        target: 'http://localhost:8000',
+        target: BACKEND_TARGET,
         changeOrigin: true,
       },
       '/predict_proba': {
-        target: 'http://localhost:8000',
+        target: BACKEND_TARGET,
         changeOrigin: true,
       },
       '/decide': {
-        target: 'http://localhost:8000',
+        target: BACKEND_TARGET,
         changeOrigin: true,
       },
       '/reload': {
-        target: 'http://localhost:8000',
+        target: BACKEND_TARGET,
+        changeOrigin: true,
+      },
+      '/chat': {
+        target: BACKEND_TARGET,
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://localhost:8000',
+        target: BACKEND_TARGET,
         changeOrigin: true,
       },
       '/ready': {
-        target: 'http://localhost:8000',
+        target: BACKEND_TARGET,
         changeOrigin: true,
       },
       '/metrics': {
-        target: 'http://localhost:8000',
+        target: BACKEND_TARGET,
         changeOrigin: true,
       },
     },

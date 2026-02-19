@@ -12,7 +12,18 @@ import {
   Tooltip,
   Title,
 } from 'chart.js';
-import { getDbStatus, getOverview, getRuns, login, logout, me } from './api';
+import {
+  getDbStatus,
+  getOverview,
+  getRuns,
+  login,
+  logout,
+  me,
+  startChatSession,
+  sendChatMessage,
+  getChatSummary,
+} from './api';
+import './modern.css';
 
 Chart.register(
   CategoryScale, LinearScale, BarController, BarElement,
@@ -20,6 +31,22 @@ Chart.register(
 );
 Chart.defaults.font.family = 'Tahoma, "Segoe UI", sans-serif';
 Chart.defaults.font.size = 10;
+
+function applyChartTheme(themeVal) {
+  const isModern = themeVal.startsWith('modern');
+  const isDark = themeVal === 'modern-dark';
+  if (isModern) {
+    Chart.defaults.font.family = 'Inter, -apple-system, system-ui, sans-serif';
+    Chart.defaults.font.size = 11;
+    Chart.defaults.color = isDark ? '#cbd5e1' : '#4a5568';
+    Chart.defaults.borderColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)';
+  } else {
+    Chart.defaults.font.family = 'Tahoma, "Segoe UI", sans-serif';
+    Chart.defaults.font.size = 10;
+    Chart.defaults.color = '#666';
+    Chart.defaults.borderColor = 'rgba(0,0,0,0.1)';
+  }
+}
 
 /* ================================================================
    MODEL İSİMLENDİRME — Teknik isimleri Türkçe anlaşılır hale çevir
@@ -112,7 +139,7 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
 
   const [activePage, setActivePage] = useState('overview');
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = useState(import.meta.env.VITE_DEFAULT_API_KEY || '');
   const [runs, setRuns] = useState([]);
   const [dbRuns, setDbRuns] = useState([]);
   const [selectedRun, setSelectedRun] = useState('');
@@ -123,6 +150,54 @@ export default function App() {
   const [selectedModelIdx, setSelectedModelIdx] = useState(null);
   const [sortCol, setSortCol] = useState('test_roc_auc');
   const [sortDir, setSortDir] = useState('desc');
+
+  /* ---- Tema Yönetimi ---- */
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('ds_theme') || 'classic';
+    if (saved === 'modern') return 'modern-light';   // eski değer → aydınlık modern
+    return saved;
+  });
+
+  useEffect(() => {
+    if (theme === 'modern-light' || theme === 'modern-dark') {
+      document.documentElement.setAttribute('data-theme', theme);
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    applyChartTheme(theme);
+    localStorage.setItem('ds_theme', theme);
+  }, [theme]);
+
+  function toggleTheme() {
+    setTheme(prev => {
+      if (prev === 'classic') return 'modern-light';
+      if (prev === 'modern-light') return 'modern-dark';
+      return 'classic';
+    });
+  }
+
+  const isModern = theme.startsWith('modern');
+  const isDark = theme === 'modern-dark';
+
+  const [chatSessionId, setChatSessionId] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatQuickActions, setChatQuickActions] = useState([]);
+  const [chatSummary, setChatSummary] = useState(null);
+  const [chatBusy, setChatBusy] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const [chatRiskScore, setChatRiskScore] = useState(0.5);
+  const [chatCustomer, setChatCustomer] = useState({
+    hotel: 'City Hotel',
+    lead_time: 30,
+    deposit_type: 'No Deposit',
+    previous_cancellations: 0,
+    market_segment: 'Online TA',
+    adults: 2,
+    children: 0,
+    stays_in_week_nights: 2,
+    stays_in_weekend_nights: 1,
+  });
 
   function authFailed(err) {
     const msg = String(err?.message || err || '');
@@ -177,6 +252,83 @@ export default function App() {
       if (!authFailed(err)) setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function chatRiskLabelFromScore(score) {
+    const val = Number(score);
+    if (val >= 0.65) return 'high';
+    if (val >= 0.35) return 'medium';
+    return 'low';
+  }
+
+  function handleChatCustomerChange(key, value) {
+    setChatCustomer(prev => ({ ...prev, [key]: value }));
+  }
+
+  async function openChatSession() {
+    setChatError('');
+    setChatBusy(true);
+    try {
+      const payload = {
+        customer_data: {
+          ...chatCustomer,
+          lead_time: Number(chatCustomer.lead_time || 0),
+          previous_cancellations: Number(chatCustomer.previous_cancellations || 0),
+          adults: Number(chatCustomer.adults || 1),
+          children: Number(chatCustomer.children || 0),
+          stays_in_week_nights: Number(chatCustomer.stays_in_week_nights || 0),
+          stays_in_weekend_nights: Number(chatCustomer.stays_in_weekend_nights || 0),
+        },
+        risk_score: Number(chatRiskScore),
+        risk_label: chatRiskLabelFromScore(chatRiskScore),
+      };
+      const created = await startChatSession(payload, apiKey);
+      setChatSessionId(created.session_id);
+      setChatQuickActions(created.quick_actions || []);
+      setChatMessages([
+        {
+          role: 'assistant',
+          content: created.bot_message || 'Oturum açıldı.',
+        },
+      ]);
+      const summary = await getChatSummary(created.session_id, apiKey);
+      setChatSummary(summary);
+    } catch (err) {
+      if (!authFailed(err)) setChatError(err.message || 'Chat oturumu açılamadı.');
+    } finally {
+      setChatBusy(false);
+    }
+  }
+
+  async function sendUserChatMessage(text) {
+    const messageText = String(text || '').trim();
+    if (!messageText || !chatSessionId) return;
+
+    setChatError('');
+    setChatBusy(true);
+    setChatMessages(prev => [...prev, { role: 'user', content: messageText }]);
+    setChatInput('');
+
+    try {
+      const response = await sendChatMessage(
+        {
+          session_id: chatSessionId,
+          message: messageText,
+        },
+        apiKey,
+      );
+      setChatMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: response.bot_message || 'Yanıt alınamadı.' },
+      ]);
+      setChatQuickActions(response.quick_actions || []);
+      const summary = await getChatSummary(chatSessionId, apiKey);
+      setChatSummary(summary);
+    } catch (err) {
+      if (!authFailed(err)) setChatError(err.message || 'Mesaj gönderilemedi.');
+    } finally {
+      setChatBusy(false);
     }
   }
 
@@ -287,22 +439,25 @@ export default function App() {
     const prfCtx = document.getElementById('prfChart');
     if (!aucCtx || !prfCtx) return;
 
-    const gridColor = '#c0c0c0';
+    const _isM = theme.startsWith('modern');
+    const _isDk = theme === 'modern-dark';
+    const gridColor = _isM ? (_isDk ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)') : '#c0c0c0';
+    const tickColor = _isM ? (_isDk ? '#cbd5e1' : '#4a5568') : undefined;
     const auc = new Chart(aucCtx, {
       type: 'bar',
       data: {
         labels: chartDataset.labels,
         datasets: [
-          { label: 'Eğitim ROC-AUC (CV Ort.)', data: chartDataset.trainAuc, backgroundColor: '#4472c4', borderColor: '#2f5496', borderWidth: 1 },
-          { label: 'Test ROC-AUC', data: chartDataset.testAuc, backgroundColor: '#ed7d31', borderColor: '#c65911', borderWidth: 1 },
+          { label: 'Eğitim ROC-AUC (CV Ort.)', data: chartDataset.trainAuc, backgroundColor: _isM ? '#1a56db' : '#4472c4', borderColor: _isM ? '#1648b8' : '#2f5496', borderWidth: 1, borderRadius: _isM ? 4 : 0 },
+          { label: 'Test ROC-AUC', data: chartDataset.testAuc, backgroundColor: _isM ? '#0d9488' : '#ed7d31', borderColor: _isM ? '#0f766e' : '#c65911', borderWidth: 1, borderRadius: _isM ? 4 : 0 },
         ],
       },
       options: {
         responsive: true,
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: _isM ? 11 : 10 }, color: tickColor } } },
         scales: {
-          y: { min: 0.5, max: 1, grid: { color: gridColor }, ticks: { font: { size: 10 } } },
-          x: { grid: { color: gridColor }, ticks: { font: { size: 9 }, maxRotation: 25 } },
+          y: { min: 0.5, max: 1, grid: { color: gridColor }, ticks: { font: { size: _isM ? 11 : 10 }, color: tickColor } },
+          x: { grid: { color: gridColor }, ticks: { font: { size: _isM ? 10 : 9 }, maxRotation: 25, color: tickColor } },
         },
       },
     });
@@ -312,22 +467,22 @@ export default function App() {
       data: {
         labels: chartDataset.labels,
         datasets: [
-          { label: 'Precision', data: chartDataset.testPrecision, backgroundColor: '#4472c4', borderWidth: 1 },
-          { label: 'Recall', data: chartDataset.testRecall, backgroundColor: '#ed7d31', borderWidth: 1 },
-          { label: 'F1 Skoru', data: chartDataset.testF1, backgroundColor: '#70ad47', borderWidth: 1 },
+          { label: 'Precision', data: chartDataset.testPrecision, backgroundColor: _isM ? '#1a56db' : '#4472c4', borderWidth: 1, borderRadius: _isM ? 4 : 0 },
+          { label: 'Recall', data: chartDataset.testRecall, backgroundColor: _isM ? '#d97706' : '#ed7d31', borderWidth: 1, borderRadius: _isM ? 4 : 0 },
+          { label: 'F1 Skoru', data: chartDataset.testF1, backgroundColor: _isM ? '#0d9488' : '#70ad47', borderWidth: 1, borderRadius: _isM ? 4 : 0 },
         ],
       },
       options: {
         responsive: true,
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: _isM ? 11 : 10 }, color: tickColor } } },
         scales: {
-          y: { min: 0, max: 1, grid: { color: gridColor }, ticks: { font: { size: 10 } } },
-          x: { grid: { color: gridColor }, ticks: { font: { size: 9 }, maxRotation: 25 } },
+          y: { min: 0, max: 1, grid: { color: gridColor }, ticks: { font: { size: _isM ? 11 : 10 }, color: tickColor } },
+          x: { grid: { color: gridColor }, ticks: { font: { size: _isM ? 10 : 9 }, maxRotation: 25, color: tickColor } },
         },
       },
     });
     return () => { auc.destroy(); prf.destroy(); };
-  }, [chartDataset, activePage]);
+  }, [chartDataset, activePage, theme]);
 
   /* ================================================================
      LOGIN EKRANI
@@ -338,6 +493,9 @@ export default function App() {
         <form className="loginCard" onSubmit={handleLogin}>
           <h1>Rezervasyon İptal Tahmin Sistemi — Giriş</h1>
           <p>Bu panel yalnızca yetkili personel içindir. Lütfen kimlik bilgilerinizi girin.</p>
+          <p style={{ marginTop: 4, fontSize: 12, color: isModern ? (isDark ? '#cbd5e1' : '#4a5568') : '#666' }}>
+            Docker ortamı için giriş: <b>admin / admin123</b>
+          </p>
           <label>Kullanıcı Adı:</label>
           <input value={username} onChange={e => setUsername(e.target.value)} required autoFocus />
           <label>Şifre:</label>
@@ -345,6 +503,14 @@ export default function App() {
           {loginError && <div className="error smallError">{loginError}</div>}
           <button type="submit">Giriş</button>
         </form>
+        <button
+          className="themeToggle"
+          onClick={toggleTheme}
+          style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 100 }}
+        >
+          <span className="themeIcon">{theme === 'classic' ? '☀️' : isDark ? '🖥️' : '🌙'}</span>
+          {theme === 'classic' ? 'Modern Aydınlık' : isDark ? 'Klasik Görünüm' : 'Modern Karanlık'}
+        </button>
       </div>
     );
   }
@@ -357,6 +523,7 @@ export default function App() {
     { key: 'models',   label: 'Model Karşılaştırma', desc: 'Tüm modellerin detaylı analizi' },
     { key: 'pipeline', label: 'Veri İşleme Hattı',  desc: 'Önişleme, özellik çıkarımı ve model eğitim adımları' },
     { key: 'runs',     label: 'Koşu Geçmişi',      desc: 'Geçmiş çalıştırma kayıtları' },
+    { key: 'chat',     label: 'Chat Asistanı',      desc: 'Müşteri bazlı iptal azaltma danışmanı' },
     { key: 'system',   label: 'Sistem Durumu',      desc: 'Veritabanı ve altyapı bilgisi' },
   ];
 
@@ -382,6 +549,10 @@ export default function App() {
           <div><strong>Kullanıcı:</strong> {currentUser}</div>
           <div><strong>Run:</strong> {formatRunId(selectedRun)}</div>
         </div>
+        <button className="themeToggle" onClick={toggleTheme}>
+          <span className="themeIcon">{theme === 'classic' ? '☀️' : isDark ? '🖥️' : '🌙'}</span>
+          {theme === 'classic' ? 'Modern Aydınlık' : isDark ? 'Klasik Görünüm' : 'Modern Karanlık'}
+        </button>
         <button className="logoutBtn" onClick={handleLogout}>✕ Oturumu Kapat</button>
       </aside>
 
@@ -1311,6 +1482,137 @@ export default function App() {
                   <li>"Net Kazanç" sütunu, modelin maliyet matrisine göre hesaplanan beklenen toplam faydadır.</li>
                   <li>Koşu kimliği (Run ID) tarih_saat formatındadır: YYYYAAGG_SSddss</li>
                 </ul>
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* ===============================================================
+            SAYFA 5: CHAT ASİSTANI
+            =============================================================== */}
+        {activePage === 'chat' && (
+          <>
+            <header className="pageHeader">
+              <h1>💬 Chat Asistanı — İptal Azaltma</h1>
+              <p className="subtitle">
+                Önce müşteri formunu doldurun, ardından chat oturumunu başlatın.
+                Asistan müşteri profiline göre somut aksiyon önerileri sunar.
+              </p>
+            </header>
+
+            <section className="card chatGrid">
+              <div>
+                <div className="small">Müşteri Formu</div>
+                <div className="chatFormGrid">
+                  <div>
+                    <label>Otel</label>
+                    <select value={chatCustomer.hotel} onChange={e => handleChatCustomerChange('hotel', e.target.value)}>
+                      <option value="City Hotel">City Hotel</option>
+                      <option value="Resort Hotel">Resort Hotel</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Lead Time (gün)</label>
+                    <input type="number" min="0" value={chatCustomer.lead_time} onChange={e => handleChatCustomerChange('lead_time', e.target.value)} />
+                  </div>
+                  <div>
+                    <label>Depozito</label>
+                    <select value={chatCustomer.deposit_type} onChange={e => handleChatCustomerChange('deposit_type', e.target.value)}>
+                      <option value="No Deposit">No Deposit</option>
+                      <option value="Non Refund">Non Refund</option>
+                      <option value="Refundable">Refundable</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Market Segment</label>
+                    <select value={chatCustomer.market_segment} onChange={e => handleChatCustomerChange('market_segment', e.target.value)}>
+                      <option value="Online TA">Online TA</option>
+                      <option value="Direct">Direct</option>
+                      <option value="Corporate">Corporate</option>
+                      <option value="Groups">Groups</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Yetişkin</label>
+                    <input type="number" min="1" value={chatCustomer.adults} onChange={e => handleChatCustomerChange('adults', e.target.value)} />
+                  </div>
+                  <div>
+                    <label>Çocuk</label>
+                    <input type="number" min="0" value={chatCustomer.children} onChange={e => handleChatCustomerChange('children', e.target.value)} />
+                  </div>
+                  <div>
+                    <label>Hafta içi gece</label>
+                    <input type="number" min="0" value={chatCustomer.stays_in_week_nights} onChange={e => handleChatCustomerChange('stays_in_week_nights', e.target.value)} />
+                  </div>
+                  <div>
+                    <label>Hafta sonu gece</label>
+                    <input type="number" min="0" value={chatCustomer.stays_in_weekend_nights} onChange={e => handleChatCustomerChange('stays_in_weekend_nights', e.target.value)} />
+                  </div>
+                  <div>
+                    <label>Geçmiş İptal</label>
+                    <input type="number" min="0" value={chatCustomer.previous_cancellations} onChange={e => handleChatCustomerChange('previous_cancellations', e.target.value)} />
+                  </div>
+                  <div>
+                    <label>Risk skoru (0-1)</label>
+                    <input type="number" min="0" max="1" step="0.01" value={chatRiskScore} onChange={e => setChatRiskScore(e.target.value)} />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                  <button onClick={openChatSession} disabled={chatBusy}>
+                    {chatBusy ? '⏳ Açılıyor...' : '🚀 Chat Oturumu Başlat'}
+                  </button>
+                  {chatSummary && (
+                    <span className="metaItem">
+                      <strong>Mesaj:</strong> {chatSummary.message_count}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div className="small">Sohbet</div>
+                <div className="chatPanel">
+                  {chatMessages.length === 0 && (
+                    <div className="chatEmpty">Oturum başlatıldığında asistan mesajı burada görünecek.</div>
+                  )}
+                  {chatMessages.map((m, idx) => (
+                    <div key={`${m.role}-${idx}`} className={`chatBubble ${m.role === 'user' ? 'user' : 'assistant'}`}>
+                      <div className="chatRole">{m.role === 'user' ? 'Temsilci' : 'Asistan'}</div>
+                      <div>{m.content}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {chatQuickActions.length > 0 && (
+                  <div className="chatQuickActions">
+                    {chatQuickActions.map((a, idx) => (
+                      <button key={`${a.label}-${idx}`} onClick={() => sendUserChatMessage(a.message)} disabled={chatBusy || !chatSessionId}>
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <form
+                  className="chatComposer"
+                  onSubmit={e => {
+                    e.preventDefault();
+                    sendUserChatMessage(chatInput);
+                  }}
+                >
+                  <input
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    placeholder="Örn: Bu müşteri için ilk adım ne olmalı?"
+                    disabled={!chatSessionId}
+                  />
+                  <button type="submit" disabled={chatBusy || !chatSessionId || !chatInput.trim()}>
+                    Gönder
+                  </button>
+                </form>
+
+                {chatError && <div className="error" style={{ marginTop: 8 }}>{chatError}</div>}
               </div>
             </section>
           </>

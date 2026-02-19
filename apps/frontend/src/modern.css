@@ -1,0 +1,1345 @@
+/* ========================================================
+   DS Project – 2026 Kurumsal Modern Arayüz
+   Aydınlık (modern-light) + Karanlık (modern-dark)
+   Yüksek kontrast · Temiz tipografi · Profesyonel görünüm
+   ======================================================== */
+
+/* ============================
+   MODERN LIGHT — Kurumsal Aydınlık
+   ============================ */
+[data-theme="modern-light"] {
+  --c-bg: #f4f6f9;
+  --c-surface: #ffffff;
+  --c-surface-2: #f8f9fb;
+  --c-surface-3: #eef1f5;
+  --c-border: #d5dae2;
+  --c-border-light: #e8ecf1;
+  --c-text: #1a2332;
+  --c-text-secondary: #4a5568;
+  --c-text-muted: #7a8599;
+  --c-heading: #0f1d2f;
+  --c-accent: #1a56db;
+  --c-accent-hover: #1648b8;
+  --c-accent-bg: #eef2ff;
+  --c-accent-text: #1e40af;
+  --c-success: #0d7c3f;
+  --c-success-bg: #ecfdf5;
+  --c-success-border: #a7f3d0;
+  --c-warning: #b45309;
+  --c-warning-bg: #fffbeb;
+  --c-danger: #b91c1c;
+  --c-danger-bg: #fef2f2;
+  --c-danger-border: #fecaca;
+  --c-sidebar-bg: #1e293b;
+  --c-sidebar-text: #e2e8f0;
+  --c-sidebar-muted: #94a3b8;
+  --c-sidebar-active: #3b82f6;
+  --c-sidebar-hover: rgba(255,255,255,0.06);
+  --c-badge-blue-bg: #dbeafe;
+  --c-badge-blue-text: #1e40af;
+  --c-badge-green-bg: #dcfce7;
+  --c-badge-green-text: #166534;
+  --c-badge-yellow-bg: #fef3c7;
+  --c-badge-yellow-text: #92400e;
+  --c-table-header: #f1f5f9;
+  --c-table-alt: #f8fafc;
+  --c-table-hover: #eef2ff;
+  --c-input-bg: #ffffff;
+  --c-input-border: #cbd5e1;
+  --c-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --c-shadow-md: 0 4px 6px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+  --c-radius: 8px;
+  --c-radius-sm: 6px;
+  --c-radius-xs: 4px;
+  --c-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --c-font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+
+/* ============================
+   MODERN DARK — Kurumsal Karanlık
+   ============================ */
+[data-theme="modern-dark"] {
+  --c-bg: #0f172a;
+  --c-surface: #1e293b;
+  --c-surface-2: #273548;
+  --c-surface-3: #334155;
+  --c-border: #3b4a5f;
+  --c-border-light: #334155;
+  --c-text: #f1f5f9;
+  --c-text-secondary: #cbd5e1;
+  --c-text-muted: #8896a7;
+  --c-heading: #f8fafc;
+  --c-accent: #60a5fa;
+  --c-accent-hover: #93bbfd;
+  --c-accent-bg: rgba(59,130,246,0.15);
+  --c-accent-text: #93c5fd;
+  --c-success: #34d399;
+  --c-success-bg: rgba(16,185,129,0.12);
+  --c-success-border: rgba(52,211,153,0.3);
+  --c-warning: #fbbf24;
+  --c-warning-bg: rgba(251,191,36,0.12);
+  --c-danger: #f87171;
+  --c-danger-bg: rgba(248,113,113,0.1);
+  --c-danger-border: rgba(248,113,113,0.3);
+  --c-sidebar-bg: #0b1120;
+  --c-sidebar-text: #e2e8f0;
+  --c-sidebar-muted: #7c8da3;
+  --c-sidebar-active: #60a5fa;
+  --c-sidebar-hover: rgba(255,255,255,0.05);
+  --c-badge-blue-bg: rgba(59,130,246,0.18);
+  --c-badge-blue-text: #93c5fd;
+  --c-badge-green-bg: rgba(16,185,129,0.15);
+  --c-badge-green-text: #6ee7b7;
+  --c-badge-yellow-bg: rgba(251,191,36,0.15);
+  --c-badge-yellow-text: #fcd34d;
+  --c-table-header: #1e293b;
+  --c-table-alt: rgba(255,255,255,0.02);
+  --c-table-hover: rgba(59,130,246,0.1);
+  --c-input-bg: #1e293b;
+  --c-input-border: #3b4a5f;
+  --c-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --c-shadow-md: 0 4px 6px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.15);
+  --c-radius: 8px;
+  --c-radius-sm: 6px;
+  --c-radius-xs: 4px;
+  --c-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --c-font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+
+
+/* ==========================================================================
+   GLOBAL
+   ========================================================================== */
+[data-theme="modern-light"] body,
+[data-theme="modern-dark"] body {
+  font-family: var(--c-font);
+  font-size: 14px;
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.55;
+}
+
+/* ==========================================================================
+   LOGIN
+   ========================================================================== */
+[data-theme="modern-light"] .loginPage,
+[data-theme="modern-dark"] .loginPage {
+  background: var(--c-sidebar-bg);
+}
+
+[data-theme="modern-light"] .loginCard,
+[data-theme="modern-dark"] .loginCard {
+  width: 420px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius);
+  box-shadow: var(--c-shadow-md);
+  overflow: hidden;
+}
+
+[data-theme="modern-light"] .loginCard h1 {
+  background: var(--c-accent);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 16px 24px;
+  letter-spacing: -0.01em;
+}
+
+[data-theme="modern-dark"] .loginCard h1 {
+  background: var(--c-surface-2);
+  color: var(--c-heading);
+  font-size: 15px;
+  font-weight: 700;
+  padding: 16px 24px;
+  letter-spacing: -0.01em;
+  border-bottom: 1px solid var(--c-border);
+}
+
+[data-theme="modern-light"] .loginCard p,
+[data-theme="modern-dark"] .loginCard p {
+  padding: 12px 24px 4px;
+  color: var(--c-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+[data-theme="modern-light"] .loginCard label,
+[data-theme="modern-dark"] .loginCard label {
+  padding: 8px 24px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+[data-theme="modern-light"] .loginCard input,
+[data-theme="modern-dark"] .loginCard input {
+  margin: 4px 24px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-input-border);
+  border-radius: var(--c-radius-xs);
+  background: var(--c-input-bg);
+  font-size: 14px;
+  color: var(--c-text);
+  width: calc(100% - 48px);
+  font-family: var(--c-font);
+}
+
+[data-theme="modern-light"] .loginCard input:focus,
+[data-theme="modern-dark"] .loginCard input:focus {
+  outline: none;
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 3px var(--c-accent-bg);
+}
+
+[data-theme="modern-light"] .loginCard button,
+[data-theme="modern-dark"] .loginCard button {
+  margin: 12px 24px 20px;
+  padding: 10px 28px;
+  background: var(--c-accent);
+  border: none;
+  border-radius: var(--c-radius-xs);
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  width: calc(100% - 48px);
+}
+
+[data-theme="modern-light"] .loginCard button:hover,
+[data-theme="modern-dark"] .loginCard button:hover {
+  background: var(--c-accent-hover);
+}
+
+[data-theme="modern-light"] .loginCard button:active,
+[data-theme="modern-dark"] .loginCard button:active {
+  transform: scale(0.99);
+  border-style: none;
+}
+
+[data-theme="modern-light"] .smallError,
+[data-theme="modern-dark"] .smallError {
+  margin: 4px 24px;
+  padding: 10px 12px;
+  background: var(--c-danger-bg);
+  border: 1px solid var(--c-danger-border);
+  border-radius: var(--c-radius-xs);
+  color: var(--c-danger);
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   APP SHELL
+   ========================================================================== */
+[data-theme="modern-light"] .appShell,
+[data-theme="modern-dark"] .appShell {
+  background: var(--c-bg);
+}
+
+/* ==========================================================================
+   SIDEBAR — Daima koyu (profesyonel kurumsal)
+   ========================================================================== */
+[data-theme="modern-light"] .sidebar,
+[data-theme="modern-dark"] .sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: var(--c-sidebar-bg);
+  border-right: 1px solid rgba(255,255,255,0.08);
+}
+
+[data-theme="modern-light"] .sidebarTitle,
+[data-theme="modern-dark"] .sidebarTitle {
+  background: transparent;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 20px 20px 4px;
+  letter-spacing: -0.02em;
+}
+
+[data-theme="modern-light"] .sidebarSub,
+[data-theme="modern-dark"] .sidebarSub {
+  font-size: 11px;
+  color: var(--c-sidebar-muted);
+  padding: 0 20px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: transparent;
+}
+
+[data-theme="modern-light"] .sidebarNav,
+[data-theme="modern-dark"] .sidebarNav {
+  padding: 10px 10px;
+  gap: 2px;
+}
+
+[data-theme="modern-light"] .navBtn,
+[data-theme="modern-dark"] .navBtn {
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--c-radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-sidebar-muted);
+  cursor: pointer;
+  font-family: var(--c-font);
+}
+
+[data-theme="modern-light"] .navBtn:hover,
+[data-theme="modern-dark"] .navBtn:hover {
+  background: var(--c-sidebar-hover);
+  color: var(--c-sidebar-text);
+}
+
+[data-theme="modern-light"] .navBtn.active,
+[data-theme="modern-dark"] .navBtn.active {
+  background: rgba(59,130,246,0.15);
+  color: var(--c-sidebar-active);
+  font-weight: 600;
+}
+
+[data-theme="modern-light"] .sidebarInfo,
+[data-theme="modern-dark"] .sidebarInfo {
+  padding: 14px 20px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  font-size: 11px;
+  color: var(--c-sidebar-muted);
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+[data-theme="modern-light"] .sidebarInfo strong,
+[data-theme="modern-dark"] .sidebarInfo strong {
+  color: var(--c-sidebar-text);
+}
+
+[data-theme="modern-light"] .logoutBtn,
+[data-theme="modern-dark"] .logoutBtn {
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 12px 20px;
+  font-size: 13px;
+  color: #f87171;
+  background: transparent;
+  font-weight: 500;
+  font-family: var(--c-font);
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  border-radius: 0;
+  flex-shrink: 0;
+}
+
+[data-theme="modern-light"] .logoutBtn:hover,
+[data-theme="modern-dark"] .logoutBtn:hover {
+  background: rgba(248,113,113,0.1);
+  color: #fca5a5;
+}
+
+/* ==========================================================================
+   MAIN CONTAINER
+   ========================================================================== */
+[data-theme="modern-light"] .container,
+[data-theme="modern-dark"] .container {
+  background: var(--c-bg);
+}
+
+/* ==========================================================================
+   TOPBAR
+   ========================================================================== */
+[data-theme="modern-light"] .topBar,
+[data-theme="modern-dark"] .topBar {
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+  padding: 12px 24px;
+}
+
+[data-theme="modern-light"] .brandTitle,
+[data-theme="modern-dark"] .brandTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--c-heading);
+  letter-spacing: -0.01em;
+}
+
+[data-theme="modern-light"] .metaBlock,
+[data-theme="modern-dark"] .metaBlock {
+  gap: 16px;
+  font-size: 13px;
+}
+
+[data-theme="modern-light"] .metaItem,
+[data-theme="modern-dark"] .metaItem {
+  color: var(--c-text-secondary);
+  font-size: 13px;
+}
+
+[data-theme="modern-light"] .metaItem strong,
+[data-theme="modern-dark"] .metaItem strong {
+  color: var(--c-text);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   PAGE HEADER
+   ========================================================================== */
+[data-theme="modern-light"] .pageHeader,
+[data-theme="modern-dark"] .pageHeader {
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+  padding: 20px 24px;
+}
+
+[data-theme="modern-light"] h1,
+[data-theme="modern-dark"] h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--c-heading);
+  letter-spacing: -0.02em;
+  margin-bottom: 2px;
+}
+
+[data-theme="modern-light"] .subtitle,
+[data-theme="modern-dark"] .subtitle {
+  font-size: 13px;
+  color: var(--c-text-secondary);
+  line-height: 1.6;
+}
+
+/* ==========================================================================
+   CARD
+   ========================================================================== */
+[data-theme="modern-light"] .card,
+[data-theme="modern-dark"] .card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius);
+  padding: 18px;
+  margin: 10px 20px;
+  box-shadow: var(--c-shadow);
+}
+
+/* ==========================================================================
+   CONTROLS
+   ========================================================================== */
+[data-theme="modern-light"] .controls,
+[data-theme="modern-dark"] .controls {
+  gap: 14px;
+}
+
+[data-theme="modern-light"] .controlTitle,
+[data-theme="modern-dark"] .controlTitle {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--c-border-light);
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+}
+
+[data-theme="modern-light"] label,
+[data-theme="modern-dark"] label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  margin-bottom: 3px;
+}
+
+[data-theme="modern-light"] select,
+[data-theme="modern-light"] input,
+[data-theme="modern-dark"] select,
+[data-theme="modern-dark"] input {
+  padding: 8px 12px;
+  border: 1px solid var(--c-input-border);
+  border-radius: var(--c-radius-xs);
+  background: var(--c-input-bg);
+  color: var(--c-text);
+  font-size: 13px;
+  font-family: var(--c-font);
+}
+
+[data-theme="modern-light"] select:focus,
+[data-theme="modern-light"] input:focus,
+[data-theme="modern-dark"] select:focus,
+[data-theme="modern-dark"] input:focus {
+  outline: none;
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 2px var(--c-accent-bg);
+}
+
+[data-theme="modern-dark"] select option {
+  background: var(--c-surface-2);
+  color: var(--c-text);
+}
+
+[data-theme="modern-light"] button,
+[data-theme="modern-dark"] button {
+  padding: 8px 16px;
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-xs);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  cursor: pointer;
+  font-family: var(--c-font);
+}
+
+[data-theme="modern-light"] button:hover,
+[data-theme="modern-dark"] button:hover {
+  background: var(--c-accent-bg);
+  border-color: var(--c-accent);
+  color: var(--c-accent-text);
+}
+
+[data-theme="modern-light"] button:active,
+[data-theme="modern-dark"] button:active {
+  transform: scale(0.98);
+  border-style: solid;
+}
+
+[data-theme="modern-light"] .controls button,
+[data-theme="modern-dark"] .controls button {
+  background: var(--c-accent);
+  border: none;
+  color: #ffffff;
+  padding: 8px 20px;
+  font-weight: 600;
+}
+
+[data-theme="modern-light"] .controls button:hover,
+[data-theme="modern-dark"] .controls button:hover {
+  background: var(--c-accent-hover);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   ERROR
+   ========================================================================== */
+[data-theme="modern-light"] .error,
+[data-theme="modern-dark"] .error {
+  background: var(--c-danger-bg);
+  border: 1px solid var(--c-danger-border);
+  color: var(--c-danger);
+  border-radius: var(--c-radius-sm);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   STATUS BAR (chips)
+   ========================================================================== */
+[data-theme="modern-light"] .statusBar,
+[data-theme="modern-dark"] .statusBar {
+  gap: 8px;
+}
+
+[data-theme="modern-light"] .statusItem,
+[data-theme="modern-dark"] .statusItem {
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-sm);
+  padding: 12px 16px;
+  background: var(--c-surface);
+  gap: 4px;
+}
+
+[data-theme="modern-light"] .statusLabel,
+[data-theme="modern-dark"] .statusLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-theme="modern-light"] .statusBadge,
+[data-theme="modern-dark"] .statusBadge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--c-radius-xs);
+}
+
+[data-theme="modern-light"] .statusBadge.ok,
+[data-theme="modern-dark"] .statusBadge.ok {
+  background: var(--c-success-bg);
+  color: var(--c-success);
+  border: 1px solid var(--c-success-border);
+}
+
+[data-theme="modern-light"] .statusBadge.neutral,
+[data-theme="modern-dark"] .statusBadge.neutral {
+  background: var(--c-badge-blue-bg);
+  color: var(--c-badge-blue-text);
+  border: 1px solid transparent;
+}
+
+/* ==========================================================================
+   KPI GRIDS
+   ========================================================================== */
+[data-theme="modern-light"] .grid4,
+[data-theme="modern-dark"] .grid4 {
+  gap: 8px;
+  margin: 10px 20px;
+}
+
+[data-theme="modern-light"] .grid4 .card,
+[data-theme="modern-dark"] .grid4 .card {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  padding: 16px;
+  border-radius: var(--c-radius-sm);
+  margin: 0;
+}
+
+[data-theme="modern-light"] .grid2,
+[data-theme="modern-dark"] .grid2 {
+  gap: 8px;
+  margin: 10px 20px;
+}
+
+[data-theme="modern-light"] .grid2 .card,
+[data-theme="modern-dark"] .grid2 .card { margin: 0; }
+
+[data-theme="modern-light"] .k,
+[data-theme="modern-dark"] .k {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-theme="modern-light"] .v,
+[data-theme="modern-dark"] .v {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--c-accent-text);
+  font-family: var(--c-font-mono);
+  line-height: 1.3;
+}
+
+[data-theme="modern-light"] .helpText,
+[data-theme="modern-dark"] .helpText {
+  font-size: 11px;
+  color: var(--c-text-muted);
+  font-style: normal;
+}
+
+/* ==========================================================================
+   SECTION HEADERS
+   ========================================================================== */
+[data-theme="modern-light"] .small,
+[data-theme="modern-dark"] .small {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--c-heading);
+  border-bottom: 2px solid var(--c-accent);
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+[data-theme="modern-light"] .explain,
+[data-theme="modern-dark"] .explain {
+  font-size: 13px;
+  color: var(--c-text-secondary);
+  font-style: normal;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+/* ==========================================================================
+   DATA GRID / TABLE
+   ========================================================================== */
+[data-theme="modern-light"] .tableWrap,
+[data-theme="modern-dark"] .tableWrap {
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-sm);
+  overflow: hidden;
+}
+
+[data-theme="modern-light"] table,
+[data-theme="modern-dark"] table {
+  font-size: 13px;
+}
+
+[data-theme="modern-light"] th,
+[data-theme="modern-dark"] th {
+  background: var(--c-table-header);
+  color: var(--c-text);
+  font-weight: 700;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 2px solid var(--c-border);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+[data-theme="modern-light"] td,
+[data-theme="modern-dark"] td {
+  padding: 8px 14px;
+  border: none;
+  border-bottom: 1px solid var(--c-border-light);
+  font-family: var(--c-font);
+  font-size: 13px;
+  color: var(--c-text);
+}
+
+[data-theme="modern-light"] td code,
+[data-theme="modern-light"] .stepBody code,
+[data-theme="modern-dark"] td code,
+[data-theme="modern-dark"] .stepBody code {
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-border-light);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--c-font-mono);
+  font-size: 12px;
+  color: var(--c-accent-text);
+}
+
+[data-theme="modern-light"] tbody tr:nth-child(even),
+[data-theme="modern-dark"] tbody tr:nth-child(even) {
+  background: var(--c-table-alt);
+}
+
+[data-theme="modern-light"] tbody tr:hover,
+[data-theme="modern-dark"] tbody tr:hover {
+  background: var(--c-table-hover);
+}
+
+/* ==========================================================================
+   LEGEND BOX
+   ========================================================================== */
+[data-theme="modern-light"] .legendBox,
+[data-theme="modern-dark"] .legendBox {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-sm);
+  padding: 16px 20px;
+  font-size: 13px;
+  color: var(--c-text-secondary);
+  line-height: 1.6;
+}
+
+[data-theme="modern-light"] .legendBox strong,
+[data-theme="modern-dark"] .legendBox strong {
+  color: var(--c-heading);
+}
+
+[data-theme="modern-light"] .legendBox li,
+[data-theme="modern-dark"] .legendBox li {
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+
+[data-theme="modern-light"] .legendBox code,
+[data-theme="modern-dark"] .legendBox code {
+  background: var(--c-surface-3);
+  border: 1px solid var(--c-border-light);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--c-font-mono);
+  font-size: 12px;
+  color: var(--c-accent-text);
+}
+
+/* ==========================================================================
+   CHAMPION CARD
+   ========================================================================== */
+[data-theme="modern-light"] .championCard,
+[data-theme="modern-dark"] .championCard {
+  border: 1px solid var(--c-accent);
+  background: var(--c-accent-bg);
+  border-radius: var(--c-radius);
+  border-left: 4px solid var(--c-accent);
+}
+
+[data-theme="modern-light"] .championGrid,
+[data-theme="modern-dark"] .championGrid {
+  gap: 8px;
+  margin-top: 12px;
+}
+
+[data-theme="modern-light"] .champItem,
+[data-theme="modern-dark"] .champItem {
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-sm);
+  padding: 14px 16px;
+  background: var(--c-surface);
+  gap: 4px;
+}
+
+[data-theme="modern-light"] .champLabel,
+[data-theme="modern-dark"] .champLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-accent-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+[data-theme="modern-light"] .champValue,
+[data-theme="modern-dark"] .champValue {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--c-heading);
+  font-family: var(--c-font-mono);
+}
+
+[data-theme="modern-light"] .champValue.money,
+[data-theme="modern-dark"] .champValue.money {
+  color: var(--c-success);
+}
+
+[data-theme="modern-light"] .champHint,
+[data-theme="modern-dark"] .champHint {
+  font-size: 11px;
+  color: var(--c-text-muted);
+  font-style: normal;
+}
+
+/* ==========================================================================
+   TYPE BADGES
+   ========================================================================== */
+[data-theme="modern-light"] .typeBadge,
+[data-theme="modern-dark"] .typeBadge {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: var(--c-radius-xs);
+}
+
+[data-theme="modern-light"] .typeBadge.base,
+[data-theme="modern-dark"] .typeBadge.base {
+  background: var(--c-badge-blue-bg);
+  color: var(--c-badge-blue-text);
+  border-color: transparent;
+}
+
+[data-theme="modern-light"] .typeBadge.advanced,
+[data-theme="modern-dark"] .typeBadge.advanced {
+  background: var(--c-badge-yellow-bg);
+  color: var(--c-badge-yellow-text);
+  border-color: transparent;
+}
+
+/* ==========================================================================
+   DETAIL PANEL
+   ========================================================================== */
+[data-theme="modern-light"] .detailPanel,
+[data-theme="modern-dark"] .detailPanel {
+  border: 1px solid var(--c-accent);
+  background: var(--c-accent-bg);
+  border-radius: var(--c-radius);
+  border-left: 4px solid var(--c-accent);
+}
+
+[data-theme="modern-light"] .detailGrid,
+[data-theme="modern-dark"] .detailGrid {
+  gap: 8px;
+  margin-top: 12px;
+}
+
+[data-theme="modern-light"] .detailItem,
+[data-theme="modern-dark"] .detailItem {
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-xs);
+  padding: 12px 14px;
+  background: var(--c-surface);
+  gap: 3px;
+}
+
+[data-theme="modern-light"] .detailItem span,
+[data-theme="modern-dark"] .detailItem span {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+[data-theme="modern-light"] .detailItem strong,
+[data-theme="modern-dark"] .detailItem strong {
+  font-size: 14px;
+  color: var(--c-heading);
+  font-family: var(--c-font-mono);
+}
+
+[data-theme="modern-light"] .detailItem.highlight,
+[data-theme="modern-dark"] .detailItem.highlight {
+  background: var(--c-accent-bg);
+  border-color: var(--c-accent);
+}
+
+[data-theme="modern-light"] .detailItem.full strong,
+[data-theme="modern-dark"] .detailItem.full strong {
+  font-family: var(--c-font);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   BOTTOM STATUS BAR
+   ========================================================================== */
+[data-theme="modern-light"] .appStatusBar,
+[data-theme="modern-dark"] .appStatusBar {
+  background: var(--c-surface);
+  border-top: 1px solid var(--c-border);
+  padding: 6px 24px;
+  font-size: 12px;
+  color: var(--c-text-muted);
+  gap: 18px;
+}
+
+[data-theme="modern-light"] .appStatusBar span,
+[data-theme="modern-dark"] .appStatusBar span {
+  border-right: 1px solid var(--c-border-light);
+  padding-right: 14px;
+}
+
+/* ==========================================================================
+   SYSTEM STATUS
+   ========================================================================== */
+[data-theme="modern-light"] .systemGrid,
+[data-theme="modern-dark"] .systemGrid {
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+[data-theme="modern-light"] .sysItem,
+[data-theme="modern-dark"] .sysItem {
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-sm);
+  padding: 14px 16px;
+  background: var(--c-surface);
+  gap: 4px;
+}
+
+[data-theme="modern-light"] .sysItem span,
+[data-theme="modern-dark"] .sysItem span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+}
+
+[data-theme="modern-light"] .sysItem strong,
+[data-theme="modern-dark"] .sysItem strong {
+  font-size: 13px;
+  color: var(--c-heading);
+  font-family: var(--c-font-mono);
+}
+
+/* ==========================================================================
+   PIPELINE
+   ========================================================================== */
+[data-theme="modern-light"] .pipelineFlow,
+[data-theme="modern-dark"] .pipelineFlow {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-sm);
+  padding: 16px 12px;
+}
+
+[data-theme="modern-light"] .pipeStep,
+[data-theme="modern-dark"] .pipeStep {
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-sm);
+  padding: 12px 10px 14px;
+  background: var(--c-surface);
+}
+
+[data-theme="modern-light"] .pipeStep.raw,       [data-theme="modern-dark"] .pipeStep.raw        { border-left: 3px solid #3b82f6; }
+[data-theme="modern-light"] .pipeStep.validate,   [data-theme="modern-dark"] .pipeStep.validate    { border-left: 3px solid #10b981; }
+[data-theme="modern-light"] .pipeStep.preprocess, [data-theme="modern-dark"] .pipeStep.preprocess  { border-left: 3px solid #f59e0b; }
+[data-theme="modern-light"] .pipeStep.split,      [data-theme="modern-dark"] .pipeStep.split       { border-left: 3px solid #8b5cf6; }
+[data-theme="modern-light"] .pipeStep.train,      [data-theme="modern-dark"] .pipeStep.train       { border-left: 3px solid #ef4444; }
+[data-theme="modern-light"] .pipeStep.calibrate,  [data-theme="modern-dark"] .pipeStep.calibrate   { border-left: 3px solid #14b8a6; }
+[data-theme="modern-light"] .pipeStep.evaluate,   [data-theme="modern-dark"] .pipeStep.evaluate    { border-left: 3px solid #a855f7; }
+[data-theme="modern-light"] .pipeStep.champion,   [data-theme="modern-dark"] .pipeStep.champion    { border-left: 3px solid #eab308; }
+
+[data-theme="modern-light"] .pipeStepIcon,
+[data-theme="modern-dark"] .pipeStepIcon {
+  font-size: 20px;
+}
+
+[data-theme="modern-light"] .pipeStepTitle,
+[data-theme="modern-dark"] .pipeStepTitle {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--c-heading);
+  letter-spacing: 0.02em;
+}
+
+[data-theme="modern-light"] .pipeStepDesc,
+[data-theme="modern-dark"] .pipeStepDesc {
+  font-size: 10px;
+  color: var(--c-text-muted);
+  line-height: 1.4;
+}
+
+[data-theme="modern-light"] .pipeArrow,
+[data-theme="modern-dark"] .pipeArrow {
+  font-size: 18px;
+  color: var(--c-text-muted);
+}
+
+/* ==========================================================================
+   PIPELINE STEP LIST
+   ========================================================================== */
+[data-theme="modern-light"] .pipelineStepList,
+[data-theme="modern-dark"] .pipelineStepList {
+  gap: 4px;
+}
+
+[data-theme="modern-light"] .stepItem,
+[data-theme="modern-dark"] .stepItem {
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-xs);
+  background: var(--c-surface);
+  padding: 12px 16px;
+}
+
+[data-theme="modern-light"] .stepNum,
+[data-theme="modern-dark"] .stepNum {
+  min-width: 28px;
+  height: 28px;
+  background: var(--c-accent);
+  color: #ffffff;
+  border-radius: var(--c-radius-xs);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-theme="modern-light"] .stepBody strong,
+[data-theme="modern-dark"] .stepBody strong {
+  font-size: 13px;
+  color: var(--c-heading);
+}
+
+[data-theme="modern-light"] .stepBody span,
+[data-theme="modern-dark"] .stepBody span {
+  font-size: 12px;
+  color: var(--c-text-secondary);
+  line-height: 1.5;
+}
+
+[data-theme="modern-light"] .stepOutput,
+[data-theme="modern-dark"] .stepOutput {
+  background: var(--c-success-bg);
+  border: 1px solid var(--c-success-border);
+  border-radius: var(--c-radius-xs);
+  color: var(--c-text);
+  font-size: 13px;
+  margin-top: 8px;
+  padding: 10px 14px;
+}
+
+[data-theme="modern-light"] .stepOutput code,
+[data-theme="modern-dark"] .stepOutput code {
+  color: var(--c-success);
+}
+
+/* ==========================================================================
+   SPLIT DIAGRAM
+   ========================================================================== */
+[data-theme="modern-light"] .splitBlock,
+[data-theme="modern-dark"] .splitBlock {
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-sm);
+  padding: 8px;
+}
+
+[data-theme="modern-light"] .splitBlock.full,       [data-theme="modern-dark"] .splitBlock.full         { background: var(--c-surface-2); }
+[data-theme="modern-light"] .splitBlock.train-full,  [data-theme="modern-dark"] .splitBlock.train-full   { border-color: #3b82f6; background: var(--c-accent-bg); }
+[data-theme="modern-light"] .splitBlock.train,       [data-theme="modern-dark"] .splitBlock.train        { border-color: #6366f1; background: var(--c-accent-bg); }
+[data-theme="modern-light"] .splitBlock.cal,         [data-theme="modern-dark"] .splitBlock.cal          { border-color: #14b8a6; background: var(--c-success-bg); }
+[data-theme="modern-light"] .splitBlock.test,        [data-theme="modern-dark"] .splitBlock.test         { border-color: #f59e0b; background: var(--c-warning-bg); }
+
+[data-theme="modern-light"] .splitLabel,
+[data-theme="modern-dark"] .splitLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-heading);
+}
+
+[data-theme="modern-light"] .splitDesc,
+[data-theme="modern-dark"] .splitDesc {
+  font-size: 10px;
+  color: var(--c-text-muted);
+}
+
+/* ==========================================================================
+   FEATURES
+   ========================================================================== */
+[data-theme="modern-light"] .featureTag,
+[data-theme="modern-dark"] .featureTag {
+  border-radius: var(--c-radius-xs);
+  padding: 4px 10px;
+  font-family: var(--c-font-mono);
+  font-size: 11px;
+}
+
+[data-theme="modern-light"] .featureTag.num,
+[data-theme="modern-dark"] .featureTag.num {
+  background: var(--c-badge-blue-bg);
+  color: var(--c-badge-blue-text);
+  border-color: transparent;
+}
+
+[data-theme="modern-light"] .featureTag.cat,
+[data-theme="modern-dark"] .featureTag.cat {
+  background: var(--c-badge-yellow-bg);
+  color: var(--c-badge-yellow-text);
+  border-color: transparent;
+}
+
+[data-theme="modern-light"] .featureTag span,
+[data-theme="modern-dark"] .featureTag span {
+  font-family: var(--c-font);
+  font-size: 10px;
+  color: var(--c-text-muted);
+}
+
+[data-theme="modern-light"] .featurePipeline,
+[data-theme="modern-dark"] .featurePipeline {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border-light);
+  border-radius: var(--c-radius-xs);
+  padding: 8px;
+}
+
+[data-theme="modern-light"] .fpStep,
+[data-theme="modern-dark"] .fpStep {
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-xs);
+  background: var(--c-surface);
+  color: var(--c-text);
+  font-family: var(--c-font-mono);
+}
+
+[data-theme="modern-light"] .fpArrow,
+[data-theme="modern-dark"] .fpArrow {
+  color: var(--c-accent);
+}
+
+/* ==========================================================================
+   CHAT
+   ========================================================================== */
+[data-theme="modern-light"] .chatFormGrid label,
+[data-theme="modern-dark"] .chatFormGrid label {
+  font-size: 13px;
+  color: var(--c-text);
+}
+
+[data-theme="modern-light"] .chatFormGrid input,
+[data-theme="modern-light"] .chatFormGrid select,
+[data-theme="modern-dark"] .chatFormGrid input,
+[data-theme="modern-dark"] .chatFormGrid select {
+  border: 1px solid var(--c-input-border);
+  border-radius: var(--c-radius-xs);
+  background: var(--c-input-bg);
+  color: var(--c-text);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+[data-theme="modern-light"] .chatPanel,
+[data-theme="modern-dark"] .chatPanel {
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-sm);
+  padding: 16px;
+}
+
+[data-theme="modern-light"] .chatEmpty,
+[data-theme="modern-dark"] .chatEmpty {
+  color: var(--c-text-muted);
+  font-size: 13px;
+}
+
+[data-theme="modern-light"] .chatBubble,
+[data-theme="modern-dark"] .chatBubble {
+  border-radius: var(--c-radius-sm);
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+[data-theme="modern-light"] .chatBubble.user {
+  background: var(--c-accent-bg);
+  border: 1px solid var(--c-accent);
+  color: var(--c-text);
+}
+
+[data-theme="modern-dark"] .chatBubble.user {
+  background: var(--c-accent-bg);
+  border: 1px solid rgba(96,165,250,0.3);
+  color: var(--c-text);
+}
+
+[data-theme="modern-light"] .chatBubble.assistant {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+}
+
+[data-theme="modern-dark"] .chatBubble.assistant {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+}
+
+[data-theme="modern-light"] .chatRole,
+[data-theme="modern-dark"] .chatRole {
+  font-size: 11px;
+  color: var(--c-text-muted);
+  font-weight: 700;
+}
+
+[data-theme="modern-light"] .chatQuickActions button,
+[data-theme="modern-dark"] .chatQuickActions button {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--c-radius-xs);
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--c-text-secondary);
+}
+
+[data-theme="modern-light"] .chatQuickActions button:hover,
+[data-theme="modern-dark"] .chatQuickActions button:hover {
+  background: var(--c-accent-bg);
+  border-color: var(--c-accent);
+  color: var(--c-accent-text);
+}
+
+[data-theme="modern-light"] .chatComposer,
+[data-theme="modern-dark"] .chatComposer {
+  gap: 8px;
+}
+
+[data-theme="modern-light"] .chatComposer input,
+[data-theme="modern-dark"] .chatComposer input {
+  border: 1px solid var(--c-input-border);
+  border-radius: var(--c-radius-xs);
+  background: var(--c-input-bg);
+  color: var(--c-text);
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+[data-theme="modern-light"] .chatComposer button,
+[data-theme="modern-dark"] .chatComposer button {
+  background: var(--c-accent);
+  border: none;
+  border-radius: var(--c-radius-xs);
+  color: #ffffff;
+  padding: 10px 20px;
+  font-weight: 600;
+}
+
+[data-theme="modern-light"] .chatComposer button:hover,
+[data-theme="modern-dark"] .chatComposer button:hover {
+  background: var(--c-accent-hover);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   SCROLLBAR — Modern Dark
+   ========================================================================== */
+[data-theme="modern-dark"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme="modern-dark"] ::-webkit-scrollbar-track {
+  background: var(--c-bg);
+}
+
+[data-theme="modern-dark"] ::-webkit-scrollbar-thumb {
+  background: var(--c-surface-3);
+  border-radius: 4px;
+}
+
+[data-theme="modern-dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--c-text-muted);
+}
+
+/* ==========================================================================
+   THEME TOGGLE BUTTON — Base (Klasik tema)
+   ========================================================================== */
+.themeToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin: 4px 8px;
+  cursor: pointer;
+  border-radius: 0;
+  font-size: 11px;
+  font-weight: 600;
+  width: calc(100% - 16px);
+  text-align: left;
+  background: #e8e4dc;
+  border: 2px outset #d4d0c8;
+  color: #333;
+  min-width: auto;
+  flex-shrink: 0;
+}
+
+.themeToggle:hover {
+  background: #ddd8d0;
+  color: #111;
+}
+
+.themeToggle .themeIcon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* ==========================================================================
+   THEME TOGGLE BUTTON — Modern Sidebar (koyu sidebar üzerinde)
+   ========================================================================== */
+[data-theme="modern-light"] .themeToggle,
+[data-theme="modern-dark"] .themeToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--c-radius-sm);
+  color: var(--c-sidebar-muted);
+  background: rgba(255,255,255,0.05);
+  padding: 9px 14px;
+  margin: 4px 10px;
+  width: calc(100% - 20px);
+  font-family: var(--c-font);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+[data-theme="modern-light"] .themeToggle:hover,
+[data-theme="modern-dark"] .themeToggle:hover {
+  border-color: var(--c-sidebar-active);
+  background: rgba(59,130,246,0.1);
+  color: var(--c-sidebar-text);
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+@media (max-width: 980px) {
+  [data-theme="modern-light"] .sidebar,
+  [data-theme="modern-dark"] .sidebar {
+    width: 100%;
+    min-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+}

@@ -26,6 +26,7 @@ from .api_shared import (
 from .config import ExperimentConfig
 from .dashboard import init_dashboard_store, router_dashboard
 from .dashboard_auth import router_dashboard_auth
+from .chat import router_chat
 from .metrics import (
     INFERENCE_ERRORS,
     INFERENCE_ROWS,
@@ -140,6 +141,7 @@ app.include_router(router_v1)
 app.include_router(router_v2)
 app.include_router(router_dashboard)
 app.include_router(router_dashboard_auth)
+app.include_router(router_chat)
 _v1_set_app(app)
 _v2_set_app(app)
 
@@ -179,6 +181,9 @@ async def request_context_middleware(request: Request, call_next):
     request.state.request_id = rid
     started = time.time()
     request_path = request.url.path
+    if request.method.upper() == "OPTIONS":
+        return await call_next(request)
+
     is_public_dashboard_page = request_path == "/dashboard"
     is_public_dashboard_api = request_path.startswith("/dashboard/api/")
     is_public_dashboard_auth = request_path.startswith("/auth/")
