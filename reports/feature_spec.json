@@ -1,5 +1,5 @@
 {
-  "run_id": "20260219_180013",
+  "run_id": "20260219_155443",
   "schema_version": "1.0.0",
   "numeric": [
     "lead_time",
@@ -15,8 +15,6 @@
     "previous_cancellations",
     "previous_bookings_not_canceled",
     "booking_changes",
-    "agent",
-    "company",
     "days_in_waiting_list",
     "adr",
     "required_car_parking_spaces",
@@ -32,6 +30,8 @@
     "reserved_room_type",
     "assigned_room_type",
     "deposit_type",
+    "agent",
+    "company",
     "customer_type"
   ],
   "all_features": [
@@ -48,8 +48,6 @@
     "previous_cancellations",
     "previous_bookings_not_canceled",
     "booking_changes",
-    "agent",
-    "company",
     "days_in_waiting_list",
     "adr",
     "required_car_parking_spaces",
@@ -63,6 +61,8 @@
     "reserved_room_type",
     "assigned_room_type",
     "deposit_type",
+    "agent",
+    "company",
     "customer_type"
   ],
   "dtypes": {
@@ -79,8 +79,6 @@
     "previous_cancellations": "int64",
     "previous_bookings_not_canceled": "int64",
     "booking_changes": "int64",
-    "agent": "float64",
-    "company": "float64",
     "days_in_waiting_list": "int64",
     "adr": "float64",
     "required_car_parking_spaces": "int64",
@@ -94,6 +92,8 @@
     "reserved_room_type": "object",
     "assigned_room_type": "object",
     "deposit_type": "object",
+    "agent": "object",
+    "company": "object",
     "customer_type": "object"
   }
 }
