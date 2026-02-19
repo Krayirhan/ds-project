@@ -54,7 +54,140 @@ Amaç; modeli **tekrarlanabilir**, **izlenebilir**, **güvenli** ve **üretime u
 - **Testler:** [tests](tests)
 - **Raporlar ve metrikler:** [reports](reports)
 
-## Hızlı Başlangıç
+## Başka PC'de İlk Kurulum (Docker ile)
+
+> Projeyi GitHub'dan klonlayıp başka bir makinede Docker ile açmak için bu adımları izleyin.
+
+### Ön Gereksinimler
+
+| Araç | Minimum Sürüm | Kontrol |
+|---|---|---|
+| Docker Desktop | 24+ | `docker --version` |
+| Docker Compose v2 | dahili | `docker compose version` |
+| Python | 3.10+ | sadece `check_setup.py` için |
+| Git | herhangi | `git --version` |
+
+### Adım 1 — Klonla
+
+```bash
+git clone https://github.com/KULLANICI_ADI/ds-project.git
+cd ds-project
+```
+
+### Adım 2 — Sistem hazır mı kontrol et
+
+```bash
+python scripts/check_setup.py
+```
+
+Script **10 kategoriyi** tek seferde kontrol eder ve her eksik için ne yapılacağını net olarak söyler:
+
+| # | Kontrol | Açıklama |
+|---|---------|----------|
+| 1 | Python sürümü | ≥ 3.10 gerekli |
+| 2 | Python paketleri | requirements.txt içindeki tüm paketler |
+| 3 | Docker | Engine + Compose v2 |
+| 4 | Node.js / npm | ≥ v18 (frontend dev için) |
+| 5 | **Ollama** | CLI kurulu mu? Servis çalışıyor mu? **Model indirilmiş mi?** |
+| 6 | .env dosyası | Mevcut mu? `replace-me` değerleri kalmış mı? |
+| 7 | Ortam değişkenleri | Zorunlu / opsiyonel tüm env var'lar |
+| 8 | Servis bağlantıları | PostgreSQL ve Redis'e gerçekten bağlanabilir mi? |
+| 9 | Proje dosyaları | Model, ham veri, frontend klasörü |
+| 10 | Port durumu | Docker Compose çakışmaları |
+
+Örnek çıktı:
+
+```
+  ✅  Ollama CLI: ollama version is 0.16.x
+  ✅  Ollama servisi: http://localhost:11434  → yanıt veriyor
+  ✅  Yüklü modeller (1 adet):
+         • llama3.2:3b
+  ❌  Hedef model eksik: llama3.2-vision:11b
+       Çekme komutu:  ollama pull llama3.2-vision:11b
+       Küçük alternatif (~2 GB):  ollama pull llama3.2:3b
+```
+
+Çıkış kodu `0` = hazır, `1` = kritik hata var.
+
+### Adım 3 — .env dosyası oluştur
+
+```bash
+# Windows
+copy .env.example .env
+
+# Linux / macOS
+cp .env.example .env
+```
+
+`.env` dosyasını açın ve **en az** şu iki satırı düzenleyin:
+
+```dotenv
+DS_API_KEY=guclu-bir-rastgele-string
+
+# Bcrypt hash (önerilir):
+#   python -c "import bcrypt; print(bcrypt.hashpw(b'sifreniz', bcrypt.gensalt()).decode())"
+DASHBOARD_ADMIN_PASSWORD_ADMIN=sifrenizi-buraya-yazin
+```
+
+> ⚠️  `.env` dosyasını **asla** commit etmeyin — `.gitignore`'da zaten var.
+
+### Adım 4 — ML Modelini eğit (ilk kez)
+
+`models/` klasörü Git'e dahil değildir. İlk kurulumda modeli kendiniz eğitmeniz gerekir:
+
+```bash
+# Python ortamı kur
+python -m venv .venv
+.venv\Scripts\activate       # Windows
+# source .venv/bin/activate  # Linux/macOS
+pip install -r requirements.txt
+
+# Pipeline çalıştır
+python main.py preprocess
+python main.py train
+python main.py evaluate
+```
+
+> 💡 Ham veri (`data/raw/`) yoksa Kaggle'dan [Hotel Booking Demand](https://www.kaggle.com/datasets/jessemostipak/hotel-booking-demand) veri setini indirin.
+
+### Adım 5 — Docker Compose ile başlat
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+İlk açılışta Docker image build edilir (~2-3 dk). Sonraki açılışlarda çok daha hızlı.
+
+| Servis | URL |
+|---|---|
+| API | http://localhost:8000 |
+| API Sağlık | http://localhost:8000/health |
+| Frontend Dashboard | http://localhost:5173 |
+| Grafana | http://localhost:3000  (`admin` / `admin`) |
+| Jaeger (Tracing) | http://localhost:16686 |
+| Prometheus | http://localhost:9090 |
+
+### Durum kontrolü (tekrar çalıştır)
+
+Kurulum sonrası tekrar kontrol etmek için:
+
+```bash
+python scripts/check_setup.py
+```
+
+### Durdurma
+
+```bash
+# Servisleri durdur (veri kalır)
+docker compose -f docker-compose.dev.yml down
+
+# Servisleri durdur + tüm veriyi sil
+docker compose -f docker-compose.dev.yml down -v
+```
+
+---
+
+## Hızlı Başlangıç (Mevcut ortam, lokal geliştirme)
 
 ```bash
 python -m venv .venv

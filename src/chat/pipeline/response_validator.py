@@ -12,11 +12,14 @@ class ValidationResult:
 
 
 _ENGLISH_PATTERNS = [
-    r"\\bthe\\b",
-    r"\\bthis\\b",
-    r"\\bcustomer\\b",
-    r"\\bplease\\b",
-    r"\\bshould\\b",
+    r"\bthe\b",
+    r"\bthis\b",
+    r"\bcustomer\b",
+    r"\bplease\b",
+    r"\bshould\b",
+    r"\bhotel\b",
+    r"\bbooking\b",
+    r"\bcancel\b",
 ]
 
 

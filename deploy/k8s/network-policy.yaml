@@ -23,6 +23,10 @@ spec:
         - namespaceSelector: {}
       ports:
         - protocol: TCP
-          port: 443
+          port: 443      # HTTPS (external APIs)
+        - protocol: TCP
+          port: 6379     # Redis
+        - protocol: TCP
+          port: 5432     # PostgreSQL
         - protocol: UDP
-          port: 53
+          port: 53       # DNS

@@ -5,6 +5,12 @@ const BACKEND_TARGET = process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000';
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/__tests__/setup.js'],
+    css: true,
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

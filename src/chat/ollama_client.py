@@ -10,6 +10,12 @@ logger = get_logger("chat_ollama")
 
 
 class OllamaClient:
+    """Async Ollama API client with a persistent connection pool (#28).
+
+    A single httpx.AsyncClient is created once and reused across all requests,
+    avoiding the overhead of TCP handshakes on every inference call.
+    """
+
     def __init__(
         self,
         *,
@@ -20,6 +26,27 @@ class OllamaClient:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_seconds = timeout_seconds
+        # Persistent client — created lazily, shared across all requests
+        self._client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        """Return (or create) the shared async HTTP client."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                timeout=self.timeout_seconds,
+                limits=httpx.Limits(
+                    max_connections=10,
+                    max_keepalive_connections=5,
+                    keepalive_expiry=30.0,
+                ),
+            )
+        return self._client
+
+    async def aclose(self) -> None:
+        """Gracefully close the underlying connection pool (call at app shutdown)."""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     async def chat(
         self,
@@ -39,20 +66,20 @@ class OllamaClient:
             },
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                response = await client.post(f"{self.base_url}/api/chat", json=payload)
-                response.raise_for_status()
-                data = response.json()
-                return str(data.get("message", {}).get("content", "")).strip()
+            client = self._get_client()
+            response = await client.post(f"{self.base_url}/api/chat", json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return str(data.get("message", {}).get("content", "")).strip()
         except Exception as exc:
             logger.exception("Ollama chat request failed: %s", exc)
             raise RuntimeError("Ollama yanıt veremedi") from exc
 
     async def health(self) -> bool:
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(f"{self.base_url}/api/tags")
-                return response.status_code == 200
+            client = self._get_client()
+            response = await client.get(f"{self.base_url}/api/tags")
+            return response.status_code == 200
         except Exception:
             return False
 

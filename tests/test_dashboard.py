@@ -1,14 +1,25 @@
 import os
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.api import app
 
+# Test password — set as plaintext env var before any dashboard_auth import
+_TEST_PASSWORD = "TestDashboard123!"
+
+
+@pytest.fixture(autouse=True)
+def _set_dashboard_env(monkeypatch):
+    """Ensure test credentials are available for every test in this module."""
+    monkeypatch.setenv("DS_API_KEY", "test-key")
+    monkeypatch.setenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", _TEST_PASSWORD)
+
 
 def _login_headers(client: TestClient) -> dict:
-    payload = {"username": "admin", "password": "ChangeMe123!"}
+    payload = {"username": "admin", "password": _TEST_PASSWORD}
     r = client.post("/auth/login", json=payload)
-    assert r.status_code == 200
+    assert r.status_code == 200, f"Login failed: {r.text}"
     token = r.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 

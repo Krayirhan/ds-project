@@ -1,5 +1,16 @@
-.PHONY: setup hooks lint test test-cov train evaluate predict monitor serve hpo explain load-locust dev-up dev-down helm-lint helm-template
+.PHONY: setup setup-env check hooks lint test test-cov train evaluate predict monitor serve hpo explain load-locust dev-up dev-down helm-lint helm-template
 
+# ── İlk kurulum (yeni PC) ───────────────────────────────────────────────────
+
+## 1) Hazırlık kontrolü — eksik ne var?
+check:
+	python scripts/check_setup.py
+
+## 2) .env oluştur + otomatik düzelt
+setup-env:
+	python scripts/check_setup.py --fix
+
+## 3) Sanal ortam kur
 setup:
 	python -m venv .venv
 	.venv\\Scripts\\python.exe -m pip install --upgrade pip

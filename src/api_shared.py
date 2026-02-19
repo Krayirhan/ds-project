@@ -195,6 +195,72 @@ def load_serving_state() -> ServingState:
     )
 
 
+# ─── Shared Inference Helpers (#18 — eliminate copy-paste) ────────────────────
+def exec_predict_proba(
+    payload: "RecordsPayload",
+    serving: "ServingState",
+    endpoint: str,
+) -> "tuple[list[float], Any, str]":
+    """Core predict_proba logic shared by all versioned routers.
+
+    Returns ``(proba_list, schema_report, model_name)``.
+    Raises ``ValueError`` for bad client input, ``Exception`` for server errors.
+    Callers are responsible for mapping these to appropriate HTTP status codes
+    and incrementing INFERENCE_ERRORS.
+    """
+    import pandas as pd
+    from .predict import validate_and_prepare_features
+    from .metrics import INFERENCE_ROWS
+    from .tracing import trace_inference, set_span_attribute
+
+    max_rows = ExperimentConfig().api.max_payload_records
+    if len(payload.records) > max_rows:
+        raise ValueError(f"Payload too large. Max records={max_rows}")
+    df = pd.DataFrame(payload.records)
+    model_name = str(getattr(serving.policy, "selected_model", ""))
+    with trace_inference(endpoint, n_rows=len(df), model_name=model_name):
+        X, schema_report = validate_and_prepare_features(
+            df, serving.feature_spec, fail_on_missing=True
+        )
+        proba = serving.model.predict_proba(X)[:, 1]
+        set_span_attribute("ml.result_count", int(len(proba)))
+    INFERENCE_ROWS.labels(endpoint=endpoint, model=model_name).inc(len(proba))
+    return [float(x) for x in proba], schema_report, model_name
+
+
+def exec_decide(
+    payload: "RecordsPayload",
+    serving: "ServingState",
+    endpoint: str,
+) -> "tuple[Any, Any, str]":
+    """Core decide logic shared by all versioned routers.
+
+    Returns ``(actions_df, pred_report, model_name)``.
+    Raises ``ValueError`` for bad client input, ``Exception`` for server errors.
+    """
+    import pandas as pd
+    from .predict import predict_with_policy
+    from .metrics import INFERENCE_ROWS
+    from .tracing import trace_inference, set_span_attribute
+
+    max_rows = ExperimentConfig().api.max_payload_records
+    if len(payload.records) > max_rows:
+        raise ValueError(f"Payload too large. Max records={max_rows}")
+    df = pd.DataFrame(payload.records)
+    model_name = str(serving.policy.selected_model_artifact)
+    with trace_inference(endpoint, n_rows=len(df), model_name=model_name):
+        actions_df, pred_report = predict_with_policy(
+            model=serving.model,
+            policy=serving.policy,
+            df_input=df,
+            feature_spec_payload=serving.feature_spec,
+            model_used=model_name,
+        )
+        set_span_attribute("ml.result_count", int(len(actions_df)))
+    INFERENCE_ROWS.labels(endpoint=endpoint, model=model_name).inc(len(actions_df))
+    return actions_df, pred_report, model_name
+
+
 def error_response(
     *,
     status_code: int,

@@ -1,9 +1,7 @@
 FROM python:3.10-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    LOG_FORMAT=json \
-    DS_API_KEY=change-me
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
@@ -15,8 +13,7 @@ FROM python:3.10-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    LOG_FORMAT=json \
-    DS_API_KEY=change-me
+    LOG_FORMAT=json
 
 WORKDIR /app
 

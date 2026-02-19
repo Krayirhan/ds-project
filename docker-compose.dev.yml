@@ -12,26 +12,34 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: ds-project-api
+    # .env dosyası varsa oradan okur; sonra aşağıdaki environment değerleri override eder
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "8000:8000"
     environment:
-      - DS_API_KEY=dev-api-key-12345
-      - LOG_FORMAT=json
-      - RATE_LIMIT_BACKEND=redis
+      # Sırlar .env'den okunur; .env yoksa aşağıdaki varsayılanlar kullanılır
+      - DS_API_KEY=${DS_API_KEY:-dev-api-key-change-me}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - RATE_LIMIT_BACKEND=${RATE_LIMIT_BACKEND:-redis}
+      # Docker ağı içi adresler — bunlar sabit kalmalı
       - REDIS_URL=redis://redis:6379/0
       - DATABASE_URL=postgresql+psycopg://ds_user:ds_password@postgres:5432/ds_dashboard
-      - CORS_ALLOW_ORIGINS=http://localhost:5173,http://localhost:3000
-      - DASHBOARD_AUTH_ENABLED=true
-      - DASHBOARD_ADMIN_USERNAME=ds_readonly
-      - DASHBOARD_ADMIN_PASSWORD=ChangeMeReadOnly123!
-      - DASHBOARD_ADMIN_PASSWORD_ADMIN=admin123
-      - DASHBOARD_TOKEN_TTL_MINUTES=480
-      - OTEL_ENABLED=true
-      - OTEL_SERVICE_NAME=ds-project-api
+      - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      - DASHBOARD_AUTH_ENABLED=${DASHBOARD_AUTH_ENABLED:-true}
+      - DASHBOARD_ADMIN_USERNAME=${DASHBOARD_ADMIN_USERNAME:-ds_readonly}
+      - DASHBOARD_ADMIN_PASSWORD=${DASHBOARD_ADMIN_PASSWORD:-ChangeMeReadOnly123!}
+      - DASHBOARD_ADMIN_PASSWORD_ADMIN=${DASHBOARD_ADMIN_PASSWORD_ADMIN:-dev-admin-change-me}
+      - DASHBOARD_TOKEN_TTL_MINUTES=${DASHBOARD_TOKEN_TTL_MINUTES:-480}
+      - DASHBOARD_URL=${DASHBOARD_URL:-http://localhost:5173}
+      - OTEL_ENABLED=${OTEL_ENABLED:-true}
+      - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-ds-project-api}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
-      - OTEL_DEPLOYMENT_ENV=development
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
-      - OLLAMA_MODEL=llama3.2-vision:11b
+      - OTEL_DEPLOYMENT_ENV=${OTEL_DEPLOYMENT_ENV:-development}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+      - CHAT_SESSION_TTL_SECONDS=${CHAT_SESSION_TTL_SECONDS:-3600}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

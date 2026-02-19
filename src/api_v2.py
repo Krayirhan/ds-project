@@ -24,12 +24,13 @@ from .api_shared import (
     ErrorResponse,
     RecordsPayload,
     SchemaReportResponse,
+    exec_predict_proba,
+    exec_decide,
     load_serving_state,
 )
 from .config import ExperimentConfig
-from .metrics import INFERENCE_ERRORS, INFERENCE_ROWS
-from .predict import predict_with_policy, validate_and_prepare_features
-from .tracing import trace_inference, set_span_attribute
+from .metrics import INFERENCE_ERRORS
+from .tracing import set_span_attribute
 
 router_v2 = APIRouter(prefix="/v2", tags=["v2"])
 
@@ -101,35 +102,22 @@ class V2ReloadResponse(BaseModel):
 @router_v2.post(
     "/predict_proba",
     response_model=V2PredictProbaResponse,
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 def v2_predict_proba(
     payload: RecordsPayload, request: Request
 ) -> V2PredictProbaResponse:
     t0 = time.time()
+    serving = _get_serving_state()
     try:
-        serving = _get_serving_state()
-        max_rows = ExperimentConfig().api.max_payload_records
-        if len(payload.records) > max_rows:
-            raise ValueError(f"Payload too large. Max records={max_rows}")
-        df = pd.DataFrame(payload.records)
-        model_name = str(getattr(serving.policy, "selected_model", ""))
-        with trace_inference("v2.predict_proba", n_rows=len(df), model_name=model_name):
-            X, schema_report = validate_and_prepare_features(
-                df, serving.feature_spec, fail_on_missing=True
-            )
-            proba = serving.model.predict_proba(X)[:, 1]
-            set_span_attribute("ml.result_count", int(len(proba)))
-            set_span_attribute("ml.api_version", "v2")
-        INFERENCE_ROWS.labels(
-            endpoint="v2.predict_proba",
-            model=model_name,
-        ).inc(len(proba))
-
+        proba, schema_report, model_name = exec_predict_proba(
+            payload, serving, "v2.predict_proba"
+        )
+        set_span_attribute("ml.api_version", "v2")
         rid = getattr(request.state, "request_id", None)
         return V2PredictProbaResponse(
             n=int(len(proba)),
-            proba=[float(x) for x in proba],
+            proba=proba,
             schema_report=schema_report,
             meta=V2Meta(
                 api_version="v2",
@@ -138,48 +126,35 @@ def v2_predict_proba(
                 request_id=rid,
             ),
         )
-    except Exception as e:
-        _serving = getattr(_app_ref.state if _app_ref else None, "serving", None)
-        _model = str(getattr(getattr(_serving, "policy", None), "selected_model", "") or "")
-        INFERENCE_ERRORS.labels(endpoint="v2.predict_proba", model=_model).inc()
+    except ValueError as e:
+        INFERENCE_ERRORS.labels(endpoint="v2.predict_proba", model=_model_name(serving)).inc()
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        INFERENCE_ERRORS.labels(endpoint="v2.predict_proba", model=_model_name(serving)).inc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router_v2.post(
     "/decide",
     response_model=V2DecideResponse,
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 def v2_decide(payload: RecordsPayload, request: Request) -> V2DecideResponse:
     t0 = time.time()
+    serving = _get_serving_state()
     try:
-        serving = _get_serving_state()
-        max_rows = ExperimentConfig().api.max_payload_records
-        if len(payload.records) > max_rows:
-            raise ValueError(f"Payload too large. Max records={max_rows}")
-        df = pd.DataFrame(payload.records)
-        model_name = str(serving.policy.selected_model_artifact)
-        with trace_inference("v2.decide", n_rows=len(df), model_name=model_name):
-            actions_df, pred_report = predict_with_policy(
-                model=serving.model,
-                policy=serving.policy,
-                df_input=df,
-                feature_spec_payload=serving.feature_spec,
-                model_used=model_name,
-            )
-            set_span_attribute("ml.result_count", int(len(actions_df)))
-            set_span_attribute("ml.api_version", "v2")
-            threshold = float(
+        actions_df, pred_report, model_name = exec_decide(
+            payload, serving, "v2.decide"
+        )
+        set_span_attribute("ml.api_version", "v2")
+        set_span_attribute(
+            "ml.threshold_used",
+            float(
                 pred_report.get("threshold_used", 0)
                 if isinstance(pred_report, dict)
                 else getattr(pred_report, "threshold_used", 0)
-            )
-            set_span_attribute("ml.threshold_used", threshold)
-        INFERENCE_ROWS.labels(
-            endpoint="v2.decide",
-            model=model_name,
-        ).inc(len(actions_df))
-
+            ),
+        )
         rid = getattr(request.state, "request_id", None)
         return V2DecideResponse(
             n=int(len(actions_df)),
@@ -192,11 +167,16 @@ def v2_decide(payload: RecordsPayload, request: Request) -> V2DecideResponse:
                 request_id=rid,
             ),
         )
-    except Exception as e:
-        _serving = getattr(_app_ref.state if _app_ref else None, "serving", None)
-        _model = str(getattr(getattr(_serving, "policy", None), "selected_model_artifact", "") or "")
-        INFERENCE_ERRORS.labels(endpoint="v2.decide", model=_model).inc()
+    except ValueError as e:
+        INFERENCE_ERRORS.labels(endpoint="v2.decide", model=_model_name(serving)).inc()
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        INFERENCE_ERRORS.labels(endpoint="v2.decide", model=_model_name(serving)).inc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _model_name(serving: ServingState | None) -> str:
+    return str(getattr(getattr(serving, "policy", None), "selected_model_artifact", "") or "")
 
 
 @router_v2.post(

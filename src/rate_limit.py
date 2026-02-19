@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass
 from typing import Dict, List
@@ -17,20 +18,46 @@ class BaseRateLimiter:
 
 
 class InMemoryRateLimiter(BaseRateLimiter):
+    """Thread-safe sliding-window rate limiter with automatic stale-key eviction."""
+
+    # Evict stale entries when bucket grows beyond this size (#21 memory leak fix)
+    _MAX_KEYS: int = 50_000
+
     def __init__(self) -> None:
         self._bucket: Dict[str, List[float]] = {}
+        self._lock = threading.Lock()  # #20 race condition fix
 
     def allow(self, key: str, limit_per_minute: int) -> bool:
         now = time.time()
         one_min_ago = now - 60.0
-        arr = self._bucket.get(key, [])
-        arr = [x for x in arr if x >= one_min_ago]
-        if len(arr) >= limit_per_minute:
+        with self._lock:
+            arr = self._bucket.get(key, [])
+            # Slide window: drop timestamps older than 60 s
+            arr = [x for x in arr if x >= one_min_ago]
+            if len(arr) >= limit_per_minute:
+                self._bucket[key] = arr
+                return False
+            arr.append(now)
             self._bucket[key] = arr
-            return False
-        arr.append(now)
-        self._bucket[key] = arr
+            # Periodic eviction: remove keys whose entire window has expired
+            if len(self._bucket) > self._MAX_KEYS:
+                self._evict_stale_locked(one_min_ago)
         return True
+
+    def _evict_stale_locked(self, one_min_ago: float) -> None:
+        """Remove keys with no recent timestamps. Must be called while holding self._lock."""
+        stale = [
+            k for k, v in self._bucket.items()
+            if not v or max(v) < one_min_ago
+        ]
+        for k in stale:
+            del self._bucket[k]
+        if stale:
+            logger.debug(
+                "Rate limiter evicted %d stale keys (bucket size now: %d)",
+                len(stale),
+                len(self._bucket),
+            )
 
 
 @dataclass

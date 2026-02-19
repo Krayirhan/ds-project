@@ -56,6 +56,7 @@ class ChatOrchestrator:
 
         reply = await self._ask_llm(session=session, risk_percent=ctx.risk_percent)
         session.add_message(role="assistant", content=reply)
+        self.store.save_session(session)  # persist mutations (#25)
         return session.session_id, reply
 
     async def send_message(self, *, session_id: str, user_message: str) -> str:
@@ -64,11 +65,16 @@ class ChatOrchestrator:
             raise ValueError("Oturum bulunamadı veya süresi doldu")
 
         intent = classify_intent(user_message)
-        chunks = self.knowledge.retrieve_by_customer(
+
+        # Hybrid retrieval: use message text (TF-IDF) when available, tag fallback otherwise
+        chunks = self.knowledge.retrieve_by_text(
+            query=user_message, top_k=2
+        ) if hasattr(self.knowledge, "retrieve_by_text") else self.knowledge.retrieve_by_customer(
             customer_data=session.customer_data,
             risk_score=session.risk_score,
             top_k=2,
         )
+
         retrieved = "\n\n".join(f"{c.title}: {c.content}" for c in chunks)
         ctx = build_customer_context(
             customer_data=session.customer_data,
@@ -87,6 +93,7 @@ class ChatOrchestrator:
 
         reply = await self._ask_llm(session=session, risk_percent=ctx.risk_percent)
         session.add_message(role="assistant", content=reply)
+        self.store.save_session(session)  # persist mutations (#25)
         return reply
 
     async def _ask_llm(self, *, session: ChatSession, risk_percent: float) -> str:

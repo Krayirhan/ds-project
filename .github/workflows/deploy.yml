@@ -184,13 +184,14 @@ jobs:
   approve-production:
     runs-on: ubuntu-latest
     needs: [build, smoke-staging]
+    environment: production
     if: |
       always() &&
       needs.build.result == 'success' &&
       (needs['smoke-staging'].result == 'success' || needs['smoke-staging'].result == 'skipped')
     steps:
       - name: Approval gate
-        run: echo "✅ Production deployment approved"
+        run: echo "✅ Production deployment approved — manual review passed"
 
   # ── 5. Deploy to Production ───────────────────────────────────────────
   deploy-production:

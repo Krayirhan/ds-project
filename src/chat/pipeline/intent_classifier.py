@@ -50,12 +50,33 @@ _RULES: list[tuple[list[str], Intent, str]] = [
 
 
 def classify_intent(user_message: str) -> ClassifiedIntent:
+    """Score each intent by fraction of its keywords that appear in the message.
+
+    Unlike first-match-wins, this approach:
+    - Handles messages that match multiple rule sets (picks highest score)
+    - Gives partial credit for partial matches
+    - Produces a calibrated confidence value in [0.5, 1.0]
+    """
     msg = user_message.lower()
+    best_intent: Intent = Intent.GENERAL_CHAT
+    best_score: float = 0.0
+    best_hint: str = "Soruyu müşteri hizmetleri bağlamında kısa ve net yanıtla."
+
     for keywords, intent, hint in _RULES:
-        if any(k in msg for k in keywords):
-            return ClassifiedIntent(intent=intent, confidence=1.0, hint_for_llm=hint)
+        matches = sum(1 for k in keywords if k in msg)
+        if matches == 0:
+            continue
+        # Normalize by keyword count so short rules don't dominate
+        score = matches / len(keywords)
+        if score > best_score:
+            best_score = score
+            best_intent = intent
+            best_hint = hint
+
+    # Map raw score [0, 1] → confidence [0.5, 1.0]
+    confidence = round(min(1.0, 0.5 + best_score * 0.5), 2) if best_score > 0 else 0.5
     return ClassifiedIntent(
-        intent=Intent.GENERAL_CHAT,
-        confidence=0.5,
-        hint_for_llm="Soruyu müşteri hizmetleri bağlamında kısa ve net yanıtla.",
+        intent=best_intent,
+        confidence=confidence,
+        hint_for_llm=best_hint,
     )

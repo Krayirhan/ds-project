@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+import hmac
 import os
 import time
 import uuid
@@ -20,6 +21,8 @@ from .api_shared import (
     DecideResponse,
     ReloadResponse,
     ErrorResponse,
+    exec_predict_proba,
+    exec_decide,
     load_serving_state,
     error_response,
 )
@@ -29,12 +32,10 @@ from .dashboard_auth import router_dashboard_auth
 from .chat import router_chat
 from .metrics import (
     INFERENCE_ERRORS,
-    INFERENCE_ROWS,
     REQUEST_COUNT,
     REQUEST_LATENCY,
     render_metrics,
 )
-from .predict import predict_with_policy, validate_and_prepare_features
 from .rate_limit import BaseRateLimiter, build_rate_limiter
 from .tracing import (
     init_tracing,
@@ -77,6 +78,22 @@ def _load_serving_state() -> ServingState:
     return load_serving_state()
 
 
+async def _periodic_chat_cleanup(interval_seconds: int = 300) -> None:
+    """Background task: evict idle chat sessions every 5 minutes (#29)."""
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+            from .chat.memory import get_session_store
+            store = get_session_store()
+            if hasattr(store, "_cleanup_expired"):
+                store._cleanup_expired()
+                logger.debug("Periodic chat session cleanup ran")
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.warning("Periodic chat cleanup error: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_tracing(service_name="ds-project-api")
@@ -103,13 +120,28 @@ async def lifespan(app: FastAPI):
             ExperimentConfig().api.rate_limit_per_minute * workers,
         )
 
+    _cleanup_task = asyncio.create_task(_periodic_chat_cleanup())
+
     yield
+
+    # Graceful shutdown
+    _cleanup_task.cancel()
+    try:
+        await _cleanup_task
+    except asyncio.CancelledError:
+        pass
+    # Close Ollama persistent connection pool (#28)
+    try:
+        from .chat.ollama_client import get_ollama_client
+        await get_ollama_client().aclose()
+    except Exception:
+        pass
     app.state.shutting_down = True
 
 
 app = FastAPI(
     title="DS Project Serving API",
-    version="1.1.0",
+    version="1.2.0",
     description=(
         "Production inference API for hotel cancellation decisioning. "
         "Supports health checks, readiness checks, probability scoring, policy-based actioning, "
@@ -204,8 +236,8 @@ async def request_context_middleware(request: Request, call_next):
                 message="API key is not configured",
                 request_id=rid,
             )
-        got = request.headers.get("x-api-key")
-        if got != expected:
+        got = request.headers.get("x-api-key") or ""
+        if not hmac.compare_digest(got, expected):
             return _error_response(
                 status_code=401,
                 error_code="unauthorized",
@@ -220,6 +252,18 @@ async def request_context_middleware(request: Request, call_next):
     if limiter is None:
         limiter = _build_runtime_rate_limiter()
         app.state.rate_limiter = limiter
+
+    # ── Brute-force koruması: /auth/login için sıkı limit (10 istek/dk/IP) ──
+    if request_path == "/auth/login" and request.method.upper() == "POST":
+        login_ip = request.client.host if request.client else "unknown"
+        if not limiter.allow(f"login:{login_ip}", 10):
+            return _error_response(
+                status_code=429,
+                error_code="login_rate_limit",
+                message="Çok fazla giriş denemesi. Lütfen bir dakika bekleyin.",
+                request_id=rid,
+            )
+
     if not limiter.allow(client, ExperimentConfig().api.rate_limit_per_minute):
         return _error_response(
             status_code=429,
@@ -314,94 +358,56 @@ def metrics() -> Response:
 
 @app.get("/dashboard", include_in_schema=False)
 def dashboard_redirect() -> RedirectResponse:
-    return RedirectResponse(url="http://localhost:5173", status_code=307)
+    url = os.getenv("DASHBOARD_URL", "http://localhost:5173")
+    return RedirectResponse(url=url, status_code=307)
 
 
 @app.post(
     "/predict_proba",
     response_model=PredictProbaResponse,
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 def predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
+    serving = _get_serving_state()
     try:
-        serving = _get_serving_state()
-        max_rows = ExperimentConfig().api.max_payload_records
-        if len(payload.records) > max_rows:
-            raise ValueError(f"Payload too large. Max records={max_rows}")
-        df = pd.DataFrame(payload.records)
-        with trace_inference(
-            "predict_proba",
-            n_rows=len(df),
-            model_name=str(getattr(serving.policy, "selected_model", "")),
-        ):
-            X, schema_report = validate_and_prepare_features(
-                df, serving.feature_spec, fail_on_missing=True
-            )
-            proba = serving.model.predict_proba(X)[:, 1]
-            set_span_attribute("ml.result_count", int(len(proba)))
-        INFERENCE_ROWS.labels(
-            endpoint="predict_proba",
-            model=str(getattr(serving.policy, "selected_model", "")),
-        ).inc(len(proba))
-        return PredictProbaResponse(
-            n=int(len(proba)),
-            proba=[float(x) for x in proba],
-            schema_report=schema_report,
-        )
-    except Exception as e:
+        proba, schema_report, _ = exec_predict_proba(payload, serving, "predict_proba")
+        return PredictProbaResponse(n=int(len(proba)), proba=proba, schema_report=schema_report)
+    except ValueError as e:
         _serving = getattr(app.state, "serving", None)
         _model = str(getattr(getattr(_serving, "policy", None), "selected_model", "") or "")
         INFERENCE_ERRORS.labels(endpoint="predict_proba", model=_model).inc()
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        _serving = getattr(app.state, "serving", None)
+        _model = str(getattr(getattr(_serving, "policy", None), "selected_model", "") or "")
+        INFERENCE_ERRORS.labels(endpoint="predict_proba", model=_model).inc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post(
     "/decide",
     response_model=DecideResponse,
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 def decide(payload: RecordsPayload) -> DecideResponse:
+    serving = _get_serving_state()
     try:
-        serving = _get_serving_state()
-        max_rows = ExperimentConfig().api.max_payload_records
-        if len(payload.records) > max_rows:
-            raise ValueError(f"Payload too large. Max records={max_rows}")
-        df = pd.DataFrame(payload.records)
-        with trace_inference(
-            "decide",
-            n_rows=len(df),
-            model_name=str(serving.policy.selected_model_artifact),
-        ):
-            actions_df, pred_report = predict_with_policy(
-                model=serving.model,
-                policy=serving.policy,
-                df_input=df,
-                feature_spec_payload=serving.feature_spec,
-                model_used=serving.policy.selected_model_artifact,
-            )
-            set_span_attribute("ml.result_count", int(len(actions_df)))
-            set_span_attribute(
-                "ml.threshold_used",
-                float(
-                    pred_report.get("threshold_used", 0)
-                    if isinstance(pred_report, dict)
-                    else getattr(pred_report, "threshold_used", 0)
-                ),
-            )
-        INFERENCE_ROWS.labels(
-            endpoint="decide",
-            model=str(serving.policy.selected_model_artifact or ""),
-        ).inc(len(actions_df))
+        actions_df, pred_report, _ = exec_decide(payload, serving, "decide")
         return DecideResponse(
             n=int(len(actions_df)),
             results=actions_df.to_dict(orient="records"),
             report=pred_report,
         )
-    except Exception as e:
+    except ValueError as e:
         _serving = getattr(app.state, "serving", None)
         _model = str(getattr(getattr(_serving, "policy", None), "selected_model_artifact", "") or "")
         INFERENCE_ERRORS.labels(endpoint="decide", model=_model).inc()
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        _serving = getattr(app.state, "serving", None)
+        _model = str(getattr(getattr(_serving, "policy", None), "selected_model_artifact", "") or "")
+        INFERENCE_ERRORS.labels(endpoint="decide", model=_model).inc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post(
@@ -411,8 +417,8 @@ async def reload_serving_state(request: Request) -> ReloadResponse:
     # Admin key koruması: DS_ADMIN_KEY tanımlıysa sadece x-admin-key header'ı ile çağrılabilir
     expected_admin = _expected_admin_key()
     if expected_admin:
-        got_admin = request.headers.get("x-admin-key")
-        if got_admin != expected_admin:
+        got_admin = request.headers.get("x-admin-key") or ""
+        if not hmac.compare_digest(got_admin, expected_admin):
             raise HTTPException(
                 status_code=403,
                 detail="Bu endpoint için x-admin-key header'ı gereklidir.",
