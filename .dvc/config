@@ -3,27 +3,15 @@
     analytics = false
     remote = minio
 
-# ── Local dev remote: MinIO (Docker Compose) ─────────────────────────────────
 ['remote "minio"']
     url = s3://ds-dvc-bucket
     endpointurl = http://localhost:9000
 
-# ── Production remote: S3-compatible (AWS or self-hosted) ─────────────────────
-# Credentials via env vars: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-# Endpoint via env var: AWS_S3_ENDPOINT_URL (omit for real AWS S3)
-# Switch to prod with: dvc remote default prod
 ['remote "prod"']
     url = s3://ds-dvc-bucket
 
-# ── Optional: Google Cloud Storage ────────────────────────────────────────────
-# Requires: pip install dvc-gs
-# Credentials: GOOGLE_APPLICATION_CREDENTIALS env var
 ['remote "gcs"']
     url = gs://ds-dvc-bucket
 
-# ── Optional: Azure Blob Storage ──────────────────────────────────────────────
-# Requires: pip install dvc-azure
-# Credentials: AZURE_STORAGE_ACCOUNT + AZURE_STORAGE_KEY env vars
 ['remote "azure"']
-    url = azure://ds-dvc-bucket
     url = azure://ds-dvc-bucket
