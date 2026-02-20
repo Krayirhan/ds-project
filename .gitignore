@@ -18,7 +18,14 @@ venv/
 .env.*
 !.env.example
 
+# Node / Frontend build artifacts
+node_modules/
+dist/
+.vite/
+*.local
+
 # Data artifacts
+data/raw/
 data/interim/
 data/processed/
 
@@ -32,3 +39,14 @@ reports/monitoring/
 # OS/editor
 .DS_Store
 Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# HPO storage
+hpo.db
+
+# Build outputs
+*.egg-info/
+build/

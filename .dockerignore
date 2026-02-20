@@ -1,12 +1,58 @@
-.venv/
-__pycache__/
-.pytest_cache/
-*.pyc
-*.pyo
-*.pyd
-.git/
+# Version control
+.git
 .gitignore
-notebooks/
-reports/
+.github
+
+# Node / Frontend (built inside Docker if needed, not copied from host)
+apps/frontend/node_modules
+apps/frontend/dist
+apps/frontend/.vite
+
+# Python artifacts
+__pycache__
+*.py[cod]
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+.venv
+venv
+*.egg-info
+build
+
+# Data
+data/raw
+data/interim
+data/processed
+
+# Model artifacts — mounted at runtime or pulled via DVC
 models/
-data/
+
+# Reports — generated at runtime
+reports/metrics
+reports/predictions
+reports/monitoring
+reports/figures
+
+# Notebooks
+notebooks/
+
+# Docs / perf / deploy configs
+docs/
+perf/
+deploy/
+
+# Dev tooling
+.env
+.env.*
+!.env.example
+docker-compose*.yml
+Makefile
+
+# HPO storage
+hpo.db
+
+# OS
+.DS_Store
+Thumbs.db
