@@ -36,3 +36,34 @@ spec:
           annotations:
             summary: "Inference errors are elevated"
             description: "Inference error rate above threshold"
+
+        - alert: DSProjectHighPSI
+          expr: ds_feature_psi > 0.2
+          for: 5m
+          labels:
+            severity: warning
+            service: ds-project-api
+          annotations:
+            summary: "Feature PSI drift detected: {{ $labels.feature }}"
+            description: "PSI {{ $value | humanize }} > 0.2 for feature {{ $labels.feature }} — distribution shift likely"
+
+        - alert: DSProjectLowAUC
+          expr: ds_model_roc_auc < 0.65
+          for: 10m
+          labels:
+            severity: critical
+            service: ds-project-api
+          annotations:
+            summary: "Model AUC degraded below SLO"
+            description: "ROC-AUC {{ $value | humanize }} < 0.65 for model {{ $labels.model }} — consider retraining"
+
+        - alert: DSProjectActionRateAnomaly
+          expr: |
+            abs(ds_model_action_rate - avg_over_time(ds_model_action_rate[7d])) > 0.15
+          for: 15m
+          labels:
+            severity: warning
+            service: ds-project-api
+          annotations:
+            summary: "Action rate anomaly detected"
+            description: "Action rate {{ $value | humanize }} deviates >15pp from 7-day average — check model or data"

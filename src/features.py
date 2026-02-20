@@ -81,6 +81,12 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
                 logger.info(
                     f"FreqEncoder fitted: col={col} unique_values={len(freq)}"
                 )
+        # Compute and cache the output feature names for sklearn set_output API
+        cols = list(df.columns)
+        if self.month_col in cols:
+            cols.remove(self.month_col)
+            cols = cols + [f"{self.month_col}_sin", f"{self.month_col}_cos"]
+        self._feature_names_out: List[str] = cols
         return self
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
@@ -117,7 +123,10 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         return df
 
     def get_feature_names_out(self, input_features=None):
-        """sklearn set_output API uyumu için."""
+        """sklearn set_output API compatibility — returns output column names."""
+        if hasattr(self, "_feature_names_out"):
+            import numpy as np
+            return np.asarray(self._feature_names_out, dtype=object)
         return None
 
 

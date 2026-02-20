@@ -14,32 +14,27 @@ def test_build_rate_limiter_falls_back_to_memory_without_redis_url():
     assert isinstance(rl, InMemoryRateLimiter)
 
 
-class FakePipeline:
-    def __init__(self, count):
-        self._count = count
-
-    def zremrangebyscore(self, *args, **kwargs):
-        return self
-
-    def zcard(self, *args, **kwargs):
-        return self
-
-    def zadd(self, *args, **kwargs):
-        return self
-
-    def expire(self, *args, **kwargs):
-        return self
-
-    def execute(self):
-        return [None, self._count, None, None]
-
-
 class FakeRedis:
-    def __init__(self, count):
+    """Fake Redis client supporting Lua script registration for RedisRateLimiter tests."""
+
+    def __init__(self, count: int):
+        # `count` simulates how many requests are already in the sorted set
         self._count = count
 
-    def pipeline(self):
-        return FakePipeline(self._count)
+    def register_script(self, script: str):
+        """Return a callable that simulates the Lua rate-limit script.
+
+        Lua script behaviour:
+        - ARGV = [now, window_seconds, limit]
+        - Returns 1 (allow) if count < limit, else 0 (block)
+        """
+        count = self._count
+
+        def _run(keys, args):
+            _now, _window, limit = args
+            return 1 if count < int(limit) else 0
+
+        return _run
 
 
 def test_redis_rate_limiter_allows_under_limit():
