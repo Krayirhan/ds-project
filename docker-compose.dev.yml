@@ -170,12 +170,35 @@ services:
     networks:
       - ds-net
 
+  # ---------- MinIO (S3-compatible object store for DVC remote) ----------
+  minio:
+    image: bitnami/minio:latest
+    container_name: ds-project-minio
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # MinIO Console UI (http://localhost:9001)
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_DEFAULT_BUCKETS=ds-dvc-bucket
+    volumes:
+      - minio-data:/bitnami/minio/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ds-net
+
 volumes:
   frontend-node-modules:
   redis-data:
   postgres-data:
   prometheus-data:
   grafana-data:
+  minio-data:
 
 networks:
   ds-net:

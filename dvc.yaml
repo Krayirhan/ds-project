@@ -37,8 +37,6 @@ stages:
       - main.py
     outs:
       - models
-    metrics:
-      - reports/metrics/latest.json
 
   evaluate:
     cmd: python main.py evaluate
@@ -48,5 +46,5 @@ stages:
       - src/cost_matrix.py
       - src/policy.py
       - main.py
-    outs:
-      - reports/metrics
+    metrics:
+      - reports/metrics/latest.json

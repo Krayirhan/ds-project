@@ -28,7 +28,23 @@ jobs:
             mypy==1.13.0 \
             bandit==1.7.10 \
             pre-commit==4.0.1 \
-            pytest-cov==6.0.0
+            pytest-cov==6.0.0 \
+            dvc==3.58.0 \
+            dvc-s3==3.2.0
+
+      - name: Pull DVC data
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DVC_SECRET_ACCESS_KEY }}
+          AWS_S3_ENDPOINT_URL: ${{ secrets.DVC_S3_ENDPOINT_URL }}
+        run: |
+          # Configure prod remote endpoint from secret (falls back gracefully if
+          # the secret is not set — CI still runs against locally committed stubs)
+          if [ -n "$AWS_S3_ENDPOINT_URL" ]; then
+            dvc remote modify prod endpointurl "$AWS_S3_ENDPOINT_URL" --local
+          fi
+          dvc pull data/raw data/processed --allow-missing \
+            || echo "⚠️  DVC remote not reachable — using data already in repo cache"
 
       - name: Quality gate (pre-commit)
         run: |

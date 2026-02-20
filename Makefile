@@ -59,9 +59,29 @@ dev-up:
 	@echo "Prometheus: http://localhost:9090"
 	@echo "Grafana:    http://localhost:3000  (admin/admin)"
 	@echo "Jaeger UI:  http://localhost:16686"
+	@echo "MinIO UI:   http://localhost:9001  (minioadmin/minioadmin)"
 
 dev-down:
 	docker compose -f docker-compose.dev.yml down -v
+
+# ── DVC — data versioning & pipeline ────────────────────────────────
+dvc-init:
+	dvc init
+
+dvc-pull:
+	dvc pull
+
+dvc-push:
+	dvc push
+
+dvc-repro:
+	dvc repro
+
+dvc-status:
+	dvc status
+
+dvc-dag:
+	dvc dag
 
 # ── Helm ────────────────────────────────────────────────────────────
 helm-lint:
