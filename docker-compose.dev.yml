@@ -20,6 +20,7 @@ services:
       - "8000:8000"
     environment:
       # Sırlar .env'den okunur; .env yoksa aşağıdaki varsayılanlar kullanılır
+      - DS_ENV=${DS_ENV:-development}
       - DS_API_KEY=${DS_API_KEY:-dev-api-key-change-me}
       - LOG_FORMAT=${LOG_FORMAT:-json}
       - RATE_LIMIT_BACKEND=${RATE_LIMIT_BACKEND:-redis}

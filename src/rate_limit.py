@@ -65,21 +65,32 @@ class RedisRateLimiter(BaseRateLimiter):
     redis_client: any
     key_prefix: str = "ds:rate"
 
+    # Atomic sliding-window via Lua: ZREMRANGEBYSCORE + ZCARD + ZADD + EXPIRE in one step.
+    # This eliminates the TOCTOU race condition present in pipeline-based approaches.
+    _LUA_SCRIPT = """
+        local key        = KEYS[1]
+        local now        = tonumber(ARGV[1])
+        local window     = tonumber(ARGV[2])
+        local limit      = tonumber(ARGV[3])
+        local window_start = now - window
+        redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
+        local count = redis.call('ZCARD', key)
+        if count >= limit then
+            return 0
+        end
+        redis.call('ZADD', key, now, tostring(now))
+        redis.call('EXPIRE', key, math.ceil(window) + 1)
+        return 1
+    """
+
+    def __post_init__(self) -> None:
+        self._script = self.redis_client.register_script(self._LUA_SCRIPT)
+
     def allow(self, key: str, limit_per_minute: int) -> bool:
-        # Sliding-ish 60s window via sorted-set score=timestamp
         now = time.time()
-        window_start = now - 60.0
         rkey = f"{self.key_prefix}:{key}"
-
-        pipe = self.redis_client.pipeline()
-        pipe.zremrangebyscore(rkey, 0, window_start)
-        pipe.zcard(rkey)
-        pipe.zadd(rkey, {str(now): now})
-        pipe.expire(rkey, 61)
-        _, count, _, _ = pipe.execute()
-
-        # count is before current request add, so block if already at/over limit
-        return int(count) < int(limit_per_minute)
+        result = self._script(keys=[rkey], args=[now, 60.0, limit_per_minute])
+        return bool(result)
 
 
 def build_rate_limiter(

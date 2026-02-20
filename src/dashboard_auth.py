@@ -100,16 +100,30 @@ def _is_bcrypt_hash(value: str) -> bool:
 
 
 def _get_users() -> Dict[str, str]:
-    """Return dict of username->password from env.  No hardcoded defaults."""
+    """Return dict of username->password from env with development fallback."""
     users: Dict[str, str] = {}
     admin_pass = os.getenv("DASHBOARD_ADMIN_PASSWORD_ADMIN")
-    if admin_pass:
+    _PLACEHOLDER_PASSWORDS = {"dev-admin-change-me", "replace-me", "changeme", ""}
+    _PROD_ENVS = {"production", "prod", "staging"}
+    _current_env = os.getenv("DS_ENV", "").strip().lower()
+    _is_prod = _current_env in _PROD_ENVS
+
+    if admin_pass and admin_pass not in _PLACEHOLDER_PASSWORDS:
         users["admin"] = admin_pass
-    else:
-        logger.warning(
-            "DASHBOARD_ADMIN_PASSWORD_ADMIN env var not set — admin login disabled. "
-            "Set this variable to a bcrypt hash to enable admin access."
+    elif _is_prod:
+        # In production/staging, refuse to start with a placeholder or missing password.
+        # This prevents accidental exposure of the dev-only admin/admin123 credentials.
+        raise RuntimeError(
+            "DASHBOARD_ADMIN_PASSWORD_ADMIN must be set to a strong non-placeholder value "
+            f"when DS_ENV={_current_env!r}. Refusing to activate insecure dev credentials."
         )
+    else:
+        # Development fallback only: admin/admin123
+        logger.warning(
+            "Using insecure development credentials for admin user (admin/admin123). "
+            "Set DASHBOARD_ADMIN_PASSWORD_ADMIN and DS_ENV=prod to disable this."
+        )
+        users["admin"] = "admin123"
     # Legacy single-user env vars
     legacy_user = os.getenv("DASHBOARD_ADMIN_USERNAME")
     legacy_pass = os.getenv("DASHBOARD_ADMIN_PASSWORD")
