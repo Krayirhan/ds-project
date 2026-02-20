@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-02-19
+
+### Added
+- **Test coverage**: 241 Python tests (all passing); frontend 56 Vitest/RTL tests
+  - CLI tests: 8 files, 47 tests (`train`, `evaluate`, `monitor`, `predict`, `preprocess`, `hpo`, `explain`, `policy`)
+  - Module tests: `experiment_tracking` (17), `tracing` (17), `hpo` (13), `explain` (15)
+  - Frontend RTL: `LoginPage`, `ErrorBoundary`, `AppStatusBar`, `useSystemStatus`
+- **Prometheus model-health gauges** (`src/metrics.py`): `ds_model_roc_auc`, `ds_feature_psi`, `ds_model_action_rate`, `ds_label_drift_rate`
+- **PrometheusRule alerts** (`deploy/monitoring/prometheus-rule.yaml`): `DSProjectHighPSI`, `DSProjectLowAUC`, `DSProjectActionRateAnomaly`
+- **Helm K8s hardening** (`deploy/helm/`):
+  - Container `securityContext`: `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, `runAsNonRoot: true`, `capabilities.drop: [ALL]`
+  - Pod `securityContext`: `runAsNonRoot: true`, `seccompProfile: RuntimeDefault`
+  - `startupProbe`: `failureThreshold: 30`, `periodSeconds: 5` (covers slow model load)
+  - `/tmp` `emptyDir` volume for writable scratch space
+  - `image.tag` defaulted to `""` — must be set explicitly (no `latest` in prod)
+- **Notebooks** (`notebooks/`): 6 end-to-end notebooks
+  - `01_eda.ipynb`: Exploratory Data Analysis with target distribution, monthly trend, country cardinality
+  - `02_feature_engineering.ipynb`: Cyclic encoding verification, frequency encoding, pipeline output shape
+  - `03_training.ipynb`: 5-fold CV model comparison, HPO integration, artifact save
+  - `04_evaluation.ipynb`: ROC/PR curves, confusion matrix, cost-matrix threshold sweep
+  - `05_calibration.ipynb`: Isotonic vs Sigmoid ECE comparison, reliability diagrams
+  - `06_explainability.ipynb`: Permutation importance, SHAP summary/waterfall/dependence
+- **ADR-008**: Lua-Based Distributed Rate Limiting
+- **ADR-009**: Prometheus Gauges for Model Health Monitoring
+- **CI improvements** (`.github/workflows/ci.yml`):
+  - `frontend` job: Node.js 20, `npm ci`, lint, build
+  - Python `test` job matrix: `['3.10', '3.11']`
+  - `bandit` security scan step
+  - Coverage gate extended: `experiment_tracking`, `explain`, `hpo`
+  - `docker-build` depends on both `test` and `frontend`
+
+### Changed
+- `src/features.py`: `FeatureEngineer.get_feature_names_out()` now returns proper `np.ndarray` from `_feature_names_out` (fixes sklearn `set_output` API compatibility)
+- `src/rate_limit.py`: Replaced pipeline-based counter with **atomic Lua script** (sliding window, no race condition)
+- `deploy/helm/ds-project/values.yaml`: `image.tag` changed from `latest` to `""` with mandatory override comment
+
+### Security
+- Dashboard auth: production guard prevents `DASHBOARD_ADMIN_*` env fallback in non-dev environments
+- CSP headers added to dashboard responses
+- Gitleaks secret scanning step added to CI
+- Lua atomic rate limiting closes race condition in previous pipeline-based implementation
+- Container runs as non-root with dropped Linux capabilities
+
+## [Unreleased — pre-1.3.0]
+
 ## [1.2.0] - 2026-02-18
 
 ### Added
@@ -78,7 +123,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI pipeline (lint, type check, security, tests, coverage gate)
 - Basic data validation (schema checks, target label validation)
 
-[Unreleased]: https://github.com/your-org/ds-project/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/your-org/ds-project/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/your-org/ds-project/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/your-org/ds-project/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/your-org/ds-project/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/your-org/ds-project/releases/tag/v1.0.0

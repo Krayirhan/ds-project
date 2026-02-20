@@ -100,3 +100,55 @@ dvc push
 2. Update `DVC_ACCESS_KEY_ID` and `DVC_SECRET_ACCESS_KEY` in GitHub Secrets.
 3. Update `.dvc/config.local` on developer machines.
 4. Verify with `dvc status --cloud`.
+
+---
+
+## Model Health Monitoring
+
+### Prometheus Alerts
+
+| Alert | Condition | Severity | Action |
+|-------|-----------|----------|--------|
+| `DSProjectHighPSI` | `ds_feature_psi > 0.2` for 5m | warning | Investigate feature drift; consider retraining |
+| `DSProjectLowAUC` | `ds_model_roc_auc < 0.65` for 10m | critical | Rollback model; retrain urgently |
+| `DSProjectActionRateAnomaly` | Action rate deviates > 15pp from 7-day avg for 15m | warning | Check threshold config; inspect recent predictions |
+
+### Manual Model Health Check
+
+```bash
+# Run full monitoring pipeline — updates Prometheus gauges
+python main.py monitor
+
+# Check PSI scores for all features
+cat reports/monitoring/latest_monitoring_report.json | python -m json.tool | grep psi
+
+# Check model AUC on labeled test set
+cat reports/metrics/latest_metrics.json
+```
+
+**Gauge update schedule**: run `python main.py monitor` every 4 hours in production.
+
+---
+
+## Security Runbook
+
+### Rate Limit Exceeded (HTTP 429)
+
+```bash
+# Inspect current sliding window for an API key
+redis-cli ZRANGE "rate_limit:<api_key>" 0 -1 WITHSCORES
+
+# Clear rate limit for a key (emergency reset)
+redis-cli DEL "rate_limit:<api_key>"
+```
+
+### Container Security
+
+All pods enforce:
+- `runAsUser: 1000`, `runAsNonRoot: true`
+- `readOnlyRootFilesystem: true` (only `/tmp` writable via emptyDir)
+- `allowPrivilegeEscalation: false`
+- `capabilities.drop: [ALL]`
+- `seccompProfile: RuntimeDefault`
+
+If a pod fails `CrashLoopBackOff` due to permission errors, check `kubectl describe pod` for security context violation events.

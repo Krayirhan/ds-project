@@ -13,6 +13,8 @@ This directory contains Architecture Decision Records for the DS Project.
 | [ADR-005](005-distributed-tracing.md) | Distributed Tracing with OpenTelemetry | Accepted | 2026-02-18 |
 | [ADR-006](006-data-validation-framework.md) | Data Validation with Pandera | Accepted | 2026-02-18 |
 | [ADR-007](007-api-versioning.md) | API Versioning Strategy | Accepted | 2026-02-18 |
+| [ADR-008](008-lua-rate-limiting.md) | Lua-Based Distributed Rate Limiting | Accepted | 2026-02-19 |
+| [ADR-009](009-model-health-metrics.md) | Prometheus Gauges for Model Health Monitoring | Accepted | 2026-02-19 |
 
 ## ADR Format
 
