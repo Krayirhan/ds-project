@@ -5,7 +5,7 @@ replicaCount: 2
 
 image:
   repository: ghcr.io/your-org/ds-project
-  tag: latest
+  tag: ""  # Must be set explicitly, e.g. --set image.tag=$GIT_SHA — never use 'latest' in production
   pullPolicy: IfNotPresent
 
 nameOverride: ""
