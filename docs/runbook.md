@@ -4,10 +4,10 @@
 1. Build and push container image.
 2. Run `python main.py train`, `python main.py evaluate`.
 3. Ensure Redis is reachable (`REDIS_URL`) for distributed rate limit.
-3. Promote policy with slot:
+4. Promote policy with slot:
    - `python main.py promote-policy --run-id <run_id> --slot blue`
-4. Point traffic to blue (or set active slot in metrics policy pointer).
-5. Validate `/ready`, `/metrics`, and monitoring report.
+5. Point traffic to blue (or set active slot in metrics policy pointer).
+6. Validate `/ready`, `/metrics`, and monitoring report.
 
 ## Canary Rollout
 - Apply canary manifests:
@@ -15,6 +15,29 @@
   - `kubectl apply -f deploy/k8s/canary-ingress.yaml`
 - Start with canary weight 10% and monitor SLO/alerts.
 - Increase weight gradually after stable windows.
+
+## Canary Auto-Rollback Criteria
+- Immediate rollback trigger:
+  - `DSProjectErrorBudgetBurnFast` fires (5xx ratio > 1.44% for 5m).
+  - Scheduled monitor job reports critical model/business degradation:
+    - `profit_drop=true`, or
+    - `prediction_drift=true`, or
+    - `data_drift=true` and `action_rate_deviation=true`.
+- Release freeze (no automatic rollback):
+  - `DSProjectErrorBudgetBurnSlow` fires (5xx ratio > 0.6% for 30m).
+  - Warning-only model alerts (`DSProjectHighPSI`, `DSProjectActionRateAnomaly`).
+
+## Canary Auto-Rollback Actions
+1. Keep canary traffic at 0-10% and stop any increase.
+2. Execute rollback:
+   - `python main.py rollback-policy --slot blue`
+3. Route traffic to known-good slot if needed:
+   - `python main.py promote-policy --run-id <known_good_run> --slot green`
+4. Capture evidence:
+   - Prometheus alert snapshot
+   - `reports/monitoring/latest_monitoring_report.json`
+   - rollout timeline (who/when/sha)
+5. Open incident ticket and block release until exit criteria are met.
 
 ## Rollback
 - `python main.py rollback-policy --slot blue`
@@ -26,7 +49,7 @@
 - Check metrics: `/metrics`
 - Check latest monitoring:
   - `reports/monitoring/latest_monitoring_report.json`
-- If alerts active and profit degrades, rollback policy.
+- If auto-rollback criteria are met, rollback immediately.
 - Retry dead-letter webhook events:
   - `python main.py retry-webhook-dlq --url <webhook_url>`
 

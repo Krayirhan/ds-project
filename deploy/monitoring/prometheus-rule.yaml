@@ -27,6 +27,26 @@ spec:
             summary: "DS API 5xx rate breach"
             description: "5xx ratio above 0.1% for 10m"
 
+        - alert: DSProjectErrorBudgetBurnFast
+          expr: sum(rate(ds_api_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(ds_api_requests_total[5m])), 0.001) > (14.4 * 0.001)
+          for: 5m
+          labels:
+            severity: critical
+            service: ds-project-api
+          annotations:
+            summary: "Fast error-budget burn detected"
+            description: "5xx ratio is burning monthly error budget >14.4x. Trigger rollback/canary halt."
+
+        - alert: DSProjectErrorBudgetBurnSlow
+          expr: sum(rate(ds_api_requests_total{status=~"5.."}[30m])) / clamp_min(sum(rate(ds_api_requests_total[30m])), 0.001) > (6 * 0.001)
+          for: 30m
+          labels:
+            severity: warning
+            service: ds-project-api
+          annotations:
+            summary: "Slow error-budget burn detected"
+            description: "5xx ratio is burning monthly error budget >6x. Freeze releases and investigate."
+
         - alert: DSProjectInferenceErrorsSpike
           expr: sum(rate(ds_api_inference_errors_total[5m])) > 0.2
           for: 10m

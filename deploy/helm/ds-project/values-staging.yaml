@@ -5,6 +5,9 @@ replicaCount: 1
 image:
   tag: staging
 
+env:
+  DS_ENV: "staging"
+
 ingress:
   hosts:
     - host: ds-project-staging.example.com

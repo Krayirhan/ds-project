@@ -22,11 +22,27 @@ spec:
           ports:
             - containerPort: 8000
           env:
+            - name: DS_ENV
+              value: "production"
+            - name: REQUIRE_API_KEY
+              value: "true"
+            - name: DASHBOARD_AUTH_ENABLED
+              value: "true"
             - name: DS_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: ds-project-secrets
                   key: DS_API_KEY
+            - name: DS_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ds-project-secrets
+                  key: DS_ADMIN_KEY
+            - name: DASHBOARD_ADMIN_PASSWORD_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: ds-project-secrets
+                  key: DASHBOARD_ADMIN_PASSWORD_ADMIN
             - name: ALERT_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:

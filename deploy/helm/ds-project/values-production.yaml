@@ -5,6 +5,9 @@ replicaCount: 3
 image:
   tag: "" # Set via CI --set image.tag=$SHA
 
+env:
+  DS_ENV: "production"
+
 ingress:
   hosts:
     - host: ds-project.example.com

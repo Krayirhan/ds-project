@@ -54,11 +54,19 @@ terminationGracePeriodSeconds: 40
 env:
   LOG_FORMAT: "json"
   RATE_LIMIT_BACKEND: "redis"
+  REQUIRE_API_KEY: "true"
+  DASHBOARD_AUTH_ENABLED: "true"
 
 secretEnvVars:
   - name: DS_API_KEY
     secretName: ds-project-secrets
     secretKey: DS_API_KEY
+  - name: DS_ADMIN_KEY
+    secretName: ds-project-secrets
+    secretKey: DS_ADMIN_KEY
+  - name: DASHBOARD_ADMIN_PASSWORD_ADMIN
+    secretName: ds-project-secrets
+    secretKey: DASHBOARD_ADMIN_PASSWORD_ADMIN
   - name: ALERT_WEBHOOK_URL
     secretName: ds-project-secrets
     secretKey: ALERT_WEBHOOK_URL
@@ -114,9 +122,44 @@ monitoring:
         severity: critical
         summary: "DS API 5xx rate breach"
         description: "5xx ratio above 0.1% for 10m"
+      - alert: DSProjectErrorBudgetBurnFast
+        expr: >-
+          sum(rate(ds_api_requests_total{status=~"5.."}[5m]))
+          / clamp_min(sum(rate(ds_api_requests_total[5m])), 0.001) > (14.4 * 0.001)
+        for: 5m
+        severity: critical
+        summary: "Fast error-budget burn detected"
+        description: "5xx ratio is burning monthly error budget >14.4x. Trigger rollback/canary halt."
+      - alert: DSProjectErrorBudgetBurnSlow
+        expr: >-
+          sum(rate(ds_api_requests_total{status=~"5.."}[30m]))
+          / clamp_min(sum(rate(ds_api_requests_total[30m])), 0.001) > (6 * 0.001)
+        for: 30m
+        severity: warning
+        summary: "Slow error-budget burn detected"
+        description: "5xx ratio is burning monthly error budget >6x. Freeze releases and investigate."
       - alert: DSProjectInferenceErrorsSpike
         expr: sum(rate(ds_api_inference_errors_total[5m])) > 0.2
         for: 10m
         severity: warning
         summary: "Inference errors are elevated"
         description: "Inference error rate above threshold"
+      - alert: DSProjectHighPSI
+        expr: ds_feature_psi > 0.2
+        for: 5m
+        severity: warning
+        summary: "Feature PSI drift detected"
+        description: "Feature PSI above 0.2 indicates distribution shift risk."
+      - alert: DSProjectLowAUC
+        expr: ds_model_roc_auc < 0.65
+        for: 10m
+        severity: critical
+        summary: "Model AUC degraded below SLO"
+        description: "ROC-AUC below 0.65 for 10m. Consider rollback and retraining."
+      - alert: DSProjectActionRateAnomaly
+        expr: >-
+          abs(ds_model_action_rate - avg_over_time(ds_model_action_rate[7d])) > 0.15
+        for: 15m
+        severity: warning
+        summary: "Action rate anomaly detected"
+        description: "Action rate deviates more than 15 percentage points from 7-day baseline."
