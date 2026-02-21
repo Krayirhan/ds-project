@@ -1,4 +1,3 @@
-import { useLayoutContext } from './Layout';
 import { displayName } from '../lib/helpers';
 
 /**
@@ -7,9 +6,6 @@ import { displayName } from '../lib/helpers';
  * Büyük ölçüde statik içerik — ham veriden tahmine kadar tüm adımları açıklar.
  */
 export default function PipelinePage() {
-  const { runs } = useLayoutContext();
-  const { coreModels } = runs;
-
   return (
     <>
       <header className="pageHeader">

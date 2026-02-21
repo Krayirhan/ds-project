@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLayoutContext } from './Layout';
+import { getExplain } from '../api';
 import {
   f, pct, scoreColor, displayName,
   modelBadge, modelIcon, modelCalibration, modelType,
@@ -23,6 +24,29 @@ export default function ModelsPage() {
   const { runs } = useLayoutContext();
   const { modelRows, champion, coreModels } = runs;
   const [selectedModelIdx, setSelectedModelIdx] = useState(null);
+
+  // ── Feature importance ───────────────────────────────────────────────────────
+  const [explainData, setExplainData]   = useState(null);
+  const [expLoading, setExpLoading]     = useState(false);
+  const [expError, setExpError]         = useState('');
+  const expAbortRef = useRef(null);
+
+  useEffect(() => {
+    expAbortRef.current?.abort();
+    const controller = new AbortController();
+    expAbortRef.current = controller;
+    setExpLoading(true);
+    setExpError('');
+    getExplain(runs.selectedRun, runs.apiKey, { signal: controller.signal })
+      .then(d => setExplainData(d))
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        setExpError(err.status === 404 ? '' : (err.message || 'Önem verisi alınamadı'));
+      })
+      .finally(() => setExpLoading(false));
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runs.selectedRun]);
 
   const selectedModel = selectedModelIdx !== null ? modelRows[selectedModelIdx] : null;
   const isSelectedChamp = selectedModel?.model_name === champion.selected_model;
@@ -135,6 +159,69 @@ export default function ModelsPage() {
           </div>
         </section>
       )}
+
+      {/* Feature Importance Paneli */}
+      <section className="card">
+        <div className="small">🔍 Özellik Önemi (Permutation Importance)</div>
+        <div className="explain">
+          Her özelliğin model kararına katkısı — değer ne kadar yüksekse özellik o kadar kritik.
+          {explainData?.method === 'permutation_importance' && explainData?.scoring
+            ? ` Metrik: ${explainData.scoring}, tekrar: ${explainData.n_repeats}.`
+            : ''}
+        </div>
+
+        {expLoading && <div style={{ padding: '8px 0', color: '#888' }}>⏳ Önem raporu yükleniyor…</div>}
+        {expError   && <div className="error" role="alert">⚠ {expError}</div>}
+
+        {explainData && !expLoading && (() => {
+          const topN   = 15;
+          const ranking = (explainData.ranking || []).slice(0, topN);
+          const maxVal = ranking[0]?.importance_mean || 1;
+
+          return (
+            <div style={{ marginTop: 8 }}>
+              {ranking.map(({ feature, importance_mean, importance_std }, i) => {
+                const barW = Math.min(100, ((importance_mean || 0) / maxVal) * 100);
+                const color = importance_mean > maxVal * 0.5
+                  ? '#1a56db'
+                  : importance_mean > maxVal * 0.2
+                    ? '#0d9488'
+                    : '#94a3b8';
+                return (
+                  <div key={feature} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                    <span style={{ width: 20, fontSize: 10, color: '#aaa', textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
+                    <span style={{ width: 220, fontSize: 11, fontFamily: 'Consolas', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {feature}
+                    </span>
+                    <div style={{ flex: 1, height: 12, background: '#e8ecf0', borderRadius: 2 }}>
+                      <div style={{ width: `${barW}%`, height: '100%', background: color, borderRadius: 2 }} />
+                    </div>
+                    <span style={{ width: 56, fontSize: 11, fontFamily: 'Consolas', textAlign: 'right', flexShrink: 0 }}>
+                      {f(importance_mean, 4)}
+                    </span>
+                    {importance_std != null && (
+                      <span style={{ width: 48, fontSize: 10, color: '#aaa', flexShrink: 0 }}>
+                        ±{f(importance_std, 4)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+              {(explainData.ranking?.length || 0) > topN && (
+                <div className="explain" style={{ marginTop: 4 }}>
+                  … ve {explainData.ranking.length - topN} özellik daha
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {!explainData && !expLoading && !expError && (
+          <div className="explain">
+            Önem raporu mevcut değil. <code>python main.py explain</code> çalıştırın.
+          </div>
+        )}
+      </section>
 
       {/* Terim Açıklamaları */}
       <section className="card">

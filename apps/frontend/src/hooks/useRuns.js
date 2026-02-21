@@ -20,14 +20,14 @@ export function useRuns({ onAuthFailed }) {
   const selectedRunRef = useRef(selectedRun);
   selectedRunRef.current = selectedRun;
 
-  function handleApiError(err) {
+  const handleApiError = useCallback((err) => {
     if (err.name === 'AbortError') return true;
     if (err?.status === 401 || String(err?.message || '').includes('401')) {
       onAuthFailed?.(err);
       return true;
     }
     return false;
-  }
+  }, [onAuthFailed]);
 
   const refreshRunsAndData = useCallback(async () => {
     abortRef.current?.abort();
@@ -53,7 +53,7 @@ export function useRuns({ onAuthFailed }) {
     } finally {
       setLoading(false);
     }
-  }, [apiKey, onAuthFailed]);
+  }, [apiKey, handleApiError]);
 
   const refreshOverviewOnly = useCallback(async (runId) => {
     abortRef.current?.abort();
@@ -70,7 +70,7 @@ export function useRuns({ onAuthFailed }) {
     } finally {
       setLoading(false);
     }
-  }, [apiKey, onAuthFailed]);
+  }, [apiKey, handleApiError]);
 
   const refreshDbStatus = useCallback(async () => {
     setError('');
@@ -83,13 +83,13 @@ export function useRuns({ onAuthFailed }) {
     } finally {
       setLoading(false);
     }
-  }, [apiKey, onAuthFailed]);
+  }, [apiKey, handleApiError]);
 
   // Unmount'ta inflight request'leri iptal et
   useEffect(() => () => abortRef.current?.abort(), []);
 
   // ── Türetilmiş veriler ──────────────────────────────────────────
-  const modelRows  = data?.models   || [];
+  const modelRows = useMemo(() => data?.models ?? [], [data]);
   const champion   = data?.champion || {};
   const generatedAt = data?.generated_at
     ? new Date(data.generated_at).toLocaleString('tr-TR') : '-';

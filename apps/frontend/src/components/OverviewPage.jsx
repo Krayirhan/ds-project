@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { Chart } from 'chart.js';
 import { useLayoutContext } from './Layout';
+import { getMonitoring } from '../api';
 import {
   f, pct, money, scoreColor, displayName,
   modelBadge, modelIcon, modelCalibration,
@@ -26,6 +27,29 @@ export default function OverviewPage() {
 
   const [sortCol, setSortCol] = useState('test_roc_auc');
   const [sortDir, setSortDir] = useState('desc');
+
+  // ── Drift monitoring ────────────────────────────────────────────────────────
+  const [monitoring, setMonitoring]     = useState(null);
+  const [monLoading, setMonLoading]     = useState(false);
+  const [monError, setMonError]         = useState('');
+  const monAbortRef = useRef(null);
+
+  useEffect(() => {
+    monAbortRef.current?.abort();
+    const controller = new AbortController();
+    monAbortRef.current = controller;
+    setMonLoading(true);
+    setMonError('');
+    getMonitoring(runs.apiKey, { signal: controller.signal })
+      .then(d => setMonitoring(d))
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        setMonError(err.status === 404 ? '' : (err.message || 'Drift verisi alınamadı'));
+      })
+      .finally(() => setMonLoading(false));
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runs.selectedRun]);
 
   const aucRef = useRef(null);
   const prfRef = useRef(null);
@@ -80,17 +104,19 @@ export default function OverviewPage() {
 
   // Chart.js effect — useRef ile
   useEffect(() => {
-    if (!chartDataset.labels.length || !aucRef.current || !prfRef.current) return;
+    const aucCanvas = aucRef.current;
+    const prfCanvas = prfRef.current;
+    if (!chartDataset.labels.length || !aucCanvas || !prfCanvas) return;
 
     chartRefs.current.auc?.destroy();
     chartRefs.current.prf?.destroy();
 
-    const _isM  = theme.isModern;
+    const _isM = theme.isModern;
     const _isDk = theme.isDark;
     const gridColor = _isM ? (_isDk ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)') : '#c0c0c0';
     const tickColor = _isM ? (_isDk ? '#cbd5e1' : '#4a5568') : undefined;
 
-    chartRefs.current.auc = new Chart(aucRef.current, {
+    const aucChart = new Chart(aucCanvas, {
       type: 'bar',
       data: {
         labels: chartDataset.labels,
@@ -109,7 +135,7 @@ export default function OverviewPage() {
       },
     });
 
-    chartRefs.current.prf = new Chart(prfRef.current, {
+    const prfChart = new Chart(prfCanvas, {
       type: 'bar',
       data: {
         labels: chartDataset.labels,
@@ -129,11 +155,14 @@ export default function OverviewPage() {
       },
     });
 
+    chartRefs.current.auc = aucChart;
+    chartRefs.current.prf = prfChart;
+
     return () => {
-      chartRefs.current.auc?.destroy();
-      chartRefs.current.prf?.destroy();
+      aucChart.destroy();
+      prfChart.destroy();
     };
-  }, [chartDataset, theme.theme]);
+  }, [chartDataset, theme.isModern, theme.isDark]);
 
   return (
     <>
@@ -198,6 +227,99 @@ export default function OverviewPage() {
           <span className="statusLabel">Değerlendirilen Model</span>
           <span className="statusBadge neutral">{coreModels.length} adet</span>
         </div>
+      </section>
+
+      {/* Drift İzleme Özeti */}
+      <section className="card">
+        <div className="small">📡 Veri Kayması (Drift) İzleme</div>
+        <div className="explain">
+          Referans verisi ile mevcut tahmin verisinin dağılımları karşılaştırılır.
+          PSI &lt; 0.1 → düşük kayma, 0.1–0.25 → orta, &gt; 0.25 → yüksek kayma.
+        </div>
+
+        {monLoading && <div style={{ padding: '8px 0', color: '#888' }}>⏳ Drift raporu yükleniyor…</div>}
+        {monError   && <div className="error" role="alert">⚠ {monError}</div>}
+
+        {monitoring && !monLoading && (() => {
+          const drift = monitoring.data_drift || {};
+          const predSum = monitoring.prediction_summary || {};
+          const features = drift.features
+            ? Object.entries(drift.features)
+                .map(([name, v]) => ({ name, psi: v.psi ?? 0, type: v.type }))
+                .sort((a, b) => b.psi - a.psi)
+                .slice(0, 8)
+            : [];
+
+          function psiColor(psi) {
+            if (psi >= 0.25) return '#cc0000';
+            if (psi >= 0.1)  return '#b06000';
+            return '#006600';
+          }
+
+          return (
+            <>
+              {/* Summary numbers */}
+              <div className="systemGrid" style={{ marginBottom: 12 }}>
+                <div className="sysItem">
+                  <span>Karşılaştırılan Özellik</span>
+                  <strong>{drift.n_features_compared ?? '-'}</strong>
+                </div>
+                <div className="sysItem">
+                  <span>Maksimum PSI</span>
+                  <strong style={{ color: psiColor(drift.max_psi ?? 0) }}>
+                    {f(drift.max_psi, 4)}
+                  </strong>
+                </div>
+                <div className="sysItem">
+                  <span>Ortalama PSI</span>
+                  <strong style={{ color: psiColor(drift.mean_psi ?? 0) }}>
+                    {f(drift.mean_psi, 4)}
+                  </strong>
+                </div>
+                <div className="sysItem">
+                  <span>Tahmin Aksiyon Oranı</span>
+                  <strong>{pct(predSum.predicted_action_rate)}</strong>
+                </div>
+                <div className="sysItem">
+                  <span>Kullanılan Eşik</span>
+                  <strong>{f(predSum.threshold_used, 3)}</strong>
+                </div>
+                <div className="sysItem">
+                  <span>Kayıt Sayısı</span>
+                  <strong>{predSum.n_rows?.toLocaleString('tr-TR') ?? '-'}</strong>
+                </div>
+              </div>
+
+              {/* Top drifted features */}
+              {features.length > 0 && (
+                <>
+                  <div className="small" style={{ marginBottom: 6 }}>En Yüksek PSI Değerleri</div>
+                  {features.map(({ name, psi, type }) => {
+                    const barW = Math.min(100, (psi / 0.3) * 100);
+                    return (
+                      <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <span style={{ width: 200, fontSize: 11, fontFamily: 'Consolas', flexShrink: 0 }}>{name}</span>
+                        <div style={{ flex: 1, height: 10, background: '#e0e0e0' }}>
+                          <div style={{ width: `${barW}%`, height: '100%', background: psiColor(psi) }} />
+                        </div>
+                        <span style={{ width: 52, fontSize: 11, fontFamily: 'Consolas', color: psiColor(psi), textAlign: 'right' }}>
+                          {f(psi, 4)}
+                        </span>
+                        <span style={{ width: 60, fontSize: 10, color: '#888' }}>{type}</span>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </>
+          );
+        })()}
+
+        {!monitoring && !monLoading && !monError && (
+          <div className="explain">
+            Drift raporu mevcut değil. <code>python main.py monitor</code> çalıştırın.
+          </div>
+        )}
       </section>
 
       {/* Model Kıyaslama Tablosu */}

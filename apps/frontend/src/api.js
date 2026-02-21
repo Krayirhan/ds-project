@@ -178,3 +178,28 @@ export function getChatSummary(sessionId, apiKey, { signal } = {}) {
     signal,
   });
 }
+
+/**
+ * Return the latest drift / monitoring report.
+ * Backend: GET /dashboard/api/monitoring
+ */
+export function getMonitoring(apiKey, { signal } = {}) {
+  return fetchWithAuth('/dashboard/api/monitoring', { apiKey, signal });
+}
+
+/**
+ * Return permutation feature importance for the given run (or latest).
+ * Backend: GET /dashboard/api/explain?run_id=...
+ */
+export function getExplain(runId, apiKey, { signal } = {}) {
+  const query = runId ? `?run_id=${encodeURIComponent(runId)}` : '';
+  return fetchWithAuth(`/dashboard/api/explain${query}`, { apiKey, signal });
+}
+
+/**
+ * Aggregate health check: Database, Redis, Ollama, serving model.
+ * Backend: GET /dashboard/api/system
+ */
+export function getSystemStatus(apiKey, { signal } = {}) {
+  return fetchWithAuth('/dashboard/api/system', { apiKey, signal });
+}
