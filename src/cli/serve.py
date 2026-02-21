@@ -6,7 +6,9 @@ import uvicorn
 
 
 def cmd_serve_api(
-    host: str = "0.0.0.0", port: int = 8000, graceful_shutdown_seconds: int = 30
+    host: str = "0.0.0.0",  # nosec B104 - intended container/service bind
+    port: int = 8000,
+    graceful_shutdown_seconds: int = 30,
 ) -> None:
     uvicorn.run(
         "src.api:app",

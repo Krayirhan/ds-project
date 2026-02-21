@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import shutil
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -100,6 +101,12 @@ def notify_webhook(
 ) -> None:
     if not url:
         return
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        logger.warning("Rejected webhook URL with non-http(s) scheme: %s", url)
+        if dlq_path is not None:
+            append_dead_letter(dlq_path, payload)
+        return
 
     max_attempts = 3
     backoff_seconds = 1.0
@@ -113,7 +120,7 @@ def notify_webhook(
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            urllib.request.urlopen(req, timeout=5).read()
+            urllib.request.urlopen(req, timeout=5).read()  # nosec B310
             return
         except Exception as e:
             last_error = e

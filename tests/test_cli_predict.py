@@ -77,7 +77,7 @@ class TestCmdPredict:
     def test_raises_if_model_artifact_missing(self, paths, cfg):
         from src.cli.predict import cmd_predict
 
-        policy_file = _write_policy(paths)
+        _write_policy(paths)
 
         with (
             patch("src.cli.predict.load_decision_policy") as mock_load,
@@ -132,8 +132,13 @@ class TestCmdPredict:
             patch("joblib.load", return_value=MagicMock()),
             patch("src.cli.predict.sha256_file", return_value="abc"),
             patch("src.cli.predict.load_feature_spec") as mock_spec,
-            patch("src.cli.predict.read_input_dataset", return_value=(df, "input.parquet")),
-            patch("src.cli.predict.predict_with_policy", return_value=(result_df, MagicMock())),
+            patch(
+                "src.cli.predict.read_input_dataset", return_value=(df, "input.parquet")
+            ),
+            patch(
+                "src.cli.predict.predict_with_policy",
+                return_value=(result_df, MagicMock()),
+            ),
             patch("src.cli.predict.write_parquet"),
             patch("src.cli.predict.json_write"),
             patch("src.cli.predict.mark_latest"),
@@ -172,4 +177,83 @@ class TestCmdPredict:
             mock_load.return_value = mock_policy
 
             with pytest.raises(ValueError, match="selected_model_artifact"):
+                cmd_predict(paths, cfg, run_id="pred-run-001")
+
+    def test_cmd_predict_resolves_relative_input_path(self, paths, cfg):
+        from src.cli.predict import cmd_predict
+
+        _write_policy(paths)
+        df = _make_df()
+
+        captured = {"path": None}
+
+        def _capture_read_input_dataset(path):
+            captured["path"] = path
+            return df
+
+        with (
+            patch("src.cli.predict.load_decision_policy") as mock_load,
+            patch("joblib.load", return_value=MagicMock()),
+            patch("src.cli.predict.sha256_file", return_value="abc"),
+            patch(
+                "src.cli.predict.load_feature_spec",
+                return_value={"schema_version": "v1"},
+            ),
+            patch(
+                "src.cli.predict.read_input_dataset",
+                side_effect=_capture_read_input_dataset,
+            ),
+            patch(
+                "src.cli.predict.predict_with_policy",
+                return_value=(df.assign(action=1, score=0.5), {"n_rows": len(df)}),
+            ),
+            patch("src.cli.predict.write_parquet"),
+            patch("src.cli.predict.json_write"),
+            patch("src.cli.predict.mark_latest"),
+        ):
+            mock_policy = MagicMock()
+            mock_policy.raw = {
+                "policy_version": cfg.contract.policy_version,
+                "run_id": "pred-run-001",
+                "feature_schema_version": "v1",
+                "selected_model_sha256": "abc",
+            }
+            mock_policy.selected_model_artifact = "models/xgb.joblib"
+            mock_load.return_value = mock_policy
+
+            cmd_predict(
+                paths,
+                cfg,
+                input_path="data/processed/inference.parquet",
+                run_id="pred-run-001",
+            )
+
+        assert (
+            captured["path"] == paths.project_root / "data/processed/inference.parquet"
+        )
+
+    def test_cmd_predict_feature_schema_mismatch_raises(self, paths, cfg):
+        from src.cli.predict import cmd_predict
+
+        _write_policy(paths)
+
+        with (
+            patch("src.cli.predict.load_decision_policy") as mock_load,
+            patch("joblib.load", return_value=MagicMock()),
+            patch("src.cli.predict.read_input_dataset", return_value=_make_df()),
+            patch(
+                "src.cli.predict.load_feature_spec",
+                return_value={"schema_version": "v2"},
+            ),
+        ):
+            mock_policy = MagicMock()
+            mock_policy.raw = {
+                "policy_version": cfg.contract.policy_version,
+                "run_id": "pred-run-001",
+                "feature_schema_version": "v1",
+            }
+            mock_policy.selected_model_artifact = "models/xgb.joblib"
+            mock_load.return_value = mock_policy
+
+            with pytest.raises(ValueError, match="Feature schema version mismatch"):
                 cmd_predict(paths, cfg, run_id="pred-run-001")

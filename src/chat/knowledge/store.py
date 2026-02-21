@@ -28,10 +28,8 @@ class KnowledgeStore:
         """Build TF-IDF index over chunk text. Silently falls back if sklearn absent."""
         try:
             from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore[import]
-            texts = [
-                f"{c.title} {c.content} {' '.join(c.tags)}"
-                for c in self._chunks
-            ]
+
+            texts = [f"{c.title} {c.content} {' '.join(c.tags)}" for c in self._chunks]
             self._vectorizer = TfidfVectorizer(
                 analyzer="word",
                 ngram_range=(1, 2),
@@ -39,9 +37,14 @@ class KnowledgeStore:
                 sublinear_tf=True,
             )
             self._tfidf_matrix = self._vectorizer.fit_transform(texts)
-            logger.debug("Knowledge store: TF-IDF index built (%d chunks)", len(self._chunks))
+            logger.debug(
+                "Knowledge store: TF-IDF index built (%d chunks)", len(self._chunks)
+            )
         except Exception as exc:
-            logger.warning("Knowledge store: TF-IDF index unavailable, using tag-only retrieval. reason=%s", exc)
+            logger.warning(
+                "Knowledge store: TF-IDF index unavailable, using tag-only retrieval. reason=%s",
+                exc,
+            )
             self._vectorizer = None
             self._tfidf_matrix = None
 
@@ -58,6 +61,7 @@ class KnowledgeStore:
         try:
             from sklearn.metrics.pairwise import cosine_similarity  # type: ignore[import]
             import numpy as np  # type: ignore[import]
+
             query_vec = self._vectorizer.transform([query])
             sims = cosine_similarity(query_vec, self._tfidf_matrix).flatten()
             top_indices = np.argsort(sims)[::-1][:top_k]

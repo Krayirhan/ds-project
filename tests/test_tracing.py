@@ -5,8 +5,6 @@ from __future__ import annotations
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestTracingDisabled:
     """When OTEL_ENABLED is not set, all tracing is no-op."""
@@ -14,6 +12,7 @@ class TestTracingDisabled:
     def setup_method(self):
         """Reset tracing global state before each test."""
         import src.tracing as tracing_mod
+
         tracing_mod._tracer = None
         tracing_mod._initialized = False
 
@@ -59,9 +58,12 @@ class TestTracingDisabled:
     def test_get_tracer_returns_none_when_not_initialized(self):
         from src.tracing import get_tracer
         import src.tracing as tracing_mod
+
         tracing_mod._tracer = None
 
-        with patch.dict("sys.modules", {"opentelemetry": None, "opentelemetry.trace": None}):
+        with patch.dict(
+            "sys.modules", {"opentelemetry": None, "opentelemetry.trace": None}
+        ):
             # ImportError path
             tracer = get_tracer()
         assert tracer is None
@@ -70,6 +72,7 @@ class TestTracingDisabled:
         """trace_span should yield None gracefully when no tracer."""
         from src.tracing import trace_span
         import src.tracing as tracing_mod
+
         tracing_mod._tracer = None
 
         with patch("src.tracing.get_tracer", return_value=None):
@@ -122,6 +125,7 @@ class TestTracingEnabled:
 
     def setup_method(self):
         import src.tracing as tracing_mod
+
         tracing_mod._tracer = None
         tracing_mod._initialized = False
 
@@ -166,22 +170,24 @@ class TestTracingEnabled:
         mock_tracer.start_as_current_span.assert_called_once_with("inference.predict")
 
     def test_add_span_event_with_active_span(self):
-        from src.tracing import add_span_event
-
         mock_span = MagicMock()
         mock_span.is_recording.return_value = True
 
         mock_trace = MagicMock()
         mock_trace.get_current_span.return_value = mock_span
 
-        with patch.dict("sys.modules", {"opentelemetry": MagicMock(trace=mock_trace), "opentelemetry.trace": mock_trace}):
+        with patch.dict(
+            "sys.modules",
+            {
+                "opentelemetry": MagicMock(trace=mock_trace),
+                "opentelemetry.trace": mock_trace,
+            },
+        ):
             with patch("src.tracing.add_span_event") as mock_event:
                 # Exercise the happy path via the module's own code
                 mock_event("my_event", {"key": "val"})
 
     def test_set_span_attribute_with_active_span(self):
-        from src.tracing import set_span_attribute
-
         mock_span = MagicMock()
         mock_span.is_recording.return_value = True
 
@@ -205,17 +211,22 @@ class TestTracingEnabled:
     def test_init_tracing_otel_import_error(self):
         """init_tracing handles ImportError gracefully when OTel not installed."""
         import src.tracing as tracing_mod
+
         tracing_mod._initialized = False
 
         with patch.dict(os.environ, {"OTEL_ENABLED": "true"}):
-            with patch.dict("sys.modules", {
-                "opentelemetry": None,
-                "opentelemetry.sdk.trace": None,
-                "opentelemetry.sdk.resources": None,
-                "opentelemetry.exporter.otlp.proto.grpc.trace_exporter": None,
-            }):
+            with patch.dict(
+                "sys.modules",
+                {
+                    "opentelemetry": None,
+                    "opentelemetry.sdk.trace": None,
+                    "opentelemetry.sdk.resources": None,
+                    "opentelemetry.exporter.otlp.proto.grpc.trace_exporter": None,
+                },
+            ):
                 # Should not raise, just log a warning
                 from src.tracing import init_tracing
+
                 init_tracing()
 
         assert tracing_mod._initialized is True

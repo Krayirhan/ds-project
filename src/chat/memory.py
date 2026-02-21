@@ -41,6 +41,7 @@ class ChatSession:
 
 # ── In-memory session store (default / fallback) ───────────────────────────────
 
+
 class SessionStore:
     """Thread-safe in-memory session store with TTL-based expiry.
 
@@ -86,7 +87,9 @@ class SessionStore:
     def trim_history(self, *, session: ChatSession) -> None:
         if len(session.messages) <= self.max_history:
             return
-        session.messages = session.messages[:2] + session.messages[-(self.max_history - 2):]
+        session.messages = (
+            session.messages[:2] + session.messages[-(self.max_history - 2) :]
+        )
 
     def _cleanup_expired(self) -> None:
         """Remove all sessions that have exceeded their idle TTL (#29)."""
@@ -101,6 +104,7 @@ class SessionStore:
 
 # ── Redis-backed session store (#25) ──────────────────────────────────────────
 
+
 class RedisSessionStore:
     """Redis-backed session store that survives API restarts (#25).
 
@@ -109,7 +113,9 @@ class RedisSessionStore:
     ``save_session()`` to persist the updated state.
     """
 
-    def __init__(self, redis_client: Any, *, ttl_seconds: int = 3600, max_history: int = 20) -> None:
+    def __init__(
+        self, redis_client: Any, *, ttl_seconds: int = 3600, max_history: int = 20
+    ) -> None:
         self._r = redis_client
         self.ttl_seconds = ttl_seconds
         self.max_history = max_history
@@ -119,18 +125,20 @@ class RedisSessionStore:
         return f"{self._prefix}{session_id}"
 
     def _serialize(self, session: ChatSession) -> str:
-        return json.dumps({
-            "session_id": session.session_id,
-            "customer_data": session.customer_data,
-            "risk_score": session.risk_score,
-            "risk_label": session.risk_label,
-            "created_at": session.created_at,
-            "last_active": session.last_active,
-            "messages": [
-                {"role": m.role, "content": m.content, "timestamp": m.timestamp}
-                for m in session.messages
-            ],
-        })
+        return json.dumps(
+            {
+                "session_id": session.session_id,
+                "customer_data": session.customer_data,
+                "risk_score": session.risk_score,
+                "risk_label": session.risk_label,
+                "created_at": session.created_at,
+                "last_active": session.last_active,
+                "messages": [
+                    {"role": m.role, "content": m.content, "timestamp": m.timestamp}
+                    for m in session.messages
+                ],
+            }
+        )
 
     def _deserialize(self, raw: str) -> ChatSession:
         d = json.loads(raw)
@@ -161,7 +169,9 @@ class RedisSessionStore:
             risk_score=risk_score,
             risk_label=risk_label,
         )
-        self._r.setex(self._key(session.session_id), self.ttl_seconds, self._serialize(session))
+        self._r.setex(
+            self._key(session.session_id), self.ttl_seconds, self._serialize(session)
+        )
         return session
 
     def get_session(self, *, session_id: str) -> ChatSession | None:
@@ -185,7 +195,9 @@ class RedisSessionStore:
     def trim_history(self, *, session: ChatSession) -> None:
         if len(session.messages) <= self.max_history:
             return
-        session.messages = session.messages[:2] + session.messages[-(self.max_history - 2):]
+        session.messages = (
+            session.messages[:2] + session.messages[-(self.max_history - 2) :]
+        )
 
     def _cleanup_expired(self) -> None:
         """Redis handles expiry via TTL — this is a no-op for the Redis backend."""
@@ -205,15 +217,20 @@ def get_session_store() -> SessionStore | RedisSessionStore:
     if redis_url:
         try:
             import redis as _redis  # type: ignore[import]
-            client = _redis.Redis.from_url(redis_url, decode_responses=True, socket_timeout=2)
+
+            client = _redis.Redis.from_url(
+                redis_url, decode_responses=True, socket_timeout=2
+            )
             client.ping()
             ttl = int(os.getenv("CHAT_SESSION_TTL_SECONDS", "3600"))
             _store = RedisSessionStore(client, ttl_seconds=ttl)
             import logging
+
             logging.getLogger(__name__).info("Chat session store: Redis backend active")
             return _store
         except Exception as exc:
             import logging
+
             logging.getLogger(__name__).warning(
                 "Chat session store: Redis unavailable, using in-memory. reason=%s", exc
             )

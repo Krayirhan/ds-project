@@ -158,10 +158,7 @@ def load_serving_state() -> ServingState:
     )
     if schema_contract_path.exists():
         schema_contract = json.loads(schema_contract_path.read_text(encoding="utf-8"))
-        if (
-            schema_contract.get("schema_version")
-            != cfg.contract.feature_schema_version
-        ):
+        if schema_contract.get("schema_version") != cfg.contract.feature_schema_version:
             raise RuntimeError("Schema contract artifact version mismatch")
         feature_spec["_schema_contract"] = schema_contract
 

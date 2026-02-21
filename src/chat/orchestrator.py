@@ -67,12 +67,14 @@ class ChatOrchestrator:
         intent = classify_intent(user_message)
 
         # Hybrid retrieval: use message text (TF-IDF) when available, tag fallback otherwise
-        chunks = self.knowledge.retrieve_by_text(
-            query=user_message, top_k=2
-        ) if hasattr(self.knowledge, "retrieve_by_text") else self.knowledge.retrieve_by_customer(
-            customer_data=session.customer_data,
-            risk_score=session.risk_score,
-            top_k=2,
+        chunks = (
+            self.knowledge.retrieve_by_text(query=user_message, top_k=2)
+            if hasattr(self.knowledge, "retrieve_by_text")
+            else self.knowledge.retrieve_by_customer(
+                customer_data=session.customer_data,
+                risk_score=session.risk_score,
+                top_k=2,
+            )
         )
 
         retrieved = "\n\n".join(f"{c.title}: {c.content}" for c in chunks)
@@ -107,7 +109,9 @@ class ChatOrchestrator:
                 retry_messages = session.to_ollama_messages(
                     system_prompt=SYSTEM_PROMPT + "\nKesinlikle yalnızca Türkçe yaz."
                 )
-                raw_retry = await self.ollama.chat(messages=retry_messages, temperature=0.2)
+                raw_retry = await self.ollama.chat(
+                    messages=retry_messages, temperature=0.2
+                )
                 checked_retry = validate_response(raw_retry)
                 if checked_retry.is_valid:
                     return checked_retry.cleaned_response
@@ -122,17 +126,29 @@ class ChatOrchestrator:
             return []
         if session.risk_score >= 0.6:
             return [
-                {"label": "Ne yapmalıyım?", "message": "Bu müşteri için şimdi ne yapmalıyım?"},
+                {
+                    "label": "Ne yapmalıyım?",
+                    "message": "Bu müşteri için şimdi ne yapmalıyım?",
+                },
                 {"label": "Neden riskli?", "message": "Risk neden yüksek görünüyor?"},
-                {"label": "Arama metni", "message": "Müşteriyi ararken ne söylemeliyim?"},
+                {
+                    "label": "Arama metni",
+                    "message": "Müşteriyi ararken ne söylemeliyim?",
+                },
             ]
         if session.risk_score >= 0.35:
             return [
-                {"label": "Önlem gerekli mi?", "message": "Bu müşteri için hemen önlem almalı mıyım?"},
+                {
+                    "label": "Önlem gerekli mi?",
+                    "message": "Bu müşteri için hemen önlem almalı mıyım?",
+                },
                 {"label": "Kritik nokta", "message": "En kritik risk faktörü nedir?"},
             ]
         return [
-            {"label": "Upsell öner", "message": "Bu müşteriye uygun ek hizmet önerisi ver."},
+            {
+                "label": "Upsell öner",
+                "message": "Bu müşteriye uygun ek hizmet önerisi ver.",
+            },
             {"label": "Güvenli mi?", "message": "Bu rezervasyon güvenli mi?"},
         ]
 

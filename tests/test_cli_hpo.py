@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -125,13 +124,15 @@ class TestCmdHpo:
             mock_tracker.start_run.return_value.__enter__ = MagicMock(return_value=None)
             mock_tracker.start_run.return_value.__exit__ = MagicMock(return_value=False)
 
-            run_id = cmd_hpo(paths, cfg, n_trials=3, run_id="hpo-run-002")
+            cmd_hpo(paths, cfg, n_trials=3, run_id="hpo-run-002")
 
         # Verify that json_write was called at least once
         assert mock_write.called, "json_write should have been called"
         # json_write(path, payload) — path is args[0], payload is args[1]
         has_run_id = any(
-            len(c.args) >= 2 and isinstance(c.args[1], dict) and c.args[1].get("run_id") == "hpo-run-002"
+            len(c.args) >= 2
+            and isinstance(c.args[1], dict)
+            and c.args[1].get("run_id") == "hpo-run-002"
             for c in mock_write.call_args_list
         )
         assert has_run_id, f"run_id=hpo-run-002 not found as payload in json_write calls: {[(c.args[0], c.args[1] if len(c.args)>1 else None) for c in mock_write.call_args_list]}"

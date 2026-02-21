@@ -15,6 +15,7 @@ from src.config import ExperimentConfig, Paths
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture()
 def cfg() -> ExperimentConfig:
     return ExperimentConfig()
@@ -81,7 +82,7 @@ class TestCmdMonitor:
     def test_raises_if_no_model_artifact_in_policy(self, paths, cfg):
         from src.cli.monitor import cmd_monitor
 
-        policy = _make_policy_dict(paths)
+        _make_policy_dict(paths)
 
         with (
             patch("src.cli.monitor.load_decision_policy") as mock_load,
@@ -119,15 +120,37 @@ class TestCmdMonitor:
             patch("src.cli.monitor.load_decision_policy") as mock_load,
             patch("joblib.load", return_value=MagicMock()),
             patch("src.cli.monitor.read_input_dataset", return_value=df),
-            patch("src.cli.monitor.predict_with_policy", return_value=(df.assign(action=0, proba=0.5, score=0.5), MagicMock())),
+            patch(
+                "src.cli.monitor.predict_with_policy",
+                return_value=(df.assign(action=0, proba=0.5, score=0.5), MagicMock()),
+            ),
             patch("src.cli.monitor.data_drift_report", return_value=mock_drift),
-            patch("src.cli.monitor.prediction_drift_report", return_value=MagicMock(any_alert=False)),
-            patch("src.cli.monitor.build_alerts", return_value=mock_build_alerts_result),
-            patch("src.cli.monitor.validate_distributions", return_value=MagicMock(any_alert=False)),
-            patch("src.cli.monitor.detect_label_drift", return_value=MagicMock(any_alert=False)),
-            patch("src.cli.monitor.detect_correlation_drift", return_value=MagicMock(any_alert=False)),
-            patch("src.cli.monitor.validate_data_volume", return_value=MagicMock(ok=True)),
-            patch("src.cli.monitor.detect_feature_importance_drift", return_value=MagicMock(any_alert=False)),
+            patch(
+                "src.cli.monitor.prediction_drift_report",
+                return_value=MagicMock(any_alert=False),
+            ),
+            patch(
+                "src.cli.monitor.build_alerts", return_value=mock_build_alerts_result
+            ),
+            patch(
+                "src.cli.monitor.validate_distributions",
+                return_value=MagicMock(any_alert=False),
+            ),
+            patch(
+                "src.cli.monitor.detect_label_drift",
+                return_value=MagicMock(any_alert=False),
+            ),
+            patch(
+                "src.cli.monitor.detect_correlation_drift",
+                return_value=MagicMock(any_alert=False),
+            ),
+            patch(
+                "src.cli.monitor.validate_data_volume", return_value=MagicMock(ok=True)
+            ),
+            patch(
+                "src.cli.monitor.detect_feature_importance_drift",
+                return_value=MagicMock(any_alert=False),
+            ),
             patch("src.cli.monitor.load_feature_spec", return_value=MagicMock()),
             patch("src.cli.monitor.json_write"),
             patch("src.cli.monitor.mark_latest"),
@@ -159,15 +182,40 @@ class TestCmdMonitor:
             patch("src.cli.monitor.load_decision_policy") as mock_load,
             patch("joblib.load", return_value=MagicMock()),
             patch("src.cli.monitor.read_input_dataset", return_value=df),
-            patch("src.cli.monitor.predict_with_policy", return_value=(df.assign(action=0, proba=0.5, score=0.5), MagicMock())),
-            patch("src.cli.monitor.data_drift_report", return_value=MagicMock(psi_scores={}, js_scores={}, any_alert=True)),
-            patch("src.cli.monitor.prediction_drift_report", return_value=MagicMock(any_alert=True)),
-            patch("src.cli.monitor.build_alerts", return_value=mock_build_alerts_result),
-            patch("src.cli.monitor.validate_distributions", return_value=MagicMock(any_alert=False)),
-            patch("src.cli.monitor.detect_label_drift", return_value=MagicMock(any_alert=False)),
-            patch("src.cli.monitor.detect_correlation_drift", return_value=MagicMock(any_alert=False)),
-            patch("src.cli.monitor.validate_data_volume", return_value=MagicMock(ok=True)),
-            patch("src.cli.monitor.detect_feature_importance_drift", return_value=MagicMock(any_alert=False)),
+            patch(
+                "src.cli.monitor.predict_with_policy",
+                return_value=(df.assign(action=0, proba=0.5, score=0.5), MagicMock()),
+            ),
+            patch(
+                "src.cli.monitor.data_drift_report",
+                return_value=MagicMock(psi_scores={}, js_scores={}, any_alert=True),
+            ),
+            patch(
+                "src.cli.monitor.prediction_drift_report",
+                return_value=MagicMock(any_alert=True),
+            ),
+            patch(
+                "src.cli.monitor.build_alerts", return_value=mock_build_alerts_result
+            ),
+            patch(
+                "src.cli.monitor.validate_distributions",
+                return_value=MagicMock(any_alert=False),
+            ),
+            patch(
+                "src.cli.monitor.detect_label_drift",
+                return_value=MagicMock(any_alert=False),
+            ),
+            patch(
+                "src.cli.monitor.detect_correlation_drift",
+                return_value=MagicMock(any_alert=False),
+            ),
+            patch(
+                "src.cli.monitor.validate_data_volume", return_value=MagicMock(ok=True)
+            ),
+            patch(
+                "src.cli.monitor.detect_feature_importance_drift",
+                return_value=MagicMock(any_alert=False),
+            ),
             patch("src.cli.monitor.load_feature_spec", return_value=MagicMock()),
             patch("src.cli.monitor.json_write"),
             patch("src.cli.monitor.mark_latest"),

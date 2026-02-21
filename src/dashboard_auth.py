@@ -38,20 +38,28 @@ def _get_redis_client() -> Any | None:
         return None
     try:
         import redis as _redis  # type: ignore[import]
-        client = _redis.Redis.from_url(redis_url, decode_responses=True, socket_timeout=2)
+
+        client = _redis.Redis.from_url(
+            redis_url, decode_responses=True, socket_timeout=2
+        )
         client.ping()
         _redis_client = client
         logger.info("Auth token store: Redis backend active (%s)", redis_url)
         return _redis_client
     except Exception as exc:
-        logger.warning("Auth token store: Redis unavailable, using in-memory fallback. reason=%s", exc)
+        logger.warning(
+            "Auth token store: Redis unavailable, using in-memory fallback. reason=%s",
+            exc,
+        )
         return None
 
 
 def _redis_add_token(r: Any, token: str, username: str, expires: datetime) -> None:
     ttl = max(1, int((expires - datetime.now(timezone.utc)).total_seconds()))
     key = f"{_REDIS_TOKEN_PREFIX}{token}"
-    r.setex(key, ttl, json.dumps({"username": username, "expires_at": expires.isoformat()}))
+    r.setex(
+        key, ttl, json.dumps({"username": username, "expires_at": expires.isoformat()})
+    )
     user_key = f"{_REDIS_USER_PREFIX}{username}"
     r.zadd(user_key, {token: expires.timestamp()})
     r.expire(user_key, ttl + 60)
@@ -105,25 +113,40 @@ def _get_users() -> Dict[str, str]:
     admin_pass = os.getenv("DASHBOARD_ADMIN_PASSWORD_ADMIN")
     _PLACEHOLDER_PASSWORDS = {"dev-admin-change-me", "replace-me", "changeme", ""}
     _PROD_ENVS = {"production", "prod", "staging"}
+    _TRUE_VALUES = {"true", "1", "yes", "on"}
     _current_env = os.getenv("DS_ENV", "").strip().lower()
     _is_prod = _current_env in _PROD_ENVS
+    _allow_insecure_dev_login = (
+        os.getenv("DASHBOARD_ALLOW_INSECURE_DEV_LOGIN", "false").strip().lower()
+        in _TRUE_VALUES
+    )
 
-    if admin_pass and admin_pass not in _PLACEHOLDER_PASSWORDS:
+    if admin_pass:
+        if admin_pass in _PLACEHOLDER_PASSWORDS:
+            if _is_prod:
+                raise RuntimeError(
+                    "DASHBOARD_ADMIN_PASSWORD_ADMIN must be set to a strong non-placeholder value "
+                    f"when DS_ENV={_current_env!r}."
+                )
+            logger.warning(
+                "DASHBOARD_ADMIN_PASSWORD_ADMIN uses a weak development placeholder value."
+            )
         users["admin"] = admin_pass
     elif _is_prod:
-        # In production/staging, refuse to start with a placeholder or missing password.
-        # This prevents accidental exposure of the dev-only admin/admin123 credentials.
         raise RuntimeError(
-            "DASHBOARD_ADMIN_PASSWORD_ADMIN must be set to a strong non-placeholder value "
-            f"when DS_ENV={_current_env!r}. Refusing to activate insecure dev credentials."
+            "DASHBOARD_ADMIN_PASSWORD_ADMIN must be set when DS_ENV is production/staging."
         )
-    else:
-        # Development fallback only: admin/admin123
+    elif _allow_insecure_dev_login:
         logger.warning(
-            "Using insecure development credentials for admin user (admin/admin123). "
-            "Set DASHBOARD_ADMIN_PASSWORD_ADMIN and DS_ENV=prod to disable this."
+            "DASHBOARD_ALLOW_INSECURE_DEV_LOGIN=true enabled. "
+            "Using temporary development credentials admin/admin123."
         )
         users["admin"] = "admin123"
+    else:
+        raise RuntimeError(
+            "DASHBOARD_ADMIN_PASSWORD_ADMIN is missing. "
+            "Set it explicitly or use DASHBOARD_ALLOW_INSECURE_DEV_LOGIN=true only for local development."
+        )
     # Legacy single-user env vars
     legacy_user = os.getenv("DASHBOARD_ADMIN_USERNAME")
     legacy_pass = os.getenv("DASHBOARD_ADMIN_PASSWORD")
@@ -134,6 +157,7 @@ def _get_users() -> Dict[str, str]:
     if extra_raw:
         try:
             import json
+
             extra = json.loads(extra_raw)
             if isinstance(extra, dict):
                 users.update(extra)
@@ -247,7 +271,8 @@ def dashboard_login(payload: LoginRequest) -> LoginResponse:
                         detail="Token store kapasitesi dolu. Lütfen daha sonra tekrar deneyin.",
                     )
             user_tokens = [
-                k for k, v in _token_store.items()
+                k
+                for k, v in _token_store.items()
                 if v.get("username") == payload.username
             ]
             if len(user_tokens) >= _MAX_TOKENS_PER_USER:
@@ -284,7 +309,9 @@ def require_dashboard_user(
             data = _token_store.get(token)
 
     if data is None:
-        raise HTTPException(status_code=401, detail="Geçersiz veya süresi dolmuş oturum")
+        raise HTTPException(
+            status_code=401, detail="Geçersiz veya süresi dolmuş oturum"
+        )
 
     return {
         "username": data.get("username", "unknown"),

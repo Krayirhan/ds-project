@@ -11,7 +11,6 @@ import asyncio
 import os
 
 from fastapi import APIRouter, HTTPException, Request
-import pandas as pd
 
 from .api_shared import (
     ServingState,
@@ -24,9 +23,7 @@ from .api_shared import (
     exec_decide,
     load_serving_state,
 )
-from .config import ExperimentConfig
 from .metrics import INFERENCE_ERRORS
-from .tracing import set_span_attribute
 
 router_v1 = APIRouter(prefix="/v1", tags=["v1"])
 
@@ -53,7 +50,11 @@ def _get_serving_state() -> ServingState:
 @router_v1.post(
     "/predict_proba",
     response_model=PredictProbaResponse,
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def v1_predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
     serving = _get_serving_state()
@@ -67,24 +68,30 @@ def v1_predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
             schema_report=schema_report,
         )
     except ValueError as e:
-        INFERENCE_ERRORS.labels(endpoint="v1.predict_proba", model=_model_name(serving)).inc()
+        INFERENCE_ERRORS.labels(
+            endpoint="v1.predict_proba", model=_model_name(serving)
+        ).inc()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # server-side failure → 500, not 400 (#19)
-        INFERENCE_ERRORS.labels(endpoint="v1.predict_proba", model=_model_name(serving)).inc()
+        INFERENCE_ERRORS.labels(
+            endpoint="v1.predict_proba", model=_model_name(serving)
+        ).inc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router_v1.post(
     "/decide",
     response_model=DecideResponse,
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def v1_decide(payload: RecordsPayload) -> DecideResponse:
     serving = _get_serving_state()
     try:
-        actions_df, pred_report, model_name = exec_decide(
-            payload, serving, "v1.decide"
-        )
+        actions_df, pred_report, model_name = exec_decide(payload, serving, "v1.decide")
         return DecideResponse(
             n=int(len(actions_df)),
             results=actions_df.to_dict(orient="records"),
@@ -100,17 +107,24 @@ def v1_decide(payload: RecordsPayload) -> DecideResponse:
 
 def _model_name(serving: ServingState | None) -> str:
     """Extract model name from serving state safely."""
-    return str(getattr(getattr(serving, "policy", None), "selected_model_artifact", "") or "")
+    return str(
+        getattr(getattr(serving, "policy", None), "selected_model_artifact", "") or ""
+    )
 
 
 @router_v1.post(
-    "/reload", response_model=ReloadResponse, responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}
+    "/reload",
+    response_model=ReloadResponse,
+    responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def v1_reload(request: Request) -> ReloadResponse:
     expected_admin = os.getenv("DS_ADMIN_KEY")
     if expected_admin and request.headers.get("x-admin-key") != expected_admin:
         raise HTTPException(status_code=403, detail="x-admin-key header gereklidir.")
-    lock = getattr(_app_ref.state if _app_ref else None, "_reload_lock", None) or asyncio.Lock()
+    lock = (
+        getattr(_app_ref.state if _app_ref else None, "_reload_lock", None)
+        or asyncio.Lock()
+    )
     async with lock:
         try:
             serving = load_serving_state()

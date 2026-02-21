@@ -5,9 +5,12 @@ import pytest
 from src.features import FeatureSpec
 from src.monitoring import (
     AlertThresholds,
+    _safe_hist,
     build_alerts,
     data_drift_report,
     outcome_monitoring_report,
+    psi_categorical,
+    psi_numeric,
     prediction_drift_report,
 )
 
@@ -76,3 +79,44 @@ def test_outcome_monitoring_report_missing_actual_column():
         outcome_monitoring_report(
             actions_df, outcome_df, actual_col="target", policy={}
         )
+
+
+def test_safe_hist_zero_total_returns_uniform():
+    bins = np.array([0.0, 0.5, 1.0])
+    out = _safe_hist(np.array([], dtype=float), bins)
+    assert out.shape[0] == 2
+    assert np.allclose(out, np.array([0.5, 0.5]))
+
+
+def test_psi_numeric_empty_and_fallback_edges():
+    assert psi_numeric(pd.Series([np.nan, np.nan]), pd.Series([np.nan])) == 0.0
+
+    # Constant arrays force quantile edges fallback branch.
+    ref = pd.Series([1.0] * 10)
+    cur = pd.Series([2.0] * 10)
+    value = psi_numeric(ref, cur, bins=5)
+    assert isinstance(value, float)
+    assert value >= 0.0
+
+
+def test_psi_categorical_empty_and_prediction_drift_empty():
+    assert (
+        psi_categorical(pd.Series([], dtype=object), pd.Series([], dtype=object)) == 0.0
+    )
+
+    rep = prediction_drift_report(np.array([], dtype=float), np.array([], dtype=float))
+    assert rep["ks_stat"] == 0.0
+    assert rep["ref_mean_proba"] == 0.0
+    assert rep["cur_mean_proba"] == 0.0
+
+
+def test_outcome_monitoring_report_zero_rows():
+    actions_df = pd.DataFrame({"proba": [], "action": []})
+    outcome_df = pd.DataFrame({"target": []})
+    rep = outcome_monitoring_report(
+        actions_df,
+        outcome_df,
+        actual_col="target",
+        policy={"cost_matrix": {}},
+    )
+    assert rep == {"n_rows": 0}

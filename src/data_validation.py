@@ -177,7 +177,7 @@ def build_inference_schema(
 
     return DataFrameSchema(
         columns=columns,
-        strict=strict,     # strict=True → ekstra kolon → SchemaError
+        strict=strict,  # strict=True → ekstra kolon → SchemaError
         coerce=True,
         name="InferencePayloadSchema",
         description="Schema contract for inference-time API payload",
@@ -358,7 +358,9 @@ def validate_inference_payload(
                  ValidationPolicy.strict_inference_schema ile kontrol edilir.
     """
     # Fazla kolon tespiti — strict olmasa bile logla
-    expected = set(feature_spec.get("numeric", [])) | set(feature_spec.get("categorical", []))
+    expected = set(feature_spec.get("numeric", [])) | set(
+        feature_spec.get("categorical", [])
+    )
     extra_cols = set(df.columns) - expected
     if extra_cols:
         logger.warning(
@@ -414,6 +416,7 @@ def generate_reference_stats(
 @dataclass
 class AnomalyReport:
     """Row-level anomaly detection results."""
+
     n_anomalies: int
     anomaly_types: Dict[str, int]
     sample_indices: List[int]
@@ -447,7 +450,9 @@ def detect_row_anomalies(df: pd.DataFrame) -> AnomalyReport:
 
     # Aşırı konaklama süresi
     if "stays_in_weekend_nights" in df.columns and "stays_in_week_nights" in df.columns:
-        weekend = pd.to_numeric(df["stays_in_weekend_nights"], errors="coerce").fillna(0)
+        weekend = pd.to_numeric(df["stays_in_weekend_nights"], errors="coerce").fillna(
+            0
+        )
         week = pd.to_numeric(df["stays_in_week_nights"], errors="coerce").fillna(0)
         anomaly_flags["extreme_stay"] = (weekend + week) > 365
 
@@ -496,13 +501,16 @@ def detect_row_anomalies(df: pd.DataFrame) -> AnomalyReport:
 @dataclass
 class DuplicateReport:
     """Duplicate row detection results."""
+
     n_duplicates: int
     n_total: int
     duplicate_ratio: float
     summary: str
 
 
-def detect_duplicates(df: pd.DataFrame, subset: Optional[List[str]] = None) -> DuplicateReport:
+def detect_duplicates(
+    df: pd.DataFrame, subset: Optional[List[str]] = None
+) -> DuplicateReport:
     """
     Tam veya kısmi duplicate satır tespiti.
     """
@@ -547,7 +555,9 @@ def assert_no_nans_after_imputation(
             f"{nan_counts}"
         )
     else:
-        logger.info(f"✅ Post-imputation NaN check passed: 0 NaN in {len(cols)} columns")
+        logger.info(
+            f"✅ Post-imputation NaN check passed: 0 NaN in {len(cols)} columns"
+        )
 
     return nan_counts
 
@@ -556,6 +566,7 @@ def assert_no_nans_after_imputation(
 @dataclass
 class LabelDriftReport:
     """Label (target) distribution drift results."""
+
     ref_positive_rate: float
     cur_positive_rate: float
     drift_magnitude: float
@@ -602,6 +613,7 @@ def detect_label_drift(
 @dataclass
 class CardinalityReport:
     """Unseen category detection results."""
+
     unseen: Dict[str, List[str]]
     n_unseen_total: int
     summary: str
@@ -641,6 +653,7 @@ def detect_unseen_categories(
 @dataclass
 class OutputValidationReport:
     """Model output validation results."""
+
     n_rows: int
     n_out_of_range: int
     n_nan: int
@@ -692,6 +705,7 @@ def validate_model_output(
 @dataclass
 class VolumeReport:
     """Data volume anomaly results."""
+
     current_rows: int
     expected_range: Tuple[int, int]
     is_anomalous: bool
@@ -735,6 +749,7 @@ def validate_data_volume(
 @dataclass
 class StalenessReport:
     """Data staleness results."""
+
     file_modified: Optional[str]
     age_days: Optional[float]
     is_stale: bool
@@ -801,7 +816,9 @@ def get_schema_fingerprint(
 
     raw = json.dumps(schema_info, sort_keys=True)
     schema_info["fingerprint"] = hashlib.sha256(raw.encode()).hexdigest()[:16]
-    logger.info(f"Schema fingerprint: {schema_info['fingerprint']} ({len(df.columns)} cols)")
+    logger.info(
+        f"Schema fingerprint: {schema_info['fingerprint']} ({len(df.columns)} cols)"
+    )
     return schema_info
 
 
@@ -809,6 +826,7 @@ def get_schema_fingerprint(
 @dataclass
 class CorrelationDriftReport:
     """Cross-feature correlation drift results."""
+
     drifted_pairs: List[Dict[str, Any]]
     n_drifted: int
     summary: str
@@ -830,13 +848,14 @@ def detect_correlation_drift(
     available = [c for c in numeric_cols if c in df_cur.columns]
     if len(available) < 2:
         return CorrelationDriftReport(
-            drifted_pairs=[], n_drifted=0,
+            drifted_pairs=[],
+            n_drifted=0,
             summary="Correlation drift: not enough numeric columns",
         )
 
-    cur_corr_matrix = df_cur[available].apply(
-        pd.to_numeric, errors="coerce"
-    ).corr(method="pearson")
+    cur_corr_matrix = (
+        df_cur[available].apply(pd.to_numeric, errors="coerce").corr(method="pearson")
+    )
 
     for pair_key, ref_val in reference_corr.items():
         parts = pair_key.split("__")
@@ -848,12 +867,14 @@ def detect_correlation_drift(
         cur_val = float(cur_corr_matrix.loc[a, b])
         delta = abs(cur_val - ref_val)
         if delta > threshold:
-            drifted.append({
-                "pair": pair_key,
-                "ref_corr": ref_val,
-                "cur_corr": cur_val,
-                "delta": delta,
-            })
+            drifted.append(
+                {
+                    "pair": pair_key,
+                    "ref_corr": ref_val,
+                    "cur_corr": cur_val,
+                    "delta": delta,
+                }
+            )
 
     summary = (
         f"Correlation drift: {len(drifted)} pair(s) drifted "
@@ -862,12 +883,16 @@ def detect_correlation_drift(
     if drifted:
         logger.warning(f"⚠️ {summary}")
         for d in drifted:
-            logger.warning(f"  → {d['pair']}: ref={d['ref_corr']:.3f} cur={d['cur_corr']:.3f} Δ={d['delta']:.3f}")
+            logger.warning(
+                f"  → {d['pair']}: ref={d['ref_corr']:.3f} cur={d['cur_corr']:.3f} Δ={d['delta']:.3f}"
+            )
     else:
         logger.info(f"✅ {summary}")
 
     return CorrelationDriftReport(
-        drifted_pairs=drifted, n_drifted=len(drifted), summary=summary,
+        drifted_pairs=drifted,
+        n_drifted=len(drifted),
+        summary=summary,
     )
 
 
@@ -892,13 +917,17 @@ def generate_reference_correlations(
     corr_matrix = num_df[top_features].corr()
     pairs: Dict[str, float] = {}
     for i, a in enumerate(top_features):
-        for b in top_features[i + 1:]:
+        for b in top_features[i + 1 :]:
             pairs[f"{a}__{b}"] = float(corr_matrix.loc[a, b])
     # Also include target correlations
     for feat in top_features:
-        pairs[f"{feat}__{target_col}"] = float(num_df[[feat, target_col]].corr().iloc[0, 1])
+        pairs[f"{feat}__{target_col}"] = float(
+            num_df[[feat, target_col]].corr().iloc[0, 1]
+        )
 
-    logger.info(f"Reference correlations generated: {len(pairs)} pairs from {len(top_features)} features")
+    logger.info(
+        f"Reference correlations generated: {len(pairs)} pairs from {len(top_features)} features"
+    )
     return pairs
 
 
@@ -906,6 +935,7 @@ def generate_reference_correlations(
 @dataclass
 class SkewReport:
     """Training-serving skew results."""
+
     skewed_features: List[Dict[str, Any]]
     n_skewed: int
     summary: str
@@ -936,12 +966,14 @@ def detect_training_serving_skew(
         cur_mean = float(series.mean())
 
         if ref_std > 0 and abs(cur_mean - ref_mean) > tolerance * ref_std:
-            skewed.append({
-                "column": col,
-                "ref_mean": ref_mean,
-                "cur_mean": cur_mean,
-                "z_score": abs(cur_mean - ref_mean) / ref_std,
-            })
+            skewed.append(
+                {
+                    "column": col,
+                    "ref_mean": ref_mean,
+                    "cur_mean": cur_mean,
+                    "z_score": abs(cur_mean - ref_mean) / ref_std,
+                }
+            )
 
     summary = (
         f"Training-serving skew: {len(skewed)} feature(s) skewed "
@@ -953,7 +985,9 @@ def detect_training_serving_skew(
         logger.info(f"✅ {summary}")
 
     return SkewReport(
-        skewed_features=skewed, n_skewed=len(skewed), summary=summary,
+        skewed_features=skewed,
+        n_skewed=len(skewed),
+        summary=summary,
     )
 
 
@@ -998,6 +1032,7 @@ def validate_row_counts(
 @dataclass
 class ImportanceDriftReport:
     """Feature importance drift results."""
+
     changed_features: List[Dict[str, Any]]
     n_changed: int
     rank_correlation: Optional[float]
@@ -1027,20 +1062,23 @@ def detect_feature_importance_drift(
         r_cur = cur_rank.get(name, len(cur_rank))
         rank_diff = r_cur - r_ref
         if abs(rank_diff) >= rank_drop_threshold:
-            changed.append({
-                "feature": name,
-                "ref_rank": r_ref,
-                "cur_rank": r_cur,
-                "rank_change": rank_diff,
-                "ref_importance": reference_importance.get(name, 0.0),
-                "cur_importance": current_importance.get(name, 0.0),
-            })
+            changed.append(
+                {
+                    "feature": name,
+                    "ref_rank": r_ref,
+                    "cur_rank": r_cur,
+                    "rank_change": rank_diff,
+                    "ref_importance": reference_importance.get(name, 0.0),
+                    "cur_importance": current_importance.get(name, 0.0),
+                }
+            )
 
     # Spearman rank correlation of shared features
     shared = sorted(set(ref_rank.keys()) & set(cur_rank.keys()))
     rank_corr = None
     if len(shared) >= 3:
         from scipy import stats as sp_stats
+
         ref_ranks = [ref_rank[f] for f in shared]
         cur_ranks = [cur_rank[f] for f in shared]
         rank_corr = float(sp_stats.spearmanr(ref_ranks, cur_ranks).statistic)
@@ -1080,9 +1118,10 @@ def generate_reference_categories(
 @dataclass
 class PSIReport:
     """Per-column PSI scores and overall drift verdict."""
-    scores: Dict[str, float]     # {col: psi_score}
-    warn_cols: List[str]         # 0.10 ≤ PSI < 0.25
-    drift_cols: List[str]        # PSI ≥ 0.25
+
+    scores: Dict[str, float]  # {col: psi_score}
+    warn_cols: List[str]  # 0.10 ≤ PSI < 0.25
+    drift_cols: List[str]  # PSI ≥ 0.25
     overall_passed: bool
     summary: str
 
@@ -1228,6 +1267,7 @@ class ValidationProfileReport:
     warnings     : warn seviyesindeki ihlaller
     details      : Her kontrolün özet stringi
     """
+
     passed: bool
     hard_failures: List[str]
     soft_failures: List[str]
@@ -1298,7 +1338,9 @@ def run_validation_profile(
     if pol.duplicate.enabled:
         dup = detect_duplicates(df)
         dup_ratio = dup.n_duplicates / max(len(df), 1)
-        _apply("duplicate", dup.summary, dup_ratio > pol.duplicate.threshold, pol.duplicate)
+        _apply(
+            "duplicate", dup.summary, dup_ratio > pol.duplicate.threshold, pol.duplicate
+        )
 
     # ── Volume ──────────────────────────────────────────────────────
     if pol.volume.enabled and reference_stats and "n_rows" in reference_stats:
@@ -1317,14 +1359,20 @@ def run_validation_profile(
     # ── Distribution drift (sigma-based) ────────────────────────────
     if pol.distribution_drift.enabled and reference_stats and numeric_cols:
         numeric_stats = {
-            k: v for k, v in reference_stats.items()
+            k: v
+            for k, v in reference_stats.items()
             if isinstance(v, dict) and "mean" in v and k in numeric_cols
         }
         if numeric_stats:
             drift = validate_distributions(
                 df, numeric_stats, tolerance=pol.distribution_drift.threshold
             )
-            _apply("distribution_drift", drift.summary, not drift.passed, pol.distribution_drift)
+            _apply(
+                "distribution_drift",
+                drift.summary,
+                not drift.passed,
+                pol.distribution_drift,
+            )
 
     # ── PSI / JS Divergence (per-kolon threshold + critical kolonlar) ─
     if pol.psi_drift.enabled and reference_df is not None and numeric_cols:

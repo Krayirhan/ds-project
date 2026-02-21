@@ -30,6 +30,7 @@ def _write_run_policy(paths: Paths, run_id: str) -> Path:
 
 # ── cmd_promote_policy ────────────────────────────────────────────────────────
 
+
 class TestCmdPromotePolicy:
     def test_raises_if_run_policy_not_found(self, paths):
         from src.cli.policy import cmd_promote_policy
@@ -62,7 +63,9 @@ class TestCmdPromotePolicy:
 
         # Create an existing active policy
         existing = {"run_id": "old-run", "threshold": 0.6}
-        (paths.reports_metrics / "decision_policy.json").write_text(json.dumps(existing))
+        (paths.reports_metrics / "decision_policy.json").write_text(
+            json.dumps(existing)
+        )
 
         _write_run_policy(paths, "run-002")
 
@@ -106,6 +109,7 @@ class TestCmdPromotePolicy:
 
 # ── cmd_rollback_policy ───────────────────────────────────────────────────────
 
+
 class TestCmdRollbackPolicy:
     def test_raises_if_no_backup(self, paths):
         from src.cli.policy import cmd_rollback_policy
@@ -129,17 +133,18 @@ class TestCmdRollbackPolicy:
         )
         # Create current policy
         current = {"run_id": "new-run", "threshold": 0.5}
-        (paths.reports_metrics / "decision_policy.json").write_text(
-            json.dumps(current)
-        )
+        (paths.reports_metrics / "decision_policy.json").write_text(json.dumps(current))
 
         cmd_rollback_policy(paths, slot="default")
 
-        restored = json.loads((paths.reports_metrics / "decision_policy.json").read_text())
+        restored = json.loads(
+            (paths.reports_metrics / "decision_policy.json").read_text()
+        )
         assert restored["run_id"] == "old-run"
 
 
 # ── cmd_retry_webhook_dlq ─────────────────────────────────────────────────────
+
 
 class TestCmdRetryWebhookDlq:
     def test_returns_zeros_if_no_dlq_file(self, paths):
@@ -156,6 +161,7 @@ class TestCmdRetryWebhookDlq:
 
         with patch.dict("os.environ", {}, clear=True):
             import os
+
             os.environ.pop("ALERT_WEBHOOK_URL", None)
             with pytest.raises(ValueError, match="webhook url is required"):
                 cmd_retry_webhook_dlq(paths, webhook_url=None)
@@ -196,7 +202,9 @@ class TestCmdRetryWebhookDlq:
         dlq = paths.reports_monitoring / "dead_letter_webhooks.jsonl"
         dlq.write_text(json.dumps({"payload": {"alert": "drift"}}) + "\n")
 
-        with patch("urllib.request.urlopen", side_effect=Exception("Connection refused")):
+        with patch(
+            "urllib.request.urlopen", side_effect=Exception("Connection refused")
+        ):
             result = cmd_retry_webhook_dlq(paths, webhook_url="http://example.com/hook")
 
         assert result["retried"] == 1

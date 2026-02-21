@@ -77,10 +77,12 @@ class TestCmdExplain:
         run_dir = paths.reports_metrics / run_id
         run_dir.mkdir(parents=True)
         (run_dir / "decision_policy.json").write_text(
-            json.dumps({
-                "selected_model": "XGBoost",
-                "selected_model_artifact": "models/nonexistent.joblib",
-            })
+            json.dumps(
+                {
+                    "selected_model": "XGBoost",
+                    "selected_model_artifact": "models/nonexistent.joblib",
+                }
+            )
         )
         # Don't create the model file
 
@@ -106,8 +108,13 @@ class TestCmdExplain:
 
         with (
             patch("src.cli.explain.safe_load", return_value=MagicMock()),
-            patch("src.cli.explain.compute_permutation_importance", return_value=mock_perm_result),
-            patch("src.cli.explain.compute_shap_values", return_value={"shap_summary": []}),
+            patch(
+                "src.cli.explain.compute_permutation_importance",
+                return_value=mock_perm_result,
+            ),
+            patch(
+                "src.cli.explain.compute_shap_values", return_value={"shap_summary": []}
+            ),
             patch("src.cli.explain.save_explainability_report"),
         ):
             result_run_id = cmd_explain(paths, cfg, run_id=run_id, sample_size=10)

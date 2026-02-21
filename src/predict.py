@@ -48,7 +48,10 @@ def validate_and_prepare_features(
 ) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     # ── Pandera inference şema doğrulaması (strict modu policy'den gelir) ──
     pandera_errors = validate_inference_payload(
-        df_input, feature_spec_payload, raise_on_error=strict_schema, strict=strict_schema
+        df_input,
+        feature_spec_payload,
+        raise_on_error=strict_schema,
+        strict=strict_schema,
     )
     if pandera_errors is not None:
         logger.warning(
@@ -111,8 +114,10 @@ def validate_and_prepare_features(
     ref_stats = feature_spec_payload.get("_reference_stats")
     if ref_stats:
         skew_report = detect_training_serving_skew(
-            df_serving=work, reference_stats=ref_stats,
-            numeric_cols=spec.numeric, tolerance=2.0,
+            df_serving=work,
+            reference_stats=ref_stats,
+            numeric_cols=spec.numeric,
+            tolerance=2.0,
         )
 
     # ── Unseen category detection ──
@@ -141,11 +146,17 @@ def validate_and_prepare_features(
         "pandera_schema_passed": pandera_errors is None,
         "training_serving_skew": {
             "n_skewed": skew_report.n_skewed if skew_report else 0,
-            "skewed_features": [s["column"] for s in skew_report.skewed_features] if skew_report else [],
+            "skewed_features": (
+                [s["column"] for s in skew_report.skewed_features]
+                if skew_report
+                else []
+            ),
         },
         "unseen_categories": {
             "n_unseen": cardinality_report.n_unseen_total if cardinality_report else 0,
-            "columns": list(cardinality_report.unseen.keys()) if cardinality_report else [],
+            "columns": (
+                list(cardinality_report.unseen.keys()) if cardinality_report else []
+            ),
         },
         "row_anomalies": {
             "n_anomalies": anomaly_report.n_anomalies,
@@ -153,7 +164,9 @@ def validate_and_prepare_features(
             "sample_indices": anomaly_report.sample_indices,
         },
         "data_volume": {
-            "expected_range": list(volume_report.expected_range) if volume_report else None,
+            "expected_range": (
+                list(volume_report.expected_range) if volume_report else None
+            ),
             "is_anomalous": volume_report.is_anomalous if volume_report else None,
             "summary": volume_report.summary if volume_report else "skipped",
         },

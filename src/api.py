@@ -7,7 +7,6 @@ import os
 import time
 import uuid
 
-import pandas as pd
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -40,8 +39,6 @@ from .rate_limit import BaseRateLimiter, build_rate_limiter
 from .tracing import (
     init_tracing,
     instrument_fastapi,
-    trace_inference,
-    set_span_attribute,
 )
 from .utils import get_logger
 
@@ -84,6 +81,7 @@ async def _periodic_chat_cleanup(interval_seconds: int = 300) -> None:
         try:
             await asyncio.sleep(interval_seconds)
             from .chat.memory import get_session_store
+
             store = get_session_store()
             if hasattr(store, "_cleanup_expired"):
                 store._cleanup_expired()
@@ -110,7 +108,11 @@ async def lifespan(app: FastAPI):
 
     # Multi-worker rate limit uyarısı
     workers = int(os.getenv("WEB_CONCURRENCY", os.getenv("UVICORN_WORKERS", "1")))
-    rate_backend = (os.getenv("RATE_LIMIT_BACKEND") or ExperimentConfig().api.rate_limit_backend).strip().lower()
+    rate_backend = (
+        (os.getenv("RATE_LIMIT_BACKEND") or ExperimentConfig().api.rate_limit_backend)
+        .strip()
+        .lower()
+    )
     if workers > 1 and rate_backend == "memory":
         logger.warning(
             "RATE LIMIT UYARISI: %d worker algılandı ancak rate_limit_backend='memory'. "
@@ -133,6 +135,7 @@ async def lifespan(app: FastAPI):
     # Close Ollama persistent connection pool (#28)
     try:
         from .chat.ollama_client import get_ollama_client
+
         await get_ollama_client().aclose()
     except Exception:
         pass
@@ -310,7 +313,9 @@ async def request_context_middleware(request: Request, call_next):
         "default-src 'none'; frame-ancestors 'none'"
     )
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
-    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=63072000; includeSubDomains"
+    )
 
     latency_ms = round((time.time() - started) * 1000.0, 2)
     logger.info(
@@ -370,21 +375,31 @@ def dashboard_redirect() -> RedirectResponse:
 @app.post(
     "/predict_proba",
     response_model=PredictProbaResponse,
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
     serving = _get_serving_state()
     try:
         proba, schema_report, _ = exec_predict_proba(payload, serving, "predict_proba")
-        return PredictProbaResponse(n=int(len(proba)), proba=proba, schema_report=schema_report)
+        return PredictProbaResponse(
+            n=int(len(proba)), proba=proba, schema_report=schema_report
+        )
     except ValueError as e:
         _serving = getattr(app.state, "serving", None)
-        _model = str(getattr(getattr(_serving, "policy", None), "selected_model", "") or "")
+        _model = str(
+            getattr(getattr(_serving, "policy", None), "selected_model", "") or ""
+        )
         INFERENCE_ERRORS.labels(endpoint="predict_proba", model=_model).inc()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         _serving = getattr(app.state, "serving", None)
-        _model = str(getattr(getattr(_serving, "policy", None), "selected_model", "") or "")
+        _model = str(
+            getattr(getattr(_serving, "policy", None), "selected_model", "") or ""
+        )
         INFERENCE_ERRORS.labels(endpoint="predict_proba", model=_model).inc()
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -392,7 +407,11 @@ def predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
 @app.post(
     "/decide",
     response_model=DecideResponse,
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def decide(payload: RecordsPayload) -> DecideResponse:
     serving = _get_serving_state()
@@ -405,18 +424,26 @@ def decide(payload: RecordsPayload) -> DecideResponse:
         )
     except ValueError as e:
         _serving = getattr(app.state, "serving", None)
-        _model = str(getattr(getattr(_serving, "policy", None), "selected_model_artifact", "") or "")
+        _model = str(
+            getattr(getattr(_serving, "policy", None), "selected_model_artifact", "")
+            or ""
+        )
         INFERENCE_ERRORS.labels(endpoint="decide", model=_model).inc()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         _serving = getattr(app.state, "serving", None)
-        _model = str(getattr(getattr(_serving, "policy", None), "selected_model_artifact", "") or "")
+        _model = str(
+            getattr(getattr(_serving, "policy", None), "selected_model_artifact", "")
+            or ""
+        )
         INFERENCE_ERRORS.labels(endpoint="decide", model=_model).inc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post(
-    "/reload", response_model=ReloadResponse, responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}
+    "/reload",
+    response_model=ReloadResponse,
+    responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def reload_serving_state(request: Request) -> ReloadResponse:
     # Admin key koruması: DS_ADMIN_KEY tanımlıysa sadece x-admin-key header'ı ile çağrılabilir

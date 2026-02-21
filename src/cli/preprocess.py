@@ -69,7 +69,8 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
     # ── Katman 2: Pandera şema doğrulaması (tip, aralık, nullable) ──
     logger.info("Running Pandera raw data schema validation...")
     validate_raw_data(
-        df, target_col=cfg.target_col,
+        df,
+        target_col=cfg.target_col,
         raise_on_error=(cfg.validation.raw_schema.severity == "hard_fail"),
     )
 
@@ -111,9 +112,7 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
     # ── Katman 4: Referans istatistikleri üret (drift kontrolü için) ──
     ref_stats = generate_reference_stats(df, numeric_cols=spec.numeric)
     json_write(paths.reports_metrics / "reference_stats.json", ref_stats)
-    logger.info(
-        f"Reference stats generated for {len(ref_stats)} numeric columns"
-    )
+    logger.info(f"Reference stats generated for {len(ref_stats)} numeric columns")
 
     # ── Katman 5: Referans kategoriler (unseen category kontrolü için) ──
     ref_cats = generate_reference_categories(df, categorical_cols=spec.categorical)

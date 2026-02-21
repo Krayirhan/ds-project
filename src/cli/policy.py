@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import urllib.parse
 import urllib.request
 from typing import Dict, List, Optional
 
@@ -75,6 +76,9 @@ def cmd_retry_webhook_dlq(
         return {"retried": 0, "success": 0, "failed": 0}
     if not url:
         raise ValueError("webhook url is required (arg or ALERT_WEBHOOK_URL env)")
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("webhook url must be an absolute http(s) URL")
 
     lines = dlq_path.read_text(encoding="utf-8").splitlines()
     if not lines:
@@ -96,7 +100,7 @@ def cmd_retry_webhook_dlq(
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            urllib.request.urlopen(req, timeout=5).read()
+            urllib.request.urlopen(req, timeout=5).read()  # nosec B310
             success += 1
         except Exception:
             failed += 1

@@ -79,7 +79,9 @@ def _extract_risk_factors(*, customer_data: dict[str, Any]) -> list[str]:
     return factors or ["Belirgin risk faktörü bulunamadı"]
 
 
-def _profile_summary(*, customer_data: dict[str, Any], risk_percent: float, level: str) -> str:
+def _profile_summary(
+    *, customer_data: dict[str, Any], risk_percent: float, level: str
+) -> str:
     hotel = str(customer_data.get("hotel", "Otel"))
     lead_time = int(customer_data.get("lead_time", 0) or 0)
     adults = int(customer_data.get("adults", 1) or 1)

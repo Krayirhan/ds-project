@@ -110,6 +110,7 @@ def cmd_monitor(
         ref_stats_path = paths.reports_metrics / "reference_stats.json"
     if ref_stats_path.exists():
         import json
+
         ref_stats = json.loads(ref_stats_path.read_text(encoding="utf-8"))
         dist_report = validate_distributions(df_cur, reference_stats=ref_stats)
         if not dist_report.passed:
@@ -129,21 +130,28 @@ def cmd_monitor(
             pd.to_numeric(df_ref[cfg.target_col], errors="coerce").dropna().mean()
         )
         label_drift_result = detect_label_drift(
-            df_cur, target_col=cfg.target_col,
-            ref_positive_rate=ref_rate, tolerance=0.10,
+            df_cur,
+            target_col=cfg.target_col,
+            ref_positive_rate=ref_rate,
+            tolerance=0.10,
         )
 
     # ── Cross-feature correlation drift ──
     corr_drift_result = None
-    ref_corr_path = paths.reports_metrics / resolved_run_id / "reference_correlations.json"
+    ref_corr_path = (
+        paths.reports_metrics / resolved_run_id / "reference_correlations.json"
+    )
     if not ref_corr_path.exists():
         ref_corr_path = paths.reports_metrics / "reference_correlations.json"
     if ref_corr_path.exists():
         import json as _json
+
         ref_corr = _json.loads(ref_corr_path.read_text(encoding="utf-8"))
         corr_drift_result = detect_correlation_drift(
-            df_cur, reference_corr=ref_corr,
-            numeric_cols=spec.numeric, threshold=0.20,
+            df_cur,
+            reference_corr=ref_corr,
+            numeric_cols=spec.numeric,
+            threshold=0.20,
         )
 
     # ── Data volume anomaly (monitor) ──
@@ -161,6 +169,7 @@ def cmd_monitor(
     ref_imp_path = paths.reports_metrics / "feature_importance.prev.json"
     if cur_imp_path.exists() and ref_imp_path.exists():
         import json as _json
+
         cur_imp = _json.loads(cur_imp_path.read_text(encoding="utf-8"))
         ref_imp = _json.loads(ref_imp_path.read_text(encoding="utf-8"))
         if isinstance(cur_imp, dict) and isinstance(ref_imp, dict) and ref_imp:
@@ -229,20 +238,30 @@ def cmd_monitor(
         "policy_path": str(policy_file),
         "model_used": model_artifact,
         "prediction_summary": pred_report,
-        "distribution_validation": {
-            "passed": dist_report.passed if dist_report else None,
-            "violations": dist_report.violations if dist_report else [],
-            "summary": dist_report.summary if dist_report else "skipped",
-        } if dist_report is not None else {"passed": None, "summary": "no_reference_stats"},
+        "distribution_validation": (
+            {
+                "passed": dist_report.passed if dist_report else None,
+                "violations": dist_report.violations if dist_report else [],
+                "summary": dist_report.summary if dist_report else "skipped",
+            }
+            if dist_report is not None
+            else {"passed": None, "summary": "no_reference_stats"}
+        ),
         "label_drift": {
-            "ref_rate": label_drift_result.ref_positive_rate if label_drift_result else None,
-            "cur_rate": label_drift_result.cur_positive_rate if label_drift_result else None,
+            "ref_rate": (
+                label_drift_result.ref_positive_rate if label_drift_result else None
+            ),
+            "cur_rate": (
+                label_drift_result.cur_positive_rate if label_drift_result else None
+            ),
             "is_drifted": label_drift_result.is_drifted if label_drift_result else None,
             "summary": label_drift_result.summary if label_drift_result else "skipped",
         },
         "correlation_drift": {
             "n_drifted": corr_drift_result.n_drifted if corr_drift_result else 0,
-            "drifted_pairs": corr_drift_result.drifted_pairs if corr_drift_result else [],
+            "drifted_pairs": (
+                corr_drift_result.drifted_pairs if corr_drift_result else []
+            ),
             "summary": corr_drift_result.summary if corr_drift_result else "skipped",
         },
         "data_volume": {
@@ -252,15 +271,23 @@ def cmd_monitor(
             "summary": volume_result.summary,
         },
         "feature_importance_drift": {
-            "n_changed": importance_drift_result.n_changed if importance_drift_result else 0,
+            "n_changed": (
+                importance_drift_result.n_changed if importance_drift_result else 0
+            ),
             "rank_correlation": (
-                importance_drift_result.rank_correlation if importance_drift_result else None
+                importance_drift_result.rank_correlation
+                if importance_drift_result
+                else None
             ),
             "changed_features": (
-                importance_drift_result.changed_features if importance_drift_result else []
+                importance_drift_result.changed_features
+                if importance_drift_result
+                else []
             ),
             "summary": (
-                importance_drift_result.summary if importance_drift_result else "skipped"
+                importance_drift_result.summary
+                if importance_drift_result
+                else "skipped"
             ),
         },
         "data_drift": data_drift,

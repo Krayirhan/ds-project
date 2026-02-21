@@ -32,13 +32,30 @@ logger = get_logger("features")
 
 # ─── Ay adı → numara eşlemesi ───────────────────────────────────────────
 _MONTH_MAP: Dict[str, float] = {
-    "january": 1.0, "february": 2.0, "march": 3.0, "april": 4.0,
-    "may": 5.0, "june": 6.0, "july": 7.0, "august": 8.0,
-    "september": 9.0, "october": 10.0, "november": 11.0, "december": 12.0,
+    "january": 1.0,
+    "february": 2.0,
+    "march": 3.0,
+    "april": 4.0,
+    "may": 5.0,
+    "june": 6.0,
+    "july": 7.0,
+    "august": 8.0,
+    "september": 9.0,
+    "october": 10.0,
+    "november": 11.0,
+    "december": 12.0,
     # Kısaltmalar
-    "jan": 1.0, "feb": 2.0, "mar": 3.0, "apr": 4.0,
-    "jun": 6.0, "jul": 7.0, "aug": 8.0, "sep": 9.0,
-    "oct": 10.0, "nov": 11.0, "dec": 12.0,
+    "jan": 1.0,
+    "feb": 2.0,
+    "mar": 3.0,
+    "apr": 4.0,
+    "jun": 6.0,
+    "jul": 7.0,
+    "aug": 8.0,
+    "sep": 9.0,
+    "oct": 10.0,
+    "nov": 11.0,
+    "dec": 12.0,
 }
 
 # Yüksek kardinaliteli kolonlar (frequency encoding uygulanır)
@@ -78,9 +95,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
             if col in df.columns:
                 freq = df[col].astype(str).value_counts(normalize=True).to_dict()
                 self._freq_maps[col] = freq
-                logger.info(
-                    f"FreqEncoder fitted: col={col} unique_values={len(freq)}"
-                )
+                logger.info(f"FreqEncoder fitted: col={col} unique_values={len(freq)}")
         # Compute and cache the output feature names for sklearn set_output API
         cols = list(df.columns)
         if self.month_col in cols:
@@ -95,13 +110,13 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         # 1) Cyclic ay encoding
         if self.month_col in df.columns:
             months = (
-                df[self.month_col]
-                .astype(str).str.lower().str.strip()
-                .map(_MONTH_MAP)
+                df[self.month_col].astype(str).str.lower().str.strip().map(_MONTH_MAP)
             )
             # Sayısal ay değerleri zaten varsa (1-12) doğrudan kullan
             numeric_fallback = pd.to_numeric(df[self.month_col], errors="coerce")
-            months = months.where(months.notna(), numeric_fallback).fillna(0.0).astype(float)
+            months = (
+                months.where(months.notna(), numeric_fallback).fillna(0.0).astype(float)
+            )
 
             df[f"{self.month_col}_sin"] = np.sin(2 * np.pi * months / 12.0)
             df[f"{self.month_col}_cos"] = np.cos(2 * np.pi * months / 12.0)
@@ -115,9 +130,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         for col in self.high_card_cols:
             if col in df.columns:
                 freq_map = self._freq_maps.get(col, {})
-                df[col] = (
-                    df[col].astype(str).map(freq_map).fillna(0.0).astype(float)
-                )
+                df[col] = df[col].astype(str).map(freq_map).fillna(0.0).astype(float)
                 logger.debug(f"FreqEncoder: '{col}' → float frequency")
 
         return df
@@ -126,6 +139,7 @@ class FeatureEngineer(BaseEstimator, TransformerMixin):
         """sklearn set_output API compatibility — returns output column names."""
         if hasattr(self, "_feature_names_out"):
             import numpy as np
+
             return np.asarray(self._feature_names_out, dtype=object)
         return None
 
@@ -172,7 +186,7 @@ def infer_feature_spec(df: pd.DataFrame, target_col: str) -> FeatureSpec:
 
 
 # FeatureEngineer'ın hangi kolonları dönüştürdüğünü build_preprocessor'a bildir
-_FE_MONTH_COL: str = "arrival_date_month"   # Kaldırılır → _sin + _cos eklenir
+_FE_MONTH_COL: str = "arrival_date_month"  # Kaldırılır → _sin + _cos eklenir
 _FE_FREQ_COLS: frozenset = frozenset(_HIGH_CARDINALITY_COLS)  # In-place float'a dönüşür
 
 
@@ -204,8 +218,7 @@ def build_preprocessor(spec: FeatureSpec) -> Pipeline:
             ct_numeric.append(col)
     # FE tarafından işlenen kategorikler ColumnTransformer'a verilmez
     ct_categorical: List[str] = [
-        c for c in spec.categorical
-        if c != _FE_MONTH_COL and c not in _FE_FREQ_COLS
+        c for c in spec.categorical if c != _FE_MONTH_COL and c not in _FE_FREQ_COLS
     ]
 
     # ── Alt pipeline'lar ──────────────────────────────────────────────────

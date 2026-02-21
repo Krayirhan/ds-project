@@ -271,7 +271,8 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
 
     # ── Referans kategoriler kaydet (unseen category kontrolü için) ──
     ref_cats = generate_reference_categories(
-        train_fit_df, categorical_cols=first_result.feature_spec.categorical,
+        train_fit_df,
+        categorical_cols=first_result.feature_spec.categorical,
     )
     run_ref_cats = run_metrics_dir / "reference_categories.json"
     json_write(run_ref_cats, ref_cats)
@@ -294,7 +295,9 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
         clf = first_model.named_steps.get("clf")
         if hasattr(clf, "feature_importances_"):
             feat_names = first_result.feature_spec.all_features
-            importance = dict(zip(feat_names, [float(v) for v in clf.feature_importances_]))
+            importance = dict(
+                zip(feat_names, [float(v) for v in clf.feature_importances_])
+            )
         elif hasattr(clf, "coef_"):
             feat_names = first_result.feature_spec.all_features
             # For linear models use absolute coefficient values
@@ -302,11 +305,26 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
             if preprocessor is not None:
                 try:
                     out_names = preprocessor.get_feature_names_out()
-                    importance = dict(zip([str(n) for n in out_names], [float(abs(v)) for v in clf.coef_[0]]))
+                    importance = dict(
+                        zip(
+                            [str(n) for n in out_names],
+                            [float(abs(v)) for v in clf.coef_[0]],
+                        )
+                    )
                 except Exception:
-                    importance = dict(zip(feat_names, [float(abs(v)) for v in clf.coef_[0][:len(feat_names)]]))
+                    importance = dict(
+                        zip(
+                            feat_names,
+                            [float(abs(v)) for v in clf.coef_[0][: len(feat_names)]],
+                        )
+                    )
             else:
-                importance = dict(zip(feat_names, [float(abs(v)) for v in clf.coef_[0][:len(feat_names)]]))
+                importance = dict(
+                    zip(
+                        feat_names,
+                        [float(abs(v)) for v in clf.coef_[0][: len(feat_names)]],
+                    )
+                )
         else:
             importance = {}
         if importance:
@@ -316,7 +334,9 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
             prev_importance = paths.reports_metrics / "feature_importance.prev.json"
             if global_importance.exists():
                 copy_to_latest(global_importance, prev_importance)
-            copy_to_latest(run_importance, paths.reports_metrics / "feature_importance.json")
+            copy_to_latest(
+                run_importance, paths.reports_metrics / "feature_importance.json"
+            )
             logger.info(f"Feature importance saved: {len(importance)} features")
     except Exception as e:
         logger.warning(f"Could not extract feature importance: {e}")

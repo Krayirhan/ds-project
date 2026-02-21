@@ -37,7 +37,10 @@ def test_chat_session_and_message_flow():
         session_id = body["session_id"]
         msg = client.post(
             "/chat/message",
-            json={"session_id": session_id, "message": "Bu müşteri için ilk adım ne olmalı?"},
+            json={
+                "session_id": session_id,
+                "message": "Bu müşteri için ilk adım ne olmalı?",
+            },
             headers=_headers(),
         )
         assert msg.status_code == 200

@@ -16,7 +16,6 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
-import pandas as pd
 
 from .api_shared import (
     ServingState,
@@ -28,7 +27,6 @@ from .api_shared import (
     exec_decide,
     load_serving_state,
 )
-from .config import ExperimentConfig
 from .metrics import INFERENCE_ERRORS
 from .tracing import set_span_attribute
 
@@ -102,7 +100,11 @@ class V2ReloadResponse(BaseModel):
 @router_v2.post(
     "/predict_proba",
     response_model=V2PredictProbaResponse,
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def v2_predict_proba(
     payload: RecordsPayload, request: Request
@@ -127,25 +129,31 @@ def v2_predict_proba(
             ),
         )
     except ValueError as e:
-        INFERENCE_ERRORS.labels(endpoint="v2.predict_proba", model=_model_name(serving)).inc()
+        INFERENCE_ERRORS.labels(
+            endpoint="v2.predict_proba", model=_model_name(serving)
+        ).inc()
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        INFERENCE_ERRORS.labels(endpoint="v2.predict_proba", model=_model_name(serving)).inc()
+        INFERENCE_ERRORS.labels(
+            endpoint="v2.predict_proba", model=_model_name(serving)
+        ).inc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router_v2.post(
     "/decide",
     response_model=V2DecideResponse,
-    responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
 )
 def v2_decide(payload: RecordsPayload, request: Request) -> V2DecideResponse:
     t0 = time.time()
     serving = _get_serving_state()
     try:
-        actions_df, pred_report, model_name = exec_decide(
-            payload, serving, "v2.decide"
-        )
+        actions_df, pred_report, model_name = exec_decide(payload, serving, "v2.decide")
         set_span_attribute("ml.api_version", "v2")
         set_span_attribute(
             "ml.threshold_used",
@@ -176,7 +184,9 @@ def v2_decide(payload: RecordsPayload, request: Request) -> V2DecideResponse:
 
 
 def _model_name(serving: ServingState | None) -> str:
-    return str(getattr(getattr(serving, "policy", None), "selected_model_artifact", "") or "")
+    return str(
+        getattr(getattr(serving, "policy", None), "selected_model_artifact", "") or ""
+    )
 
 
 @router_v2.post(
@@ -189,7 +199,10 @@ async def v2_reload(request: Request) -> V2ReloadResponse:
     expected_admin = os.getenv("DS_ADMIN_KEY")
     if expected_admin and request.headers.get("x-admin-key") != expected_admin:
         raise HTTPException(status_code=403, detail="x-admin-key header gereklidir.")
-    lock = getattr(_app_ref.state if _app_ref else None, "_reload_lock", None) or asyncio.Lock()
+    lock = (
+        getattr(_app_ref.state if _app_ref else None, "_reload_lock", None)
+        or asyncio.Lock()
+    )
     async with lock:
         try:
             serving = load_serving_state()

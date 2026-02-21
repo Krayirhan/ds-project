@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -13,6 +12,7 @@ from src.config import ExperimentConfig, Paths
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def cfg() -> ExperimentConfig:
@@ -31,20 +31,20 @@ def paths(tmp_path: Path) -> Paths:
 
 def _make_dummy_df() -> pd.DataFrame:
     import numpy as np
+
     rng = np.random.default_rng(42)
     return pd.DataFrame(
         {
             "lead_time": rng.integers(0, 100, 200),
             "adr": rng.uniform(50, 300, 200),
-            "arrival_date_month": rng.choice(
-                ["January", "March", "July"], 200
-            ),
+            "arrival_date_month": rng.choice(["January", "March", "July"], 200),
             "is_canceled": rng.integers(0, 2, 200),
         }
     )
 
 
 # ── _load_splits ──────────────────────────────────────────────────────────────
+
 
 class TestLoadSplits:
     def test_loads_persisted_splits_when_all_exist(self, paths, cfg):
@@ -82,6 +82,7 @@ class TestLoadSplits:
 
 # ── cmd_train ─────────────────────────────────────────────────────────────────
 
+
 class TestCmdTrain:
     @patch("src.cli.train.ExperimentTracker")
     @patch("src.cli.train.train_candidate_models")
@@ -89,9 +90,27 @@ class TestCmdTrain:
     @patch("src.cli.train.generate_reference_stats", return_value={})
     @patch("src.cli.train.generate_reference_categories", return_value={})
     @patch("src.cli.train.generate_reference_correlations", return_value={})
-    @patch("src.cli.train.run_validation_profile", return_value=MagicMock(summary={}, passed=True, hard_failures=[]))
-    @patch("src.cli.train.validate_processed_data", return_value=MagicMock(passed=True, errors=[]))
-    @patch("src.cli.train.validate_row_counts", return_value={"ok": True, "passed": True, "difference": 0, "train": 200, "cal": 200, "test": 200, "dataset_rows": 600, "split_total": 600})
+    @patch(
+        "src.cli.train.run_validation_profile",
+        return_value=MagicMock(summary={}, passed=True, hard_failures=[]),
+    )
+    @patch(
+        "src.cli.train.validate_processed_data",
+        return_value=MagicMock(passed=True, errors=[]),
+    )
+    @patch(
+        "src.cli.train.validate_row_counts",
+        return_value={
+            "ok": True,
+            "passed": True,
+            "difference": 0,
+            "train": 200,
+            "cal": 200,
+            "test": 200,
+            "dataset_rows": 600,
+            "split_total": 600,
+        },
+    )
     def test_cmd_train_returns_run_id(
         self,
         mock_row_counts,
@@ -154,12 +173,30 @@ class TestCmdTrain:
         with (
             patch("src.cli.train.train_candidate_models") as mock_train,
             patch("src.cli.train.calibrate_frozen_classifier") as mock_calib,
-            patch("src.cli.train.validate_processed_data", return_value=MagicMock(passed=True, errors=[])),
-            patch("src.cli.train.validate_row_counts", return_value={"ok": True, "passed": True, "difference": 0, "train": 200, "cal": 200, "test": 200, "dataset_rows": 600, "split_total": 600}),
+            patch(
+                "src.cli.train.validate_processed_data",
+                return_value=MagicMock(passed=True, errors=[]),
+            ),
+            patch(
+                "src.cli.train.validate_row_counts",
+                return_value={
+                    "ok": True,
+                    "passed": True,
+                    "difference": 0,
+                    "train": 200,
+                    "cal": 200,
+                    "test": 200,
+                    "dataset_rows": 600,
+                    "split_total": 600,
+                },
+            ),
             patch("src.cli.train.generate_reference_stats", return_value={}),
             patch("src.cli.train.generate_reference_categories", return_value={}),
             patch("src.cli.train.generate_reference_correlations", return_value={}),
-            patch("src.cli.train.run_validation_profile", return_value=MagicMock(summary={}, passed=True, hard_failures=[])),
+            patch(
+                "src.cli.train.run_validation_profile",
+                return_value=MagicMock(summary={}, passed=True, hard_failures=[]),
+            ),
             patch("src.cli.train.ExperimentTracker") as mock_tracker_cls,
             patch("joblib.dump"),
             patch("src.cli.train.json_write"),
@@ -175,7 +212,9 @@ class TestCmdTrain:
             train_result.feature_spec.all_features = []
             train_result.feature_dtypes = {}
             mock_train.return_value = {"XGBoost": train_result}
-            mock_calib.return_value = MagicMock(calibrated_model=MagicMock(), metrics={})
+            mock_calib.return_value = MagicMock(
+                calibrated_model=MagicMock(), metrics={}
+            )
             mock_tracker = MagicMock()
             mock_tracker_cls.return_value = mock_tracker
             mock_tracker.start_run.return_value.__enter__ = MagicMock(return_value=None)
@@ -195,12 +234,18 @@ class TestCmdTrain:
 
         with (
             patch("src.cli.train.train_candidate_models", return_value={}),
-            patch("src.cli.train.validate_processed_data", return_value=MagicMock(passed=True, errors=[])),
+            patch(
+                "src.cli.train.validate_processed_data",
+                return_value=MagicMock(passed=True, errors=[]),
+            ),
             patch("src.cli.train.validate_row_counts", return_value=MagicMock(ok=True)),
             patch("src.cli.train.generate_reference_stats", return_value={}),
             patch("src.cli.train.generate_reference_categories", return_value={}),
             patch("src.cli.train.generate_reference_correlations", return_value={}),
-            patch("src.cli.train.run_validation_profile", return_value=MagicMock(summary={})),
+            patch(
+                "src.cli.train.run_validation_profile",
+                return_value=MagicMock(summary={}),
+            ),
             patch("src.cli.train.ExperimentTracker") as mock_tracker_cls,
         ):
             mock_tracker = MagicMock()

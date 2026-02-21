@@ -46,10 +46,7 @@ class InMemoryRateLimiter(BaseRateLimiter):
 
     def _evict_stale_locked(self, one_min_ago: float) -> None:
         """Remove keys with no recent timestamps. Must be called while holding self._lock."""
-        stale = [
-            k for k, v in self._bucket.items()
-            if not v or max(v) < one_min_ago
-        ]
+        stale = [k for k, v in self._bucket.items() if not v or max(v) < one_min_ago]
         for k in stale:
             del self._bucket[k]
         if stale:

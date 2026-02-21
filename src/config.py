@@ -133,9 +133,12 @@ class CheckConfig:
     enabled    : False → kontrol tamamen atlanır (feature flag gibi)
     threshold  : Sayısal eşik (oran, sigma, gün — kontrole göre anlam değişir)
     """
+
     severity: Severity = "warn"
     enabled: bool = True
-    threshold: float = 0.0    # anlamsız varsayılan; her kontrol kendi default'unu kullanır
+    threshold: float = (
+        0.0  # anlamsız varsayılan; her kontrol kendi default'unu kullanır
+    )
 
 
 @dataclass(frozen=True)
@@ -160,46 +163,66 @@ class ValidationPolicy:
 
     # ── Duplicate ────────────────────────────────────────────────────
     duplicate: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=0.02)
+        default_factory=lambda: CheckConfig(
+            severity="warn", enabled=True, threshold=0.02
+        )
     )
 
     # ── Volume anomalisi ─────────────────────────────────────────────
     volume: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="hard_fail", enabled=True, threshold=0.50)
+        default_factory=lambda: CheckConfig(
+            severity="hard_fail", enabled=True, threshold=0.50
+        )
     )
 
     # ── Data staleness ───────────────────────────────────────────────
     staleness: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=180.0)
+        default_factory=lambda: CheckConfig(
+            severity="warn", enabled=True, threshold=180.0
+        )
     )
 
     # ── Post-imputation NaN ──────────────────────────────────────────
     nan_after_impute: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="hard_fail", enabled=True, threshold=0.0)
+        default_factory=lambda: CheckConfig(
+            severity="hard_fail", enabled=True, threshold=0.0
+        )
     )
 
     # ── Raw schema (Pandera) ─────────────────────────────────────────
     raw_schema: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="hard_fail", enabled=True, threshold=0.0)
+        default_factory=lambda: CheckConfig(
+            severity="hard_fail", enabled=True, threshold=0.0
+        )
     )
 
     # ── Processed schema (Pandera) ───────────────────────────────────
     processed_schema: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="hard_fail", enabled=True, threshold=0.0)
+        default_factory=lambda: CheckConfig(
+            severity="hard_fail", enabled=True, threshold=0.0
+        )
     )
 
     # ── Distribution drift (mean/sigma) ─────────────────────────────
     distribution_drift: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=3.0)
+        default_factory=lambda: CheckConfig(
+            severity="warn", enabled=True, threshold=3.0
+        )
     )
 
     # ── PSI drift ───────────────────────────────────────────────────
     # threshold = global warn eşiği; hard_fail için psi_block_threshold kullanılır
     psi_drift: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="soft_fail", enabled=True, threshold=0.10)
+        default_factory=lambda: CheckConfig(
+            severity="soft_fail", enabled=True, threshold=0.10
+        )
     )
-    psi_block_threshold: float = 0.25          # Bu PSI değerini aşan kolon → hard_fail gibi davranır
-    psi_metric: Literal["psi", "js"] = "psi"  # js → Jensen-Shannon divergence (simetrik, 0-1 arası)
+    psi_block_threshold: float = (
+        0.25  # Bu PSI değerini aşan kolon → hard_fail gibi davranır
+    )
+    psi_metric: Literal["psi", "js"] = (
+        "psi"  # js → Jensen-Shannon divergence (simetrik, 0-1 arası)
+    )
     psi_n_bins: int = 10
     # Per-kolon override: {"lead_time": 0.15} → o kolon için global yerine bu eşik
     column_drift_thresholds: ColumnDriftThreshold = field(default_factory=dict)
@@ -208,28 +231,38 @@ class ValidationPolicy:
 
     # ── Label drift ─────────────────────────────────────────────────
     label_drift: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="soft_fail", enabled=True, threshold=0.10)
+        default_factory=lambda: CheckConfig(
+            severity="soft_fail", enabled=True, threshold=0.10
+        )
     )
 
     # ── Training-serving skew ────────────────────────────────────────
     serving_skew: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=2.0)
+        default_factory=lambda: CheckConfig(
+            severity="warn", enabled=True, threshold=2.0
+        )
     )
 
     # ── Inference payload ────────────────────────────────────────────
     inference_schema: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=0.0)
+        default_factory=lambda: CheckConfig(
+            severity="warn", enabled=True, threshold=0.0
+        )
     )
-    strict_inference_schema: bool = False   # True → beklenmeyen kolon → SchemaError
+    strict_inference_schema: bool = False  # True → beklenmeyen kolon → SchemaError
 
     # ── Correlation drift ────────────────────────────────────────────
     correlation_drift: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=0.20)
+        default_factory=lambda: CheckConfig(
+            severity="warn", enabled=True, threshold=0.20
+        )
     )
 
     # ── Row anomaly ──────────────────────────────────────────────────
     row_anomaly: CheckConfig = field(
-        default_factory=lambda: CheckConfig(severity="warn", enabled=True, threshold=0.0)
+        default_factory=lambda: CheckConfig(
+            severity="warn", enabled=True, threshold=0.0
+        )
     )
 
     # ─────────────────────────────────────────────────────────────────
@@ -317,10 +350,10 @@ class ValidationPolicy:
             distribution_drift=H("hard_fail", True, 2.0),
             psi_drift=H("hard_fail", True, 0.10),
             psi_block_threshold=0.20,
-            psi_metric="js",                               # JS → prod'da daha simetrik
+            psi_metric="js",  # JS → prod'da daha simetrik
             psi_n_bins=15,
             critical_columns=["lead_time", "adr", "adults", "stays_in_week_nights"],
-            column_drift_thresholds={                      # Kritik kolonlara daha sıkı eşik
+            column_drift_thresholds={  # Kritik kolonlara daha sıkı eşik
                 "lead_time": 0.08,
                 "adr": 0.08,
                 "adults": 0.12,
@@ -363,17 +396,17 @@ class ValidationPolicy:
         elif phase == "train":
             # Inference kontrollerini devre dışı bırak (anlamsız bu aşamada)
             d = {k: v for k, v in base.__dict__.items()}
-            d["inference_schema"] = H("warn", False, 0.0)   # disabled
-            d["serving_skew"] = H("warn", False, 0.0)       # disabled
+            d["inference_schema"] = H("warn", False, 0.0)  # disabled
+            d["serving_skew"] = H("warn", False, 0.0)  # disabled
             return cls(**d)
 
         elif phase == "predict":
             # Drift ve schema kontrollerini inference odaklı yeniden ağırlıklandır
             d = {k: v for k, v in base.__dict__.items()}
-            d["raw_schema"] = H("warn", False, 0.0)          # ham veri yok
-            d["processed_schema"] = H("warn", False, 0.0)    # ham veri yok
-            d["duplicate"] = H("warn", False, 0.0)           # inference'ta anlamsız
-            d["staleness"] = H("warn", False, 0.0)           # inference'ta anlamsız
+            d["raw_schema"] = H("warn", False, 0.0)  # ham veri yok
+            d["processed_schema"] = H("warn", False, 0.0)  # ham veri yok
+            d["duplicate"] = H("warn", False, 0.0)  # inference'ta anlamsız
+            d["staleness"] = H("warn", False, 0.0)  # inference'ta anlamsız
             # Inference payload → prod'da hard_fail
             d["inference_schema"] = (
                 H("hard_fail", True, 0.0) if is_prod else H("soft_fail", True, 0.0)
@@ -389,11 +422,13 @@ class ValidationPolicy:
             d["nan_after_impute"] = H("warn", False, 0.0)
             # PSI + label drift → prod'da hard_fail
             d["psi_drift"] = (
-                H("hard_fail", True, base.psi_drift.threshold) if is_prod
+                H("hard_fail", True, base.psi_drift.threshold)
+                if is_prod
                 else H("soft_fail", True, base.psi_drift.threshold)
             )
             d["label_drift"] = (
-                H("hard_fail", True, base.label_drift.threshold) if is_prod
+                H("hard_fail", True, base.label_drift.threshold)
+                if is_prod
                 else H("soft_fail", True, base.label_drift.threshold)
             )
             return cls(**d)

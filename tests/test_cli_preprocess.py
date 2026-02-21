@@ -36,9 +36,16 @@ def _make_hotel_df() -> pd.DataFrame:
             "adr": rng.uniform(0.0, 500.0, n),
             "arrival_date_month": rng.choice(
                 [
-                    "January", "February", "March", "April",
-                    "May", "June", "July", "August",
-                ], n
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                ],
+                n,
             ),
             "arrival_date_week_number": rng.integers(1, 53, n),
             "arrival_date_day_of_month": rng.integers(1, 31, n),
@@ -62,22 +69,51 @@ class TestCmdPreprocess:
     def _patch_all_validation(self):
         """Return a context-manager-compatible list of patches for validation fns."""
         return [
-            patch("src.cli.preprocess.check_data_staleness", return_value=MagicMock(is_stale=False, summary="")),
+            patch(
+                "src.cli.preprocess.check_data_staleness",
+                return_value=MagicMock(is_stale=False, summary=""),
+            ),
             patch("src.cli.preprocess.basic_schema_checks"),
             patch("src.cli.preprocess.validate_target_labels"),
             patch("src.cli.preprocess.null_ratio_report", return_value={}),
-            patch("src.cli.preprocess.detect_duplicates", return_value=MagicMock(n_duplicates=0)),
-            patch("src.cli.preprocess.detect_row_anomalies", return_value=MagicMock(n_anomalies=0)),
-            patch("src.cli.preprocess.validate_raw_data", return_value=MagicMock(passed=True, errors=[])),
-            patch("src.cli.preprocess.validate_processed_data", return_value=MagicMock(passed=True, errors=[])),
-            patch("src.cli.preprocess.validate_data_volume", return_value=MagicMock(ok=True)),
+            patch(
+                "src.cli.preprocess.detect_duplicates",
+                return_value=MagicMock(n_duplicates=0),
+            ),
+            patch(
+                "src.cli.preprocess.detect_row_anomalies",
+                return_value=MagicMock(n_anomalies=0),
+            ),
+            patch(
+                "src.cli.preprocess.validate_raw_data",
+                return_value=MagicMock(passed=True, errors=[]),
+            ),
+            patch(
+                "src.cli.preprocess.validate_processed_data",
+                return_value=MagicMock(passed=True, errors=[]),
+            ),
+            patch(
+                "src.cli.preprocess.validate_data_volume",
+                return_value=MagicMock(ok=True),
+            ),
             patch("src.cli.preprocess.generate_reference_stats", return_value={}),
             patch("src.cli.preprocess.generate_reference_categories", return_value={}),
-            patch("src.cli.preprocess.generate_reference_correlations", return_value={}),
-            patch("src.cli.preprocess.run_validation_profile", return_value=MagicMock(summary={})),
-            patch("src.cli.preprocess.get_schema_fingerprint", return_value={"fingerprint": "fp123", "n_columns": 5}),
+            patch(
+                "src.cli.preprocess.generate_reference_correlations", return_value={}
+            ),
+            patch(
+                "src.cli.preprocess.run_validation_profile",
+                return_value=MagicMock(summary={}),
+            ),
+            patch(
+                "src.cli.preprocess.get_schema_fingerprint",
+                return_value={"fingerprint": "fp123", "n_columns": 5},
+            ),
             patch("src.cli.preprocess.sha256_file", return_value="sha-abc"),
-            patch("src.cli.preprocess.infer_feature_spec", return_value=MagicMock(to_dict=lambda: {}, version="v1")),
+            patch(
+                "src.cli.preprocess.infer_feature_spec",
+                return_value=MagicMock(to_dict=lambda: {}, version="v1"),
+            ),
             patch("src.cli.preprocess.json_write"),
         ]
 
@@ -142,18 +178,50 @@ class TestCmdPreprocess:
                     patch("src.cli.preprocess.basic_schema_checks"),
                     patch("src.cli.preprocess.validate_target_labels"),
                     patch("src.cli.preprocess.null_ratio_report", return_value={}),
-                    patch("src.cli.preprocess.detect_duplicates", return_value=MagicMock(n_duplicates=0)),
-                    patch("src.cli.preprocess.detect_row_anomalies", return_value=MagicMock(n_anomalies=0)),
-                    patch("src.cli.preprocess.validate_raw_data", return_value=MagicMock(passed=True, errors=[])),
-                    patch("src.cli.preprocess.validate_processed_data", return_value=MagicMock(passed=True, errors=[])),
-                    patch("src.cli.preprocess.validate_data_volume", return_value=MagicMock(ok=True)),
-                    patch("src.cli.preprocess.generate_reference_stats", return_value={}),
-                    patch("src.cli.preprocess.generate_reference_categories", return_value={}),
-                    patch("src.cli.preprocess.generate_reference_correlations", return_value={}),
-                    patch("src.cli.preprocess.run_validation_profile", return_value=MagicMock(summary={})),
-                    patch("src.cli.preprocess.get_schema_fingerprint", return_value={"fingerprint": "fp123", "n_columns": 5}),
+                    patch(
+                        "src.cli.preprocess.detect_duplicates",
+                        return_value=MagicMock(n_duplicates=0),
+                    ),
+                    patch(
+                        "src.cli.preprocess.detect_row_anomalies",
+                        return_value=MagicMock(n_anomalies=0),
+                    ),
+                    patch(
+                        "src.cli.preprocess.validate_raw_data",
+                        return_value=MagicMock(passed=True, errors=[]),
+                    ),
+                    patch(
+                        "src.cli.preprocess.validate_processed_data",
+                        return_value=MagicMock(passed=True, errors=[]),
+                    ),
+                    patch(
+                        "src.cli.preprocess.validate_data_volume",
+                        return_value=MagicMock(ok=True),
+                    ),
+                    patch(
+                        "src.cli.preprocess.generate_reference_stats", return_value={}
+                    ),
+                    patch(
+                        "src.cli.preprocess.generate_reference_categories",
+                        return_value={},
+                    ),
+                    patch(
+                        "src.cli.preprocess.generate_reference_correlations",
+                        return_value={},
+                    ),
+                    patch(
+                        "src.cli.preprocess.run_validation_profile",
+                        return_value=MagicMock(summary={}),
+                    ),
+                    patch(
+                        "src.cli.preprocess.get_schema_fingerprint",
+                        return_value={"fingerprint": "fp123", "n_columns": 5},
+                    ),
                     patch("src.cli.preprocess.sha256_file", return_value="sha-abc"),
-                    patch("src.cli.preprocess.infer_feature_spec", return_value=MagicMock(to_dict=lambda: {}, version="v1")),
+                    patch(
+                        "src.cli.preprocess.infer_feature_spec",
+                        return_value=MagicMock(to_dict=lambda: {}, version="v1"),
+                    ),
                     patch("src.cli.preprocess.json_write"),
                     patch("src.cli.preprocess.write_parquet"),
                     patch("src.cli.preprocess.preprocess_basic", return_value=df),
@@ -168,12 +236,21 @@ class TestCmdPreprocess:
         df.to_csv(csv_path, index=False)
 
         with (
-            patch("src.cli.preprocess.check_data_staleness", return_value=MagicMock(is_stale=False)),
+            patch(
+                "src.cli.preprocess.check_data_staleness",
+                return_value=MagicMock(is_stale=False),
+            ),
             patch("src.cli.preprocess.basic_schema_checks"),
             patch("src.cli.preprocess.validate_target_labels"),
             patch("src.cli.preprocess.null_ratio_report", return_value={}),
-            patch("src.cli.preprocess.detect_duplicates", return_value=MagicMock(n_duplicates=500)),
-            patch("src.cli.preprocess.detect_row_anomalies", return_value=MagicMock(n_anomalies=0)),
+            patch(
+                "src.cli.preprocess.detect_duplicates",
+                return_value=MagicMock(n_duplicates=500),
+            ),
+            patch(
+                "src.cli.preprocess.detect_row_anomalies",
+                return_value=MagicMock(n_anomalies=0),
+            ),
         ):
             if cfg.validation.duplicate.severity == "hard_fail":
                 with pytest.raises(ValueError, match="Duplicate"):

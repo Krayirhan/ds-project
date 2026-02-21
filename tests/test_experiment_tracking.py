@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import os
-from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 
 class TestExperimentTrackerInactive:
@@ -107,10 +104,13 @@ class TestExperimentTrackerActive:
 
         with (
             patch.dict(os.environ, {"MLFLOW_TRACKING_URI": "http://localhost:5000"}),
-            patch.dict("sys.modules", {
-                "mlflow": mock_mlflow,
-                "mlflow.sklearn": mock_sklearn,
-            }),
+            patch.dict(
+                "sys.modules",
+                {
+                    "mlflow": mock_mlflow,
+                    "mlflow.sklearn": mock_sklearn,
+                },
+            ),
         ):
             tracker = ExperimentTracker(tracking_uri="http://localhost:5000")
         return tracker
