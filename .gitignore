@@ -50,3 +50,7 @@ hpo.db
 # Build outputs
 *.egg-info/
 build/
+
+# Local analysis artifacts
+coverage.json
+project_inventory_*.txt

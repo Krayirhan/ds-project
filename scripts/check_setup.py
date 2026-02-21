@@ -26,17 +26,17 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-FIX  = "--fix"  in sys.argv
+FIX = "--fix" in sys.argv
 JSON_OUT = "--json" in sys.argv
 
 # ─── Renk desteği ────────────────────────────────────────────────────────────
-_RESET  = "\033[0m"
-_GREEN  = "\033[32m"
+_RESET = "\033[0m"
+_GREEN = "\033[32m"
 _YELLOW = "\033[33m"
-_RED    = "\033[31m"
-_BOLD   = "\033[1m"
-_CYAN   = "\033[36m"
-_DIM    = "\033[2m"
+_RED = "\033[31m"
+_BOLD = "\033[1m"
+_CYAN = "\033[36m"
+_DIM = "\033[2m"
 
 _USE_COLOR = (not JSON_OUT) and hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
 
@@ -45,18 +45,30 @@ def _c(code: str, text: str) -> str:
     return f"{code}{text}{_RESET}" if _USE_COLOR else text
 
 
-def ok(msg: str)   -> str: return _c(_GREEN,  f"  ✅  {msg}")
-def warn(msg: str) -> str: return _c(_YELLOW, f"  ⚠️   {msg}")
-def fail(msg: str) -> str: return _c(_RED,    f"  ❌  {msg}")
-def info(msg: str) -> str: return _c(_DIM,    f"       {msg}")
+def ok(msg: str) -> str:
+    return _c(_GREEN, f"  ✅  {msg}")
+
+
+def warn(msg: str) -> str:
+    return _c(_YELLOW, f"  ⚠️   {msg}")
+
+
+def fail(msg: str) -> str:
+    return _c(_RED, f"  ❌  {msg}")
+
+
+def info(msg: str) -> str:
+    return _c(_DIM, f"       {msg}")
+
+
 def hdr(title: str, n: int, total: int) -> str:
     bar = f"{n} / {total}"
     return _c(_BOLD + _CYAN, f"\n{'─'*60}\n  {bar}  {title}\n{'─'*60}")
 
 
 # ─── Durum takibi ─────────────────────────────────────────────────────────────
-_issues:   list[dict[str, str]] = []   # kritik — bunlar olmadan uygulama başlamaz
-_warnings: list[dict[str, str]] = []   # opsiyonel — devam edilebilir
+_issues: list[dict[str, str]] = []  # kritik — bunlar olmadan uygulama başlamaz
+_warnings: list[dict[str, str]] = []  # opsiyonel — devam edilebilir
 
 
 def _issue(key: str, msg: str, fix: str = "") -> None:
@@ -74,7 +86,7 @@ def _load_dotenv(path: Path) -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        key   = key.strip()
+        key = key.strip()
         value = value.strip().strip('"').strip("'")
         if key and key not in os.environ:
             os.environ[key] = value
@@ -130,8 +142,11 @@ def check_python() -> None:
     else:
         print(fail(f"Python {ver} — en az 3.10 gerekli"))
         print(info("https://www.python.org/downloads/"))
-        _issue("python_version", f"Python {ver} — 3.10+ gerekli",
-               "https://www.python.org/downloads/")
+        _issue(
+            "python_version",
+            f"Python {ver} — 3.10+ gerekli",
+            "https://www.python.org/downloads/",
+        )
 
 
 def check_python_packages() -> None:
@@ -140,30 +155,30 @@ def check_python_packages() -> None:
 
     # (import_adı, pip_adı, zorunlu_mu)
     PACKAGES: list[tuple[str, str, bool]] = [
-        ("fastapi",           "fastapi",                 True),
-        ("uvicorn",           "uvicorn",                 True),
-        ("pydantic",          "pydantic",                True),
-        ("sklearn",           "scikit-learn",            True),
-        ("pandas",            "pandas",                  True),
-        ("numpy",             "numpy",                   True),
-        ("joblib",            "joblib",                  True),
-        ("xgboost",           "xgboost",                 True),
-        ("lightgbm",          "lightgbm",                True),
-        ("catboost",          "catboost",                True),
-        ("httpx",             "httpx",                   True),
-        ("bcrypt",            "bcrypt",                  True),
-        ("redis",             "redis",                   True),
-        ("sqlalchemy",        "sqlalchemy",              True),
-        ("psycopg",           "psycopg[binary]",         True),
-        ("prometheus_client", "prometheus-client",       True),
-        ("pandera",           "pandera",                 True),
-        ("yaml",              "pyyaml",                  True),
-        ("opentelemetry",     "opentelemetry-api",       False),
-        ("mlflow",            "mlflow",                  False),
-        ("optuna",            "optuna",                  False),
-        ("shap",              "shap",                    False),
-        ("pytest",            "pytest",                  False),
-        ("dvc",               "dvc",                     False),
+        ("fastapi", "fastapi", True),
+        ("uvicorn", "uvicorn", True),
+        ("pydantic", "pydantic", True),
+        ("sklearn", "scikit-learn", True),
+        ("pandas", "pandas", True),
+        ("numpy", "numpy", True),
+        ("joblib", "joblib", True),
+        ("xgboost", "xgboost", True),
+        ("lightgbm", "lightgbm", True),
+        ("catboost", "catboost", True),
+        ("httpx", "httpx", True),
+        ("bcrypt", "bcrypt", True),
+        ("redis", "redis", True),
+        ("sqlalchemy", "sqlalchemy", True),
+        ("psycopg", "psycopg[binary]", True),
+        ("prometheus_client", "prometheus-client", True),
+        ("pandera", "pandera", True),
+        ("yaml", "pyyaml", True),
+        ("opentelemetry", "opentelemetry-api", False),
+        ("mlflow", "mlflow", False),
+        ("optuna", "optuna", False),
+        ("shap", "shap", False),
+        ("pytest", "pytest", False),
+        ("dvc", "dvc", False),
     ]
 
     missing_required: list[str] = []
@@ -185,13 +200,19 @@ def check_python_packages() -> None:
     if missing_required:
         cmd = f"pip install {' '.join(missing_required)}"
         print(info(f"Zorunlu eksikler icin: {cmd}"))
-        _issue("python_packages",
-               f"Eksik zorunlu paketler: {', '.join(missing_required)}", cmd)
+        _issue(
+            "python_packages",
+            f"Eksik zorunlu paketler: {', '.join(missing_required)}",
+            cmd,
+        )
     if missing_optional:
         cmd = f"pip install {' '.join(missing_optional)}"
         print(info(f"Opsiyonel icin: {cmd}"))
-        _warning("python_packages_optional",
-                 f"Eksik opsiyonel paketler: {', '.join(missing_optional)}", cmd)
+        _warning(
+            "python_packages_optional",
+            f"Eksik opsiyonel paketler: {', '.join(missing_optional)}",
+            cmd,
+        )
 
 
 def check_docker() -> None:
@@ -212,8 +233,11 @@ def check_docker() -> None:
     else:
         print(fail("Docker Compose v2 bulunamadı"))
         print(info("https://docs.docker.com/compose/install/"))
-        _issue("docker_compose", "Docker Compose v2 eksik",
-               "https://docs.docker.com/compose/install/")
+        _issue(
+            "docker_compose",
+            "Docker Compose v2 eksik",
+            "https://docs.docker.com/compose/install/",
+        )
 
 
 def check_nodejs() -> None:
@@ -229,12 +253,17 @@ def check_nodejs() -> None:
                 print(ok(f"Node.js v{ver_str}  (>= 18)"))
             else:
                 print(fail(f"Node.js v{ver_str} — en az v18 gerekli"))
-                _issue("nodejs", f"Node.js v{ver_str} — 18+ gerekli",
-                       "https://nodejs.org/en/download/")
+                _issue(
+                    "nodejs",
+                    f"Node.js v{ver_str} — 18+ gerekli",
+                    "https://nodejs.org/en/download/",
+                )
         except ValueError:
             print(ok(f"Node.js {out_node}"))
     else:
-        print(warn("Node.js bulunamadı — Docker Compose ile frontend acilacaksa gerekmez"))
+        print(
+            warn("Node.js bulunamadı — Docker Compose ile frontend acilacaksa gerekmez")
+        )
         print(info("Lokal dev icin: https://nodejs.org/en/download/"))
         _warning("nodejs", "Node.js yuklu degil", "https://nodejs.org/en/download/")
 
@@ -261,7 +290,9 @@ def check_ollama() -> None:
     else:
         print(warn("Ollama CLI bulunamadı — PATH'de olmayabilir veya kurulmamis"))
         print(info("Kurulum: https://ollama.com/download"))
-        print(info("Olmadan AI chat calismaz; diger tum ozellikler calismaya devam eder."))
+        print(
+            info("Olmadan AI chat calismaz; diger tum ozellikler calismaya devam eder.")
+        )
         _warning("ollama_cli", "Ollama CLI yuklu degil", "https://ollama.com/download")
 
     # ── B) Ollama servisi erisilebilir mi? ────────────────────────────────────
@@ -276,16 +307,25 @@ def check_ollama() -> None:
         print(info(f"Hata: {msg}"))
         print(info("Baslatmak icin:  ollama serve"))
         print(info("Sadece AI chat etkilenir — diger API'lar calismaya devam eder."))
-        _warning("ollama_service",
-                 f"Ollama servisi calismiyor ({ollama_url_local})",
-                 "ollama serve")
+        _warning(
+            "ollama_service",
+            f"Ollama servisi calismiyor ({ollama_url_local})",
+            "ollama serve",
+        )
         # Servis yoksa model kontrolü anlamsiz
         if not target_model:
             print(warn("OLLAMA_MODEL de tanimsiz — .env dosyasina ekleyin"))
-            _warning("ollama_model_env", "OLLAMA_MODEL tanimsiz",
-                     ".env: OLLAMA_MODEL=llama3.2:3b")
+            _warning(
+                "ollama_model_env",
+                "OLLAMA_MODEL tanimsiz",
+                ".env: OLLAMA_MODEL=llama3.2:3b",
+            )
         else:
-            print(info(f"Model cekme komutu (servis ayaga kalkinca): ollama pull {target_model}"))
+            print(
+                info(
+                    f"Model cekme komutu (servis ayaga kalkinca): ollama pull {target_model}"
+                )
+            )
         return
 
     # ── C) Indirilen modeller listesi ─────────────────────────────────────────
@@ -313,15 +353,16 @@ def check_ollama() -> None:
     if not target_model:
         print(warn("OLLAMA_MODEL env var tanimsiz"))
         print(info(".env dosyasina ekleyin: OLLAMA_MODEL=llama3.2:3b"))
-        _warning("ollama_model_env", "OLLAMA_MODEL tanimsiz",
-                 ".env: OLLAMA_MODEL=llama3.2:3b")
+        _warning(
+            "ollama_model_env",
+            "OLLAMA_MODEL tanimsiz",
+            ".env: OLLAMA_MODEL=llama3.2:3b",
+        )
         return
 
     # Tam eslesme VEYA name prefix eslesmesi (tag olmadan)
     model_found = any(
-        m == target_model
-        or m.startswith(target_model.split(":")[0])
-        for m in models
+        m == target_model or m.startswith(target_model.split(":")[0]) for m in models
     )
 
     if model_found:
@@ -331,15 +372,17 @@ def check_ollama() -> None:
         print(info(f"Cekme komutu:  ollama pull {target_model}"))
         print(info("Kucuk alternatif (~2 GB):  ollama pull llama3.2:3b"))
         print(info("Cok kucuk alternatif (~637 MB):  ollama pull qwen2.5:0.5b"))
-        _issue("ollama_model",
-               f"Ollama modeli '{target_model}' indirilmemis",
-               f"ollama pull {target_model}")
+        _issue(
+            "ollama_model",
+            f"Ollama modeli '{target_model}' indirilmemis",
+            f"ollama pull {target_model}",
+        )
 
 
 def check_env_file() -> None:
     """6 — .env dosyasi"""
     print(hdr(".env Dosyasi", 6, TOTAL_CHECKS))
-    env_path     = ROOT / ".env"
+    env_path = ROOT / ".env"
     example_path = ROOT / ".env.example"
 
     if env_path.exists():
@@ -348,9 +391,11 @@ def check_env_file() -> None:
         raw = env_path.read_text(encoding="utf-8")
         if "replace-me" in raw:
             print(warn(".env icinde 'replace-me' degerleri var — duzenleyin"))
-            _warning("env_replaceme",
-                     ".env icinde duzenlenmemis 'replace-me' degerleri var",
-                     ".env dosyasini editor ile acip doldurun")
+            _warning(
+                "env_replaceme",
+                ".env icinde duzenlenmemis 'replace-me' degerleri var",
+                ".env dosyasini editor ile acip doldurun",
+            )
     else:
         if example_path.exists():
             if FIX:
@@ -358,16 +403,21 @@ def check_env_file() -> None:
                 _load_dotenv(env_path)
                 print(ok(".env.example -> .env kopyalandi (--fix)"))
                 print(warn("'replace-me' degerlerini .env dosyasinda duzenleyin!"))
-                _warning("env_replaceme",
-                         ".env icinde duzenlenmemis 'replace-me' degerleri var",
-                         ".env dosyasini editor ile acip doldurun")
+                _warning(
+                    "env_replaceme",
+                    ".env icinde duzenlenmemis 'replace-me' degerleri var",
+                    ".env dosyasini editor ile acip doldurun",
+                )
             else:
                 print(warn(".env bulunamadi"))
                 print(info("Windows : copy .env.example .env"))
                 print(info("Linux/Mac: cp .env.example .env"))
                 print(info("Otomatik : python scripts/check_setup.py --fix"))
-                _warning("env_missing", ".env dosyasi yok",
-                         "cp .env.example .env  veya  python scripts/check_setup.py --fix")
+                _warning(
+                    "env_missing",
+                    ".env dosyasi yok",
+                    "cp .env.example .env  veya  python scripts/check_setup.py --fix",
+                )
         else:
             print(fail(".env ve .env.example her ikisi de eksik"))
             _issue("env_files", ".env ve .env.example yok")
@@ -391,19 +441,19 @@ def check_env_vars() -> None:
     }
 
     OPTIONAL: dict[str, str] = {
-        "DATABASE_URL":                "PostgreSQL — yoksa SQLite (reports/dashboard.db)",
-        "REDIS_URL":                   "Redis — yoksa in-memory rate limiter",
-        "RATE_LIMIT_BACKEND":          "redis | memory",
-        "CORS_ALLOW_ORIGINS":          "Frontend originleri",
-        "DASHBOARD_URL":               "Frontend URL (redirect icin)",
-        "DASHBOARD_AUTH_ENABLED":      "true | false",
+        "DATABASE_URL": "PostgreSQL — yoksa SQLite (reports/dashboard.db)",
+        "REDIS_URL": "Redis — yoksa in-memory rate limiter",
+        "RATE_LIMIT_BACKEND": "redis | memory",
+        "CORS_ALLOW_ORIGINS": "Frontend originleri",
+        "DASHBOARD_URL": "Frontend URL (redirect icin)",
+        "DASHBOARD_AUTH_ENABLED": "true | false",
         "DASHBOARD_TOKEN_TTL_MINUTES": "Token suresi dk (varsayilan: 480)",
-        "OLLAMA_BASE_URL":             "Ollama API — AI chat icin",
-        "OLLAMA_MODEL":                "Ollama model adi (orn: llama3.2:3b)",
-        "CHAT_SESSION_TTL_SECONDS":    "Chat oturum TTL sn (varsayilan: 3600)",
-        "OTEL_ENABLED":                "OpenTelemetry: true | false",
-        "LOG_FORMAT":                  "json | text",
-        "ALERT_WEBHOOK_URL":           "Alarm webhook URL",
+        "OLLAMA_BASE_URL": "Ollama API — AI chat icin",
+        "OLLAMA_MODEL": "Ollama model adi (orn: llama3.2:3b)",
+        "CHAT_SESSION_TTL_SECONDS": "Chat oturum TTL sn (varsayilan: 3600)",
+        "OTEL_ENABLED": "OpenTelemetry: true | false",
+        "LOG_FORMAT": "json | text",
+        "ALERT_WEBHOOK_URL": "Alarm webhook URL",
     }
 
     print("  -- Zorunlu --")
@@ -439,18 +489,27 @@ def check_connectivity() -> None:
     if db_url and "postgresql" in db_url:
         try:
             from sqlalchemy import create_engine, text as sa_text
-            engine = create_engine(db_url, pool_pre_ping=True,
-                                   connect_args={"connect_timeout": 4})
+
+            engine = create_engine(
+                db_url, pool_pre_ping=True, connect_args={"connect_timeout": 4}
+            )
             with engine.connect() as conn:
                 conn.execute(sa_text("SELECT 1"))
             print(ok("PostgreSQL baglantisi basarili"))
         except Exception as e:
             msg = str(e).splitlines()[0][:80]
             print(fail(f"PostgreSQL baglantisi basarisiz: {msg}"))
-            print(info("Docker Compose ile: docker compose -f docker-compose.dev.yml up -d postgres"))
+            print(
+                info(
+                    "Docker Compose ile: docker compose -f docker-compose.dev.yml up -d postgres"
+                )
+            )
             print(info("Yerel: PostgreSQL servisi calistigini dogrulayin"))
-            _warning("postgres", f"PostgreSQL baglanti hatasi: {msg}",
-                     "docker compose -f docker-compose.dev.yml up -d postgres")
+            _warning(
+                "postgres",
+                f"PostgreSQL baglanti hatasi: {msg}",
+                "docker compose -f docker-compose.dev.yml up -d postgres",
+            )
     elif db_url:
         print(ok(f"DATABASE_URL tanimli (SQLite/diger): {db_url[:50]}"))
     else:
@@ -462,6 +521,7 @@ def check_connectivity() -> None:
     if redis_url:
         try:
             import redis as _redis  # type: ignore
+
             r = _redis.from_url(redis_url, socket_connect_timeout=3)
             r.ping()
             print(ok(f"Redis baglantisi basarili: {redis_url}"))
@@ -469,8 +529,11 @@ def check_connectivity() -> None:
             msg = str(e).splitlines()[0][:80]
             print(fail(f"Redis baglantisi basarisiz: {msg}"))
             print(info("docker compose -f docker-compose.dev.yml up -d redis"))
-            _warning("redis", f"Redis baglanti hatasi: {msg}",
-                     "docker compose -f docker-compose.dev.yml up -d redis")
+            _warning(
+                "redis",
+                f"Redis baglanti hatasi: {msg}",
+                "docker compose -f docker-compose.dev.yml up -d redis",
+            )
     else:
         print(warn("REDIS_URL tanimsiz — in-memory rate limiter kullanilir"))
         _warning("redis", "REDIS_URL yok — in-memory fallback")
@@ -492,10 +555,10 @@ def check_files() -> None:
     }
 
     OPTIONAL_ITEMS: dict[str, str] = {
-        "data/raw":        "Ham veri (ML pipeline icin) — Kaggle'dan indirin",
-        ".env":            ".env ortam degiskenleri dosyasi",
-        "apps/frontend":   "Frontend React uygulamasi",
-        "params.yaml":     "Pipeline parametreleri",
+        "data/raw": "Ham veri (ML pipeline icin) — Kaggle'dan indirin",
+        ".env": ".env ortam degiskenleri dosyasi",
+        "apps/frontend": "Frontend React uygulamasi",
+        "params.yaml": "Pipeline parametreleri",
     }
 
     print("  -- Zorunlu --")
@@ -508,13 +571,21 @@ def check_files() -> None:
                     run_id = data.get("run_id", "?")
                     model_dir = ROOT / "models" / run_id
                     if model_dir.exists():
-                        print(ok(f"{rel}  (aktif run: {run_id} — model klasoru mevcut)"))
+                        print(
+                            ok(f"{rel}  (aktif run: {run_id} — model klasoru mevcut)")
+                        )
                     else:
-                        print(warn(f"{rel}  (run_id: {run_id} ama models/{run_id}/ EKSIK!)"))
+                        print(
+                            warn(
+                                f"{rel}  (run_id: {run_id} ama models/{run_id}/ EKSIK!)"
+                            )
+                        )
                         print(info("python main.py train"))
-                        _warning("model_dir",
-                                 f"models/{run_id}/ klasoru yok",
-                                 "python main.py train")
+                        _warning(
+                            "model_dir",
+                            f"models/{run_id}/ klasoru yok",
+                            "python main.py train",
+                        )
                 except Exception:
                     print(ok(f"{rel}"))
             else:
@@ -547,24 +618,29 @@ def check_files() -> None:
 def check_ports() -> None:
     """10 — Port cakismalari (Docker Compose oncesi)"""
     print(hdr("Port Durumu  (Docker Compose)", 10, TOTAL_CHECKS))
-    print(info("Asagidaki portlar Docker Compose tarafindan kullanilacak — bos olmali\n"))
+    print(
+        info("Asagidaki portlar Docker Compose tarafindan kullanilacak — bos olmali\n")
+    )
 
     COMPOSE_PORTS: dict[int, str] = {
-        8000:  "API (FastAPI)",
-        5173:  "Frontend (React/Vite)",
-        5432:  "PostgreSQL",
-        6379:  "Redis",
-        9090:  "Prometheus",
-        3000:  "Grafana",
+        8000: "API (FastAPI)",
+        5173: "Frontend (React/Vite)",
+        5432: "PostgreSQL",
+        6379: "Redis",
+        9090: "Prometheus",
+        3000: "Grafana",
         16686: "Jaeger UI",
-        4317:  "Jaeger OTLP gRPC",
+        4317: "Jaeger OTLP gRPC",
     }
 
     for port, service in COMPOSE_PORTS.items():
         if _port_open("127.0.0.1", port):
             print(warn(f":{port:<6} MESGUL  -> {service}"))
-            _warning(f"port_{port}", f"Port {port} mesgul ({service})",
-                     "docker compose down  veya  ilgili servisi durdurun")
+            _warning(
+                f"port_{port}",
+                f"Port {port} mesgul ({service})",
+                "docker compose down  veya  ilgili servisi durdurun",
+            )
         else:
             print(ok(f":{port:<6} serbest -> {service}"))
 
@@ -573,14 +649,15 @@ def check_ports() -> None:
 #  OZET
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 def summary() -> int:
     print(f"\n{'='*60}")
 
     if JSON_OUT:
         out = {
-            "errors":   _issues,
+            "errors": _issues,
             "warnings": _warnings,
-            "ready":    len(_issues) == 0,
+            "ready": len(_issues) == 0,
         }
         print(json.dumps(out, ensure_ascii=False, indent=2))
         return 0 if not _issues else 1
@@ -598,8 +675,12 @@ def summary() -> int:
 
     if _issues:
         n = len(_issues)
-        print(_c(_RED + _BOLD,
-                 f"\n  KRITIK HATA ({n}) — bunlar giderilmeden uygulama baslamaz:\n"))
+        print(
+            _c(
+                _RED + _BOLD,
+                f"\n  KRITIK HATA ({n}) — bunlar giderilmeden uygulama baslamaz:\n",
+            )
+        )
         for i, err in enumerate(_issues, 1):
             print(f"  {i}. {err['msg']}")
             if err.get("fix"):
@@ -607,8 +688,7 @@ def summary() -> int:
 
     if _warnings:
         n = len(_warnings)
-        print(_c(_YELLOW,
-                 f"\n  UYARI ({n}) — opsiyonel ozellikler etkilenebilir:\n"))
+        print(_c(_YELLOW, f"\n  UYARI ({n}) — opsiyonel ozellikler etkilenebilir:\n"))
         for i, w in enumerate(_warnings, 1):
             print(f"  {i}. {w['msg']}")
             if w.get("fix"):
@@ -628,6 +708,7 @@ def summary() -> int:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ANA GIRIS
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 def main() -> None:
     if not JSON_OUT:

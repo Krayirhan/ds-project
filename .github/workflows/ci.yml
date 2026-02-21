@@ -19,7 +19,10 @@ jobs:
         run: npm ci
         working-directory: apps/frontend
       - name: Lint frontend
-        run: npm run lint --if-present
+        run: npm run lint
+        working-directory: apps/frontend
+      - name: Test frontend
+        run: npm test -- --run
         working-directory: apps/frontend
       - name: Build frontend
         run: npm run build
@@ -72,21 +75,56 @@ jobs:
         run: |
           pre-commit run --all-files
 
+      - name: Lint backend (ruff)
+        run: |
+          ruff check src apps/backend
+
       - name: Unit tests
         run: |
-          python -m pytest -q tests/test_policy.py tests/test_schema_validation.py tests/test_api.py
+          python -m pytest -q \
+            tests/test_policy.py \
+            tests/test_schema_validation.py \
+            tests/test_api.py \
+            tests/test_api_extended.py \
+            tests/test_api_versions.py \
+            tests/test_api_shared_unit.py \
+            tests/test_dashboard.py \
+            tests/test_dashboard_extended.py \
+            tests/test_dashboard_auth_unit.py \
+            tests/test_data_validation.py \
+            tests/test_data_validation_extended.py \
+            tests/test_chat_memory.py \
+            tests/test_chat_pipeline.py \
+            tests/test_chat_ollama_client.py \
+            tests/test_chat_orchestrator.py \
+            tests/test_chat_router.py \
+            tests/test_config.py \
+            tests/test_utils.py \
+            tests/test_experiment_tracking_extended.py \
+            tests/test_rate_limit_extended.py \
+            tests/test_features.py \
+            tests/test_train_extended.py \
+            tests/test_knowledge_store.py \
+            tests/test_tracing.py \
+            tests/test_tracing_extended.py
 
       - name: CLI module tests
         run: |
           python -m pytest -q \
             tests/test_cli_train.py \
+            tests/test_cli_train_extended2.py \
             tests/test_cli_evaluate.py \
+            tests/test_cli_evaluate_extended.py \
             tests/test_cli_monitor.py \
+            tests/test_cli_monitor_extended.py \
             tests/test_cli_predict.py \
             tests/test_cli_preprocess.py \
+            tests/test_cli_preprocess_extended.py \
+            tests/test_cli_serve.py \
             tests/test_cli_hpo.py \
             tests/test_cli_explain.py \
-            tests/test_cli_policy.py
+            tests/test_cli_policy.py \
+            tests/test_cli_helpers.py
 
       - name: Coverage gate (critical modules >=80%)
         run: |
@@ -97,22 +135,72 @@ jobs:
             --cov=src.rate_limit \
             --cov=src.train \
             --cov=src.experiment_tracking \
+            --cov=src.config \
+            --cov=src.utils \
+            --cov=src.cli.evaluate \
+            --cov=src.cli.train \
             --cov=src.explain \
             --cov=src.hpo \
+            --cov=src.api \
+            --cov=src.api_shared \
+            --cov=src.dashboard \
+            --cov=src.dashboard_auth \
+            --cov=src.data_validation \
+            --cov=src.api_v1 \
+            --cov=src.api_v2 \
+            --cov=src.tracing \
+            --cov=src.cli._helpers \
+            --cov=src.features \
+            --cov=src.cli.monitor \
+            --cov=src.cli.preprocess \
+            --cov=src.cli.serve \
             --cov-report=term \
             --cov-fail-under=80 \
             tests/test_cost_matrix.py \
             tests/test_evaluate.py \
             tests/test_monitoring.py \
             tests/test_rate_limit.py \
+            tests/test_rate_limit_extended.py \
             tests/test_train.py \
+            tests/test_train_extended.py \
             tests/test_experiment_tracking.py \
+            tests/test_experiment_tracking_extended.py \
+            tests/test_config.py \
+            tests/test_utils.py \
             tests/test_explain.py \
-            tests/test_hpo.py
+            tests/test_hpo.py \
+            tests/test_features.py \
+            tests/test_dashboard.py \
+            tests/test_dashboard_extended.py \
+            tests/test_dashboard_auth_unit.py \
+            tests/test_data_validation.py \
+            tests/test_data_validation_extended.py \
+            tests/test_api.py \
+            tests/test_api_extended.py \
+            tests/test_api_versions.py \
+            tests/test_api_shared_unit.py \
+            tests/test_tracing.py \
+            tests/test_tracing_extended.py \
+            tests/test_chat_memory.py \
+            tests/test_chat_pipeline.py \
+            tests/test_chat_ollama_client.py \
+            tests/test_chat_orchestrator.py \
+            tests/test_chat_router.py \
+            tests/test_knowledge_store.py \
+            tests/test_cli_helpers.py \
+            tests/test_cli_train.py \
+            tests/test_cli_train_extended2.py \
+            tests/test_cli_evaluate.py \
+            tests/test_cli_evaluate_extended.py \
+            tests/test_cli_monitor.py \
+            tests/test_cli_monitor_extended.py \
+            tests/test_cli_preprocess.py \
+            tests/test_cli_preprocess_extended.py \
+            tests/test_cli_serve.py
 
       - name: Bandit security scan
         run: |
-          bandit -r src/ -ll -x src/web,src/chat --exit-zero
+          bandit -r src/ -ll -x src/web,src/chat
 
       - name: Dependency security audit
         run: |
