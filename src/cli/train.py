@@ -23,7 +23,7 @@ from ..io import read_parquet, write_parquet
 from ..split import stratified_split
 from ..train import train_candidate_models
 from ..utils import get_logger, sha256_file
-from ._helpers import copy_to_latest, json_write, mark_latest, new_run_id
+from ._helpers import copy_to_latest, json_read, json_write, mark_latest, new_run_id
 
 logger = get_logger("cli.train")
 
@@ -111,12 +111,25 @@ def cmd_train(paths: Paths, cfg: ExperimentConfig, run_id: Optional[str] = None)
             f"Validation profile FAILED [train]: hard_failures={profile.hard_failures}"
         )
 
+    # ── HPO entegrasyonu: önceki HPO sonuçlarını kullan ──
+    hpo_result_path = paths.reports_metrics / "latest_hpo_result.json"
+    hpo_params = None
+    if hpo_result_path.exists():
+        hpo_params = json_read(hpo_result_path)
+        logger.info(
+            f"HPO results found | model_type={hpo_params.get('model_type')} "
+            f"best_score={hpo_params.get('best_score', 'N/A')}"
+        )
+    else:
+        logger.info("No HPO results found. Using default hyperparameters.")
+
     candidates = train_candidate_models(
         train_fit_df,
         cfg.target_col,
         cfg.seed,
         cfg.cv_folds,
         include_challenger=cfg.model.include_challenger,
+        hpo_params=hpo_params,
     )
 
     run_model_dir = paths.models / run_id

@@ -497,7 +497,7 @@ def dashboard_system(_user: Dict[str, Any] = Depends(require_dashboard_user)):
 
     # ── 3. Ollama (LLM) ───────────────────────────────────────────────────────
     ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+    ollama_model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
     ollama_ok = False
     ollama_model_found = False
     ollama_reason = "erişilemiyor"
@@ -539,38 +539,46 @@ def dashboard_system(_user: Dict[str, Any] = Depends(require_dashboard_user)):
     model_name: str | None = None
     model_reason = "yüklü değil"
     try:
-        latest_json = _read_json(paths.models / "latest.json", None)
-        if latest_json and isinstance(latest_json, dict):
-            registry_path = latest_json.get("model_registry")
-            if registry_path:
-                from pathlib import Path as _Path  # noqa: PLC0415
+        # decision_policy.json'ı kullan — load_serving_state ile aynı mantık
+        active_slot_path = paths.reports_metrics / "active_slot.json"
+        if active_slot_path.exists():
+            slot_payload = _read_json(active_slot_path, {})
+            slot = str((slot_payload or {}).get("active_slot", "default"))
+            policy_path = (
+                paths.reports_metrics / f"decision_policy.{slot}.json"
+                if slot in {"blue", "green"}
+                else paths.reports_metrics / "decision_policy.json"
+            )
+        else:
+            policy_path = paths.reports_metrics / "decision_policy.json"
 
-                registry = _read_json(_Path(registry_path), None)
-                if registry and isinstance(registry, dict):
-                    # Find first entry with a 'path' key
-                    active: Dict[str, Any] | None = next(
-                        (
-                            v
-                            for v in registry.values()
-                            if isinstance(v, dict) and "path" in v
-                        ),
-                        None,
-                    )
-                    if active:
-                        artifact = active.get("path")
-                        model_name = active.get("model_name") or latest_json.get(
-                            "run_id"
-                        )
-                        from pathlib import Path as _P  # noqa: PLC0415
-
-                        model_ok = bool(artifact and _P(artifact).exists())
-                        model_reason = (
-                            "ok" if model_ok else f"artefact bulunamadı: {artifact}"
-                        )
-            if not model_ok and not model_name:
-                model_reason = (
-                    f"run_id={latest_json.get('run_id')} (artefact yolu doğrulanamadı)"
-                )
+        policy = _read_json(policy_path, None)
+        if policy and isinstance(policy, dict):
+            artifact_rel = policy.get("selected_model_artifact")
+            model_name = policy.get("selected_model") or policy.get("run_id")
+            if artifact_rel:
+                artifact_path = paths.project_root / artifact_rel
+                model_ok = artifact_path.exists()
+                model_reason = "ok" if model_ok else f"artefact bulunamadı: {artifact_path}"
+            else:
+                model_reason = "decision_policy'de selected_model_artifact yok"
+        else:
+            # Fallback: model_registry.json (string değer desteğiyle)
+            latest_json = _read_json(paths.models / "latest.json", None)
+            run_id_str = (latest_json or {}).get("run_id", "")
+            registry = _read_json(
+                paths.reports_metrics / run_id_str / "model_registry.json", None
+            ) if run_id_str else None
+            if registry and isinstance(registry, dict):
+                for v in registry.values():
+                    artifact_rel = v if isinstance(v, str) else (v.get("path") if isinstance(v, dict) else None)
+                    if artifact_rel and (paths.project_root / artifact_rel).exists():
+                        model_ok = True
+                        model_name = run_id_str
+                        model_reason = "ok"
+                        break
+            if not model_ok:
+                model_reason = f"run_id={run_id_str} (artefact yolu doğrulanamadı)"
     except Exception as exc:
         model_reason = str(exc)[:300]
 

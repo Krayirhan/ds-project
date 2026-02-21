@@ -12,7 +12,8 @@ spec:
       rules:
         {{- range .Values.monitoring.prometheusRule.rules }}
         - alert: {{ .alert }}
-          expr: {{ .expr }}
+          expr: |-
+{{ .expr | nindent 12 }}
           for: {{ .for }}
           labels:
             severity: {{ .severity }}

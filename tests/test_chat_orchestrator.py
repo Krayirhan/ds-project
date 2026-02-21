@@ -7,6 +7,7 @@ import pytest
 
 import src.chat.orchestrator as orc
 from src.chat.memory import ChatSession
+from src.chat.pipeline.intent_classifier import ClassifiedIntent, Intent
 
 
 class _Store:
@@ -98,7 +99,8 @@ def test_send_message_missing_session_raises(monkeypatch):
 def test_send_message_with_text_retrieval(monkeypatch):
     orchestrator, store, _kn, _ol = _make_orchestrator(monkeypatch)
     session = store.create_session(customer_data={"lead_time": 10}, risk_score=0.5, risk_label="mid")
-    monkeypatch.setattr(orc, "classify_intent", lambda _: "risk_question")
+    _mock_intent = ClassifiedIntent(intent=Intent.RISK_EXPLANATION, confidence=0.8, hint_for_llm="hint")
+    monkeypatch.setattr(orc, "classify_intent", lambda _: _mock_intent)
     monkeypatch.setattr(
         orc,
         "build_customer_context",
@@ -123,7 +125,8 @@ def test_send_message_fallback_to_customer_retrieval(monkeypatch):
 
     orchestrator, store, _kn, _ol = _make_orchestrator(monkeypatch, knowledge=_KnowledgeNoText())
     session = store.create_session(customer_data={"lead_time": 10}, risk_score=0.5, risk_label="mid")
-    monkeypatch.setattr(orc, "classify_intent", lambda _: "risk_question")
+    _mock_intent = ClassifiedIntent(intent=Intent.RISK_EXPLANATION, confidence=0.8, hint_for_llm="hint")
+    monkeypatch.setattr(orc, "classify_intent", lambda _: _mock_intent)
     monkeypatch.setattr(
         orc,
         "build_customer_context",
@@ -172,7 +175,7 @@ def test_ask_llm_valid_retry_fallback_and_exception(monkeypatch):
         "validate_response",
         lambda text: SimpleNamespace(is_valid=False, cleaned_response=text, issues=["too_short"]),
     )
-    monkeypatch.setattr(orc, "fallback_response", lambda pct: f"fallback-{pct}")
+    monkeypatch.setattr(orc, "fallback_response", lambda pct, intent=None: f"fallback-{pct}")
     out3 = asyncio.run(orchestrator._ask_llm(session=session, risk_percent=55))
     assert out3 == "fallback-55"
 
@@ -208,7 +211,8 @@ def test_quick_actions_and_summary_paths(monkeypatch):
 
 
 def test_get_orchestrator_singleton(monkeypatch):
-    orc._orchestrator = None
+    # Use monkeypatch for the singleton so it's restored after the test
+    monkeypatch.setattr(orc, "_orchestrator", None)
     created = {"n": 0}
 
     class _DummyOrchestrator:

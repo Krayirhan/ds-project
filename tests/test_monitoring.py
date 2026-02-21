@@ -40,6 +40,7 @@ def test_build_alerts_profit_drop_and_action_rate():
         prediction_drift={"psi": 0.22},
         outcome_report={"realized_profit": 50.0, "action_rate": 0.35},
         policy={"expected_net_profit": 100.0, "max_action_rate": 0.20},
+        data_volume_is_anomalous=False,
         thresholds=AlertThresholds(
             data_drift_psi_threshold=0.2,
             prediction_drift_psi_threshold=0.2,
@@ -51,6 +52,26 @@ def test_build_alerts_profit_drop_and_action_rate():
     assert alerts["prediction_drift"] is True
     assert alerts["profit_drop"] is True
     assert alerts["action_rate_deviation"] is True
+    assert alerts["data_volume_anomaly"] is False
+    assert alerts["any_alert"] is True
+
+
+def test_build_alerts_data_volume_anomaly_sets_any_alert():
+    """data_volume_is_anomalous=True must surface in alerts and set any_alert."""
+    alerts = build_alerts(
+        data_drift={"max_psi": 0.0},
+        prediction_drift={"psi": 0.0},
+        outcome_report=None,
+        policy={},
+        data_volume_is_anomalous=True,
+        thresholds=AlertThresholds(
+            data_drift_psi_threshold=0.2,
+            prediction_drift_psi_threshold=0.2,
+            profit_drop_ratio_alert=0.2,
+            action_rate_tolerance=0.05,
+        ),
+    )
+    assert alerts["data_volume_anomaly"] is True
     assert alerts["any_alert"] is True
 
 

@@ -51,6 +51,10 @@ export default defineConfig({
         target: BACKEND_TARGET,
         changeOrigin: true,
       },
+      '/guests': {
+        target: BACKEND_TARGET,
+        changeOrigin: true,
+      },
     },
   },
 });

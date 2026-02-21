@@ -1,7 +1,7 @@
 """Model training with champion/challenger support."""
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -37,10 +37,26 @@ def _build_baseline_estimator(seed: int) -> LogisticRegression:
     return LogisticRegression(max_iter=3000, solver="lbfgs", random_state=seed)
 
 
-def _build_first_available_challenger(seed: int) -> Tuple[str, object]:
+def _build_first_available_challenger(
+    seed: int, hpo_params: Optional[Dict[str, Any]] = None
+) -> Tuple[str, object]:
     # Priority: XGBoost -> LightGBM -> CatBoost -> sklearn fallback
     try:
         from xgboost import XGBClassifier
+
+        if hpo_params and hpo_params.get("model_type") == "xgboost":
+            params = dict(hpo_params["best_params"])
+            logger.info(f"[challenger_xgboost] Using HPO-tuned params: {params}")
+            return (
+                "challenger_xgboost",
+                XGBClassifier(
+                    **params,
+                    objective="binary:logistic",
+                    eval_metric="logloss",
+                    random_state=seed,
+                    n_jobs=-1,
+                ),
+            )
 
         return (
             "challenger_xgboost",
@@ -57,11 +73,24 @@ def _build_first_available_challenger(seed: int) -> Tuple[str, object]:
                 n_jobs=-1,
             ),
         )
-    except Exception:
+    except Exception:  # nosec B110 — intentional fallback: try next GBM library if xgboost unavailable
         pass
 
     try:
         from lightgbm import LGBMClassifier
+
+        if hpo_params and hpo_params.get("model_type") == "lightgbm":
+            params = dict(hpo_params["best_params"])
+            logger.info(f"[challenger_lightgbm] Using HPO-tuned params: {params}")
+            return (
+                "challenger_lightgbm",
+                LGBMClassifier(
+                    **params,
+                    objective="binary",
+                    random_state=seed,
+                    verbosity=-1,
+                ),
+            )
 
         return (
             "challenger_lightgbm",
@@ -75,7 +104,7 @@ def _build_first_available_challenger(seed: int) -> Tuple[str, object]:
                 random_state=seed,
             ),
         )
-    except Exception:
+    except Exception:  # nosec B110 — intentional fallback: try next GBM library if lightgbm unavailable
         pass
 
     try:
@@ -92,7 +121,7 @@ def _build_first_available_challenger(seed: int) -> Tuple[str, object]:
                 verbose=False,
             ),
         )
-    except Exception:
+    except Exception:  # nosec B110 — intentional fallback: all external GBMs tried; HistGB is the last resort
         pass
 
     logger.info("No external GBM package found. Falling back to HistGradientBoosting.")
@@ -139,6 +168,7 @@ def train_candidate_models(
     seed: int,
     cv_folds: int,
     include_challenger: bool = True,
+    hpo_params: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, TrainResult]:
     spec = infer_feature_spec(df, target_col)
     X = df.drop(columns=[target_col])
@@ -159,7 +189,7 @@ def train_candidate_models(
     )
 
     if include_challenger:
-        challenger_name, challenger_estimator = _build_first_available_challenger(seed)
+        challenger_name, challenger_estimator = _build_first_available_challenger(seed, hpo_params=hpo_params)
         results[challenger_name] = _fit_one(
             name=challenger_name,
             estimator=challenger_estimator,

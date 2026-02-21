@@ -1117,9 +1117,32 @@ tbody tr:hover { background: #cce0ff; }
   max-width: 88%;
   border: 1px solid #bdbdbd;
   background: #fff;
-  padding: 6px;
+  padding: 8px 10px;
   font-size: 12px;
-  line-height: 1.35;
+  line-height: 1.5;
+}
+
+.chatBubble strong {
+  font-weight: 700;
+  color: inherit;
+}
+
+.chatBubble ol {
+  padding-left: 18px;
+  margin: 4px 0;
+}
+
+.chatBubble li {
+  margin-bottom: 3px;
+}
+
+.chatBubble p {
+  margin: 2px 0;
+}
+
+.chatBubble strong {
+  font-weight: 700;
+  color: inherit;
 }
 
 .chatBubble.user {

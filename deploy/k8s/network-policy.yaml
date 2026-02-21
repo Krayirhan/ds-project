@@ -28,5 +28,9 @@ spec:
           port: 6379     # Redis
         - protocol: TCP
           port: 5432     # PostgreSQL
+        - protocol: TCP
+          port: 11434    # Ollama LLM (chat endpoint)
+        - protocol: TCP
+          port: 4317     # OTLP gRPC → Jaeger / OTel Collector
         - protocol: UDP
           port: 53       # DNS

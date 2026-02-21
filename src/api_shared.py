@@ -181,7 +181,7 @@ def load_serving_state() -> ServingState:
             expected_rows = int(lineage.get("processed_rows", 0) or 0)
             if expected_rows > 0:
                 feature_spec["_reference_volume_rows"] = expected_rows
-        except Exception:
+        except Exception:  # nosec B110 — optional enrichment; lineage file may be malformed
             pass
 
     return ServingState(

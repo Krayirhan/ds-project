@@ -1,0 +1,26 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Docker Restart All",
+			"type": "shell",
+			"command": "docker compose -f docker-compose.dev.yml down ; docker compose -f docker-compose.dev.yml up -d --build ; docker compose -f docker-compose.dev.yml ps",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Docker Up Build",
+			"type": "shell",
+			"command": "docker compose -f docker-compose.dev.yml up -d --build",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Docker PS",
+			"type": "shell",
+			"command": "docker compose -f docker-compose.dev.yml ps",
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

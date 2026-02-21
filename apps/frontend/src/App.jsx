@@ -47,6 +47,7 @@ export default function App() {
         <Route path="pipeline" element={<PipelinePage />} />
         <Route path="runs"     element={<RunsPage />} />
         <Route path="chat"     element={<ChatPage />} />
+        <Route path="guests"   element={<ChatPage />} />
         <Route path="system"   element={<SystemPage />} />
         <Route path="*"        element={<Navigate to="/" replace />} />
       </Route>

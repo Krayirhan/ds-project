@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -54,6 +55,7 @@ class SessionStore:
         self.ttl_seconds = ttl_seconds
         self.max_history = max_history
         self._sessions: dict[str, ChatSession] = {}
+        self._lock = threading.Lock()  # guards all _sessions dict access
 
     def create_session(
         self,
@@ -68,16 +70,18 @@ class SessionStore:
             risk_score=risk_score,
             risk_label=risk_label,
         )
-        self._sessions[session.session_id] = session
+        with self._lock:
+            self._sessions[session.session_id] = session
         return session
 
     def get_session(self, *, session_id: str) -> ChatSession | None:
-        session = self._sessions.get(session_id)
-        if session is None:
-            return None
-        if session.is_expired(ttl_seconds=self.ttl_seconds):
-            del self._sessions[session_id]
-            return None
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                return None
+            if session.is_expired(ttl_seconds=self.ttl_seconds):
+                del self._sessions[session_id]
+                return None
         return session
 
     def save_session(self, session: ChatSession) -> None:
@@ -93,13 +97,14 @@ class SessionStore:
 
     def _cleanup_expired(self) -> None:
         """Remove all sessions that have exceeded their idle TTL (#29)."""
-        expired = [
-            sid
-            for sid, session in self._sessions.items()
-            if session.is_expired(ttl_seconds=self.ttl_seconds)
-        ]
-        for sid in expired:
-            self._sessions.pop(sid, None)
+        with self._lock:
+            expired = [
+                sid
+                for sid, session in self._sessions.items()
+                if session.is_expired(ttl_seconds=self.ttl_seconds)
+            ]
+            for sid in expired:
+                self._sessions.pop(sid, None)
 
 
 # ── Redis-backed session store (#25) ──────────────────────────────────────────

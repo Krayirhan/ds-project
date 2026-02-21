@@ -28,6 +28,9 @@ from .api_shared import (
 from .config import ExperimentConfig
 from .dashboard import init_dashboard_store, router_dashboard
 from .dashboard_auth import router_dashboard_auth
+from .user_store import init_user_store, seed_admin
+from .guest_store import init_guest_store
+from .guests import router_guests
 from .chat import router_chat
 from .metrics import (
     INFERENCE_ERRORS,
@@ -96,6 +99,28 @@ async def _periodic_chat_cleanup(interval_seconds: int = 300) -> None:
 async def lifespan(app: FastAPI):
     init_tracing(service_name="ds-project-api")
     instrument_fastapi(app)
+    # ── Database init ────────────────────────────────────────────────────────
+    database_url = os.getenv("DATABASE_URL", "sqlite:///./reports/dashboard.db")
+    try:
+        init_user_store(database_url)
+        seed_admin()
+    except Exception as exc:
+        logger.warning("Could not initialize user store: %s", exc)
+    _engine = None
+    try:
+        from sqlalchemy import create_engine as _create_engine
+        _engine = _create_engine(database_url, pool_pre_ping=True, future=True)
+        init_guest_store(_engine)
+    except Exception as exc:
+        logger.warning("Could not initialize guest store: %s", exc)
+    try:
+        from .chat.knowledge.db_store import init_knowledge_db_store
+        if _engine is None:
+            from sqlalchemy import create_engine as _create_engine
+            _engine = _create_engine(database_url, pool_pre_ping=True, future=True)
+        init_knowledge_db_store(_engine)
+    except Exception as exc:
+        logger.warning("Could not initialize knowledge DB store (pgvector): %s — using TF-IDF fallback", exc)
     init_dashboard_store()
     try:
         app.state.serving = _load_serving_state()
@@ -137,7 +162,7 @@ async def lifespan(app: FastAPI):
         from .chat.ollama_client import get_ollama_client
 
         await get_ollama_client().aclose()
-    except Exception:
+    except Exception:  # nosec B110 — best-effort teardown; Ollama client may already be closed
         pass
     app.state.shutting_down = True
 
@@ -177,6 +202,7 @@ app.include_router(router_v2)
 app.include_router(router_dashboard)
 app.include_router(router_dashboard_auth)
 app.include_router(router_chat)
+app.include_router(router_guests)
 _v1_set_app(app)
 _v2_set_app(app)
 

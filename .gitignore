@@ -24,6 +24,13 @@ dist/
 .vite/
 *.local
 
+# Stale versioned frontend files
+*.jsx.bak
+*.jsx.v1
+*.js.v1
+*.ts.bak
+*.ts.v1
+
 # Data artifacts
 data/raw/
 data/interim/
@@ -54,3 +61,6 @@ build/
 # Local analysis artifacts
 coverage.json
 project_inventory_*.txt
+
+# Alembic local SQLite (dev fallback — use DATABASE_URL for real DBs)
+reports/dashboard.db

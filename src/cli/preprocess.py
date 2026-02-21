@@ -133,7 +133,7 @@ def cmd_preprocess(paths: Paths, cfg: ExperimentConfig) -> None:
             prev_rows = int(prev.get("processed_rows", 0) or 0)
             if prev_rows > 0:
                 expected_rows = prev_rows
-        except Exception:
+        except Exception:  # nosec B110 — previous row count is advisory; stale/corrupt file is non-fatal
             pass
     vol_report = validate_data_volume(df, expected_rows=expected_rows)
 

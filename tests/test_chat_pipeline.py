@@ -68,3 +68,15 @@ def test_validate_response_and_fallback_variants():
     mid = rv.fallback_response(40)
     low = rv.fallback_response(20)
     assert "%" in hi and "%" in mid and "%" in low
+
+    # intent-specific fallback paths
+    hi_risk = rv.fallback_response(70, intent="risk_explanation")
+    assert "depozito" in hi_risk.lower() or "%" in hi_risk
+    action = rv.fallback_response(70, intent="action_request")
+    assert "adım" in action.lower() or "1." in action
+    profile = rv.fallback_response(50, intent="customer_profile")
+    assert "%" in profile
+    policy = rv.fallback_response(30, intent="policy_question")
+    assert "politika" in policy.lower() or "iptal" in policy.lower()
+    upsell = rv.fallback_response(20, intent="upsell_query")
+    assert "upsell" in upsell.lower() or "oda" in upsell.lower()

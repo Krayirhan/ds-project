@@ -196,6 +196,7 @@ def build_alerts(
     outcome_report: Optional[Dict[str, Any]],
     policy: Dict[str, Any],
     thresholds: AlertThresholds,
+    data_volume_is_anomalous: bool = False,
 ) -> Dict[str, Any]:
     alerts: Dict[str, Any] = {
         "data_drift": data_drift.get("max_psi", 0.0)
@@ -204,6 +205,7 @@ def build_alerts(
         >= thresholds.prediction_drift_psi_threshold,
         "profit_drop": False,
         "action_rate_deviation": False,
+        "data_volume_anomaly": bool(data_volume_is_anomalous),
     }
 
     expected_profit = policy.get("expected_net_profit")

@@ -119,7 +119,7 @@ copy .env.example .env
 cp .env.example .env
 ```
 
-`.env` dosyasını açın ve **en az** şu iki satırı düzenleyin:
+`.env` dosyasını açın ve **şu dört satırı** düzenleyin (docker-compose için zorunludur):
 
 ```dotenv
 DS_API_KEY=guclu-bir-rastgele-string
@@ -127,6 +127,12 @@ DS_API_KEY=guclu-bir-rastgele-string
 # Bcrypt hash (önerilir):
 #   python -c "import bcrypt; print(bcrypt.hashpw(b'sifreniz', bcrypt.gensalt()).decode())"
 DASHBOARD_ADMIN_PASSWORD_ADMIN=sifrenizi-buraya-yazin
+
+# PostgreSQL şifresi — boş bırakılırsa compose başlamaz
+POSTGRES_PASSWORD=guclu-bir-db-sifresi
+
+# Grafana yönetici şifresi — boş bırakılırsa Grafana containeri başlamaz
+GF_ADMIN_PASSWORD=guclu-bir-grafana-sifresi
 ```
 
 > ⚠️  `.env` dosyasını **asla** commit etmeyin — `.gitignore`'da zaten var.

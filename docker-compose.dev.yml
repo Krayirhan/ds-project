@@ -26,20 +26,22 @@ services:
       - RATE_LIMIT_BACKEND=${RATE_LIMIT_BACKEND:-redis}
       # Docker ağı içi adresler — bunlar sabit kalmalı
       - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql+psycopg://ds_user:ds_password@postgres:5432/ds_dashboard
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-ds_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ds_dashboard}
       - CORS_ALLOW_ORIGINS=${CORS_ALLOW_ORIGINS:-http://localhost:5173,http://localhost:3000}
       - DASHBOARD_AUTH_ENABLED=${DASHBOARD_AUTH_ENABLED:-true}
       - DASHBOARD_ADMIN_USERNAME=${DASHBOARD_ADMIN_USERNAME:-ds_readonly}
-      - DASHBOARD_ADMIN_PASSWORD=${DASHBOARD_ADMIN_PASSWORD:-ChangeMeReadOnly123!}
-      - DASHBOARD_ADMIN_PASSWORD_ADMIN=${DASHBOARD_ADMIN_PASSWORD_ADMIN:-dev-admin-change-me}
+      - DASHBOARD_ADMIN_PASSWORD=${DASHBOARD_ADMIN_PASSWORD}
+      - DASHBOARD_ADMIN_PASSWORD_ADMIN=${DASHBOARD_ADMIN_PASSWORD_ADMIN}
       - DASHBOARD_TOKEN_TTL_MINUTES=${DASHBOARD_TOKEN_TTL_MINUTES:-480}
       - DASHBOARD_URL=${DASHBOARD_URL:-http://localhost:5173}
       - OTEL_ENABLED=${OTEL_ENABLED:-true}
       - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME:-ds-project-api}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
+      - OTEL_EXPORTER_OTLP_INSECURE=${OTEL_EXPORTER_OTLP_INSECURE:-true}
       - OTEL_DEPLOYMENT_ENV=${OTEL_DEPLOYMENT_ENV:-development}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-nomic-embed-text}
       - CHAT_SESSION_TTL_SECONDS=${CHAT_SESSION_TTL_SECONDS:-3600}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -70,7 +72,7 @@ services:
       - "5173:5173"
     environment:
       - VITE_API_BASE_URL=
-      - VITE_DEFAULT_API_KEY=dev-api-key-12345
+      - VITE_DEFAULT_API_KEY=dev-api-key-change-me
       - VITE_PROXY_TARGET=http://api:8000
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
     volumes:
@@ -99,18 +101,18 @@ services:
     networks:
       - ds-net
 
-  # ---------- PostgreSQL (dashboard persistence) ----------
+  # ---------- PostgreSQL (dashboard persistence + pgvector RAG) ----------
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: ds-project-postgres
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=ds_user
-      - POSTGRES_PASSWORD=ds_password
-      - POSTGRES_DB=ds_dashboard
+      - POSTGRES_USER=${POSTGRES_USER:-ds_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-ds_dashboard}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ds_user -d ds_dashboard"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ds_user} -d ${POSTGRES_DB:-ds_dashboard}"]
       interval: 10s
       timeout: 5s
       retries: 8
@@ -145,8 +147,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GF_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - ./deploy/dev/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -173,7 +175,7 @@ services:
 
   # ---------- MinIO (S3-compatible object store for DVC remote) ----------
   minio:
-    image: bitnami/minio:latest
+    image: minio/minio:latest
     container_name: ds-project-minio
     ports:
       - "9000:9000"   # S3 API
@@ -181,9 +183,9 @@ services:
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
-      - MINIO_DEFAULT_BUCKETS=ds-dvc-bucket
+    command: server /data --console-address ":9001"
     volumes:
-      - minio-data:/bitnami/minio/data
+      - minio-data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 15s

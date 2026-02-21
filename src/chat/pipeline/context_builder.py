@@ -59,9 +59,11 @@ def _extract_risk_factors(*, customer_data: dict[str, Any]) -> list[str]:
 
     dep = str(customer_data.get("deposit_type", ""))
     if dep == "No Deposit":
-        factors.append("Depozito yok")
+        factors.append("Depozito alınmamış — finansal güvence yok")
     elif dep == "Non Refund":
-        factors.append("İade edilmez depozito var")
+        factors.append("İade edilmez depozito var — iptal olasılığı yüksek profilli müşterilerde yaygın")
+    elif dep == "Refundable":
+        factors.append("İade edilebilir depozito var")
 
     prev_cancel = int(customer_data.get("previous_cancellations", 0) or 0)
     if prev_cancel > 0:

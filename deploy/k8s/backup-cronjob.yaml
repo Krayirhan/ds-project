@@ -1,0 +1,81 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ds-project-db-backup
+  namespace: ds-project
+spec:
+  # Run daily at 02:00 UTC
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-backup
+              # Uses the same app image — pg_dump is available via psycopg deps
+              # If pg_dump is not in the image, switch to postgres:16-alpine
+              image: postgres:16-alpine
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
+                  FILENAME="${PG_DB}_${TIMESTAMP}.sql.gz"
+                  DEST="/backups/${FILENAME}"
+                  echo "Backing up ${PG_DB} → ${DEST}"
+                  PGPASSWORD="${PG_PASS}" pg_dump \
+                    --host="${PG_HOST}" \
+                    --port="${PG_PORT:-5432}" \
+                    --username="${PG_USER}" \
+                    --dbname="${PG_DB}" \
+                    --format=plain --no-owner --no-acl \
+                    | gzip -9 > "${DEST}"
+                  echo "Done: $(du -sh ${DEST})"
+                  find /backups -name "${PG_DB}_*.sql.gz" -mtime +14 -delete
+                  echo "Retention cleanup complete."
+              env:
+                - name: PG_HOST
+                  value: "postgres"
+                - name: PG_PORT
+                  value: "5432"
+                - name: PG_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: ds-project-secrets
+                      key: POSTGRES_USER
+                - name: PG_PASS
+                  valueFrom:
+                    secretKeyRef:
+                      name: ds-project-secrets
+                      key: POSTGRES_PASSWORD
+                - name: PG_DB
+                  valueFrom:
+                    secretKeyRef:
+                      name: ds-project-secrets
+                      key: POSTGRES_DB
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: ds-project-db-backups
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ds-project-db-backups
+  namespace: ds-project
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 20Gi

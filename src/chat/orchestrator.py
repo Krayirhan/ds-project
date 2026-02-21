@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, AsyncGenerator
 
 from ..utils import get_logger
 from .knowledge import get_knowledge_store
@@ -54,7 +54,7 @@ class ChatOrchestrator:
         first_prompt = assemble_first_prompt(ctx=ctx)
         session.add_message(role="user", content=first_prompt)
 
-        reply = await self._ask_llm(session=session, risk_percent=ctx.risk_percent)
+        reply = await self._ask_llm(session=session, risk_percent=ctx.risk_percent, intent=None)
         session.add_message(role="assistant", content=reply)
         self.store.save_session(session)  # persist mutations (#25)
         return session.session_id, reply
@@ -66,16 +66,17 @@ class ChatOrchestrator:
 
         intent = classify_intent(user_message)
 
-        # Hybrid retrieval: use message text (TF-IDF) when available, tag fallback otherwise
-        chunks = (
-            self.knowledge.retrieve_by_text(query=user_message, top_k=2)
-            if hasattr(self.knowledge, "retrieve_by_text")
-            else self.knowledge.retrieve_by_customer(
+        # Retrieval: Ollama embeddings → TF-IDF → tag-based fallback
+        if hasattr(self.knowledge, "retrieve_by_text_async"):
+            chunks = await self.knowledge.retrieve_by_text_async(query=user_message, top_k=2)
+        elif hasattr(self.knowledge, "retrieve_by_text"):
+            chunks = self.knowledge.retrieve_by_text(query=user_message, top_k=2)
+        else:
+            chunks = self.knowledge.retrieve_by_customer(
                 customer_data=session.customer_data,
                 risk_score=session.risk_score,
                 top_k=2,
             )
-        )
 
         retrieved = "\n\n".join(f"{c.title}: {c.content}" for c in chunks)
         ctx = build_customer_context(
@@ -93,12 +94,14 @@ class ChatOrchestrator:
         session.add_message(role="user", content=prompt)
         self.store.trim_history(session=session)
 
-        reply = await self._ask_llm(session=session, risk_percent=ctx.risk_percent)
+        reply = await self._ask_llm(session=session, risk_percent=ctx.risk_percent, intent=intent.intent.value)
         session.add_message(role="assistant", content=reply)
         self.store.save_session(session)  # persist mutations (#25)
         return reply
 
-    async def _ask_llm(self, *, session: ChatSession, risk_percent: float) -> str:
+    async def _ask_llm(
+        self, *, session: ChatSession, risk_percent: float, intent: str | None = None
+    ) -> str:
         messages = session.to_ollama_messages(system_prompt=SYSTEM_PROMPT)
         try:
             raw = await self.ollama.chat(messages=messages, temperature=0.3)
@@ -115,10 +118,67 @@ class ChatOrchestrator:
                 checked_retry = validate_response(raw_retry)
                 if checked_retry.is_valid:
                     return checked_retry.cleaned_response
-            return fallback_response(risk_percent)
+            return fallback_response(risk_percent, intent=intent)
         except Exception as exc:
             logger.warning("LLM call failed: %s", exc)
-            return fallback_response(risk_percent)
+            return fallback_response(risk_percent, intent=intent)
+
+    async def stream_message(
+        self, *, session_id: str, user_message: str
+    ) -> AsyncGenerator[str, None]:
+        """Stream LLM reply tokens for the given user message.
+
+        Yields content tokens as they arrive from Ollama.
+        After the stream finishes the full reply is saved to session history.
+        """
+        session = self.store.get_session(session_id=session_id)
+        if session is None:
+            raise ValueError("Oturum bulunamadı veya süresi doldu")
+
+        intent = classify_intent(user_message)
+
+        if hasattr(self.knowledge, "retrieve_by_text_async"):
+            chunks = await self.knowledge.retrieve_by_text_async(query=user_message, top_k=2)
+        elif hasattr(self.knowledge, "retrieve_by_text"):
+            chunks = self.knowledge.retrieve_by_text(query=user_message, top_k=2)
+        else:
+            chunks = self.knowledge.retrieve_by_customer(
+                customer_data=session.customer_data,
+                risk_score=session.risk_score,
+                top_k=2,
+            )
+
+        retrieved = "\n\n".join(f"{c.title}: {c.content}" for c in chunks)
+        ctx = build_customer_context(
+            customer_data=session.customer_data,
+            risk_score=session.risk_score,
+            risk_label=session.risk_label,
+            retrieved_chunks_text=retrieved,
+        )
+
+        prompt = assemble_user_prompt(
+            ctx=ctx,
+            classified_intent=intent,
+            user_message=user_message,
+        )
+        session.add_message(role="user", content=prompt)
+        self.store.trim_history(session=session)
+
+        messages = session.to_ollama_messages(system_prompt=SYSTEM_PROMPT)
+        full_reply: list[str] = []
+        try:
+            async for token in self.ollama.chat_stream(messages=messages, temperature=0.3):
+                full_reply.append(token)
+                yield token
+        except Exception as exc:
+            logger.warning("LLM stream failed: %s", exc)
+            fallback = fallback_response(ctx.risk_percent, intent=intent.intent.value)
+            yield fallback
+            full_reply = [fallback]
+
+        reply_text = "".join(full_reply)
+        session.add_message(role="assistant", content=reply_text)
+        self.store.save_session(session)
 
     async def quick_actions(self, *, session_id: str) -> list[dict[str, str]]:
         session = self.store.get_session(session_id=session_id)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -20,7 +21,10 @@ class KnowledgeStore:
         self._chunks = KNOWLEDGE_BASE
         self._vectorizer: Any = None
         self._tfidf_matrix: Any = None
+        self._embeddings: list[list[float]] | None = None
+        self._embed_client: Any = None  # OllamaEmbeddingClient when available
         self._build_tfidf_index()
+        self._try_build_embedding_index()  # best-effort; falls back to TF-IDF
 
     # ── TF-IDF index ──────────────────────────────────────────────────────────
 
@@ -132,12 +136,105 @@ class KnowledgeStore:
 
         return tags
 
+    # ── Ollama embedding index (optional — requires OLLAMA_EMBED_MODEL) ───────────
 
-_store: KnowledgeStore | None = None
+    def _try_build_embedding_index(self) -> None:
+        """Pre-compute Ollama embeddings for all chunks at startup (best-effort).
+
+        On success, ``retrieve_by_text_async`` uses vector cosine similarity
+        instead of TF-IDF, giving true semantic matching across languages.
+        Silently falls back to TF-IDF when the embedding model is unavailable.
+        """
+        try:
+            from ..ollama_client import get_embedding_client
+
+            embed_client = get_embedding_client()
+            texts = [
+                f"{c.title}. {c.content} {' '.join(c.tags)}" for c in self._chunks
+            ]
+            embeddings = embed_client.embed_batch_sync(texts)
+            if embeddings and len(embeddings) == len(self._chunks):
+                self._embeddings = embeddings
+                self._embed_client = embed_client
+                logger.info(
+                    "Knowledge store: embedding index ready (%d chunks, model=%s)",
+                    len(self._chunks),
+                    embed_client.model,
+                )
+            else:
+                logger.debug(
+                    "Knowledge store: embedding index skipped — TF-IDF only"
+                )
+        except Exception as exc:
+            logger.debug("Knowledge store: embedding init skipped: %s", exc)
+
+    async def retrieve_by_text_async(
+        self, *, query: str, top_k: int = 3
+    ) -> list[KnowledgeChunk]:
+        """Async semantic retrieval: Ollama embeddings → TF-IDF → priority order.
+
+        When an Ollama embedding model is configured and available, uses vector
+        cosine similarity for true semantic matching.  Falls back to TF-IDF
+        (always pre-built) when embeddings are unavailable.
+        """
+        if self._embeddings is not None and self._embed_client is not None:
+            try:
+                loop = asyncio.get_running_loop()
+                query_emb = await loop.run_in_executor(
+                    None, self._embed_client.embed_sync, query
+                )
+                if query_emb is not None:
+                    sims = [_cosine_sim(query_emb, emb) for emb in self._embeddings]
+                    top_indices = sorted(
+                        range(len(sims)), key=lambda i: sims[i], reverse=True
+                    )[:top_k]
+                    results = [
+                        self._chunks[i] for i in top_indices if sims[i] > 0.05
+                    ]
+                    if results:
+                        return results
+            except Exception as exc:
+                logger.debug(
+                    "Async embedding retrieval failed, falling back to TF-IDF: %s", exc
+                )
+        return self.retrieve_by_text(query=query, top_k=top_k)
 
 
-def get_knowledge_store() -> KnowledgeStore:
+def _cosine_sim(a: list[float], b: list[float]) -> float:
+    """Cosine similarity between two float vectors."""
+    import math
+
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    return dot / (norm_a * norm_b + 1e-10)
+
+
+_store: Any | None = None  # KnowledgeStore (TF-IDF) or KnowledgeDbStore (pgvector)
+
+
+def get_knowledge_store() -> Any:
+    """Return the best available knowledge store.
+
+    Priority:
+      1. pgvector KnowledgeDbStore (persistent, semantic, scalable) — if initialized
+      2. In-memory KnowledgeStore (TF-IDF) — always available as fallback
+    """
     global _store
-    if _store is None:
-        _store = KnowledgeStore()
+    if _store is not None:
+        return _store
+
+    # Prefer pgvector DB store if it has been initialized in the app lifespan
+    try:
+        from .db_store import get_knowledge_db_store
+        db = get_knowledge_db_store()
+        if db is not None:
+            _store = db
+            logger.info("Knowledge store: using pgvector KnowledgeDbStore")
+            return _store
+    except Exception as exc:
+        logger.debug("KnowledgeDbStore unavailable: %s — using TF-IDF fallback", exc)
+
+    _store = KnowledgeStore()
+    logger.info("Knowledge store: using in-memory TF-IDF KnowledgeStore")
     return _store

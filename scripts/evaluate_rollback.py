@@ -25,6 +25,11 @@ def _evaluate_reasons(alerts: dict[str, Any]) -> list[str]:
         alerts.get("action_rate_deviation", False)
     ):
         reasons.append("data_drift+action_rate_deviation")
+    # Data volume anomaly alone is an operational signal — flag it but do not
+    # auto-rollback the model (it could be a pipeline/infra issue, not model
+    # degradation).  It IS surfaced as a warning so ops can investigate.
+    if bool(alerts.get("data_volume_anomaly", False)):
+        reasons.append("data_volume_anomaly")
 
     return reasons
 

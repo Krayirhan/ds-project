@@ -1170,6 +1170,28 @@
   line-height: 1.6;
 }
 
+[data-theme="modern-light"] .chatBubble ol,
+[data-theme="modern-dark"] .chatBubble ol {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+
+[data-theme="modern-light"] .chatBubble li,
+[data-theme="modern-dark"] .chatBubble li {
+  margin-bottom: 4px;
+}
+
+[data-theme="modern-light"] .chatBubble p,
+[data-theme="modern-dark"] .chatBubble p {
+  margin: 3px 0;
+}
+
+[data-theme="modern-light"] .chatBubble strong,
+[data-theme="modern-dark"] .chatBubble strong {
+  font-weight: 700;
+  color: inherit;
+}
+
 [data-theme="modern-light"] .chatBubble.user {
   background: var(--c-accent-bg);
   border: 1px solid var(--c-accent);

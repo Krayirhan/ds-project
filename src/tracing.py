@@ -18,6 +18,7 @@ Configuration via environment variables:
 from __future__ import annotations
 
 import os
+import threading
 from contextlib import contextmanager
 from typing import Any, Generator, Optional
 
@@ -27,18 +28,31 @@ logger = get_logger("tracing")
 
 _tracer = None
 _initialized = False
+_init_lock = threading.Lock()  # guards one-time initialization
 
 
 def _otel_enabled() -> bool:
     return os.getenv("OTEL_ENABLED", "false").lower() in ("true", "1", "yes")
 
 
+def _otlp_insecure() -> bool:
+    """Use insecure gRPC only when explicitly requested (default: False for prod safety)."""
+    return os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() in ("true", "1", "yes")
+
+
 def init_tracing(service_name: str = "ds-project-api") -> None:
     """Initialize OpenTelemetry tracing if OTEL_ENABLED=true."""
     global _tracer, _initialized
 
-    if _initialized:
-        return
+    with _init_lock:
+        if _initialized:
+            return
+        _init_tracing_locked(service_name)
+
+
+def _init_tracing_locked(service_name: str) -> None:
+    """Inner init — must be called while holding _init_lock."""
+    global _tracer, _initialized
 
     if not _otel_enabled():
         logger.info("OpenTelemetry tracing disabled (OTEL_ENABLED != true)")
@@ -69,7 +83,7 @@ def init_tracing(service_name: str = "ds-project-api") -> None:
         otlp_endpoint = os.getenv(
             "OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"
         )
-        exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
+        exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=_otlp_insecure())
         provider.add_span_processor(BatchSpanProcessor(exporter))
 
         trace.set_tracer_provider(provider)
@@ -132,14 +146,11 @@ def trace_span(
         yield None
         return
 
-    try:
-        with tracer.start_as_current_span(name) as span:
-            if attributes:
-                for k, v in attributes.items():
-                    span.set_attribute(k, v)
-            yield span
-    except Exception:
-        yield None
+    with tracer.start_as_current_span(name) as span:
+        if attributes:
+            for k, v in attributes.items():
+                span.set_attribute(k, v)
+        yield span
 
 
 @contextmanager

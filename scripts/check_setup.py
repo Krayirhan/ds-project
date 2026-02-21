@@ -29,6 +29,25 @@ ROOT = Path(__file__).resolve().parents[1]
 FIX = "--fix" in sys.argv
 JSON_OUT = "--json" in sys.argv
 
+# ── Windows: force UTF-8 console + stdout to prevent UnicodeEncodeError ──────
+# Windows cmd / PowerShell default code page (cp1252) cannot encode emoji
+# (✅ ⚠️ ❌ ─) used throughout this script.
+# Step 1: Set Windows console code pages to UTF-8 (chcp 65001).
+# Step 2: Reconfigure Python's stdout/stderr to UTF-8 so str→bytes is correct.
+# errors='replace' keeps the script alive even if a surrogate slips through.
+if sys.platform == "win32":
+    try:
+        import ctypes
+        ctypes.windll.kernel32.SetConsoleCP(65001)           # type: ignore[attr-defined]
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)     # type: ignore[attr-defined]
+    except Exception:
+        pass
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+    except AttributeError:
+        pass  # Python < 3.7 — best-effort
+
 # ─── Renk desteği ────────────────────────────────────────────────────────────
 _RESET = "\033[0m"
 _GREEN = "\033[32m"
@@ -437,6 +456,14 @@ def check_env_vars() -> None:
             "       Bcrypt hash onerilir:\n"
             "         python -c \"import bcrypt; print(bcrypt.hashpw(b'sifre', bcrypt.gensalt()).decode())\"\n"
             "       Duz metin da calisir ama env sizintisinda tehlikelidir."
+        ),
+        "POSTGRES_PASSWORD": (
+            "PostgreSQL sifresi — docker-compose.dev.yml icin zorunlu.\n"
+            "       Bos birakilirsa PostgreSQL ve API veritabani baglantisi basarisiz olur."
+        ),
+        "GF_ADMIN_PASSWORD": (
+            "Grafana yonetici sifresi — docker-compose.dev.yml icin zorunlu.\n"
+            "       Bos birakilirsa Grafana containeri baslamaz."
         ),
     }
 

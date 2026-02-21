@@ -1,6 +1,12 @@
+"""dashboard_auth.py — PostgreSQL-backed authentication (single admin user).
+
+Flow:
+  POST /auth/login   → verify against `users` table → issue bearer token (Redis / in-memory)
+  GET  /auth/me      → validate token, return username
+  POST /auth/logout  → revoke token
+"""
 from __future__ import annotations
 
-import hmac
 import json
 import logging
 import os
@@ -9,27 +15,28 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
-import bcrypt
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
+
+from .user_store import get_user_store
 
 logger = logging.getLogger(__name__)
 
 router_dashboard_auth = APIRouter(prefix="/auth", tags=["dashboard-auth"])
 
+# ── In-memory token store (fallback when Redis unavailable) ──────────────────
 _token_lock = threading.Lock()
 _token_store: Dict[str, Dict[str, Any]] = {}
 _MAX_TOKENS_PER_USER = 5
-_MAX_TOTAL_TOKENS = 10_000  # hard global cap (#23)
+_MAX_TOTAL_TOKENS = 10_000
 
-# ── Redis token backend (#22) ──────────────────────────────────────────────────
-_REDIS_TOKEN_PREFIX = "ds:auth:tok:"
-_REDIS_USER_PREFIX = "ds:auth:usr:"
-_redis_client: Any = None
+# ── Redis token backend ───────────────────────────────────────────────────────
+_REDIS_TOKEN_PREFIX = "ds:auth:tok:"  # nosec B105
+_REDIS_USER_PREFIX  = "ds:auth:usr:"
+_redis_client: Any  = None
 
 
 def _get_redis_client() -> Any | None:
-    """Return a Redis client for the token store, or None if unavailable."""
     global _redis_client
     if _redis_client is not None:
         return _redis_client
@@ -38,27 +45,22 @@ def _get_redis_client() -> Any | None:
         return None
     try:
         import redis as _redis  # type: ignore[import]
-
-        client = _redis.Redis.from_url(
-            redis_url, decode_responses=True, socket_timeout=2
-        )
+        client = _redis.Redis.from_url(redis_url, decode_responses=True, socket_timeout=2)
         client.ping()
         _redis_client = client
         logger.info("Auth token store: Redis backend active (%s)", redis_url)
         return _redis_client
     except Exception as exc:
-        logger.warning(
-            "Auth token store: Redis unavailable, using in-memory fallback. reason=%s",
-            exc,
-        )
+        logger.warning("Auth token store: Redis unavailable, using in-memory fallback. reason=%s", exc)
         return None
 
 
 def _redis_add_token(r: Any, token: str, username: str, expires: datetime) -> None:
     ttl = max(1, int((expires - datetime.now(timezone.utc)).total_seconds()))
-    key = f"{_REDIS_TOKEN_PREFIX}{token}"
     r.setex(
-        key, ttl, json.dumps({"username": username, "expires_at": expires.isoformat()})
+        f"{_REDIS_TOKEN_PREFIX}{token}",
+        ttl,
+        json.dumps({"username": username, "expires_at": expires.isoformat()}),
     )
     user_key = f"{_REDIS_USER_PREFIX}{username}"
     r.zadd(user_key, {token: expires.timestamp()})
@@ -82,9 +84,7 @@ def _redis_remove_token(r: Any, token: str, username: str | None = None) -> None
 
 
 def _redis_enforce_user_limit(r: Any, username: str) -> None:
-    """Evict oldest tokens for `username` until count < _MAX_TOKENS_PER_USER."""
     user_key = f"{_REDIS_USER_PREFIX}{username}"
-    # Remove already-expired entries from the sorted set
     r.zremrangebyscore(user_key, 0, datetime.now(timezone.utc).timestamp())
     count = r.zcard(user_key)
     if count >= _MAX_TOKENS_PER_USER:
@@ -94,111 +94,25 @@ def _redis_enforce_user_limit(r: Any, username: str) -> None:
         r.zremrangebyrank(user_key, 0, count - _MAX_TOKENS_PER_USER - 1)
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
 def _auth_enabled() -> bool:
-    return os.getenv("DASHBOARD_AUTH_ENABLED", "true").strip().lower() not in {
-        "false",
-        "0",
-        "no",
-    }
-
-
-def _is_bcrypt_hash(value: str) -> bool:
-    """Check if a string looks like a bcrypt hash ($2b$, $2a$, $2y$)."""
-    return bool(value) and value.startswith(("$2b$", "$2a$", "$2y$"))
-
-
-def _get_users() -> Dict[str, str]:
-    """Return dict of username->password from env with development fallback."""
-    users: Dict[str, str] = {}
-    admin_pass = os.getenv("DASHBOARD_ADMIN_PASSWORD_ADMIN")
-    _PLACEHOLDER_PASSWORDS = {"dev-admin-change-me", "replace-me", "changeme", ""}
-    _PROD_ENVS = {"production", "prod", "staging"}
-    _TRUE_VALUES = {"true", "1", "yes", "on"}
-    _current_env = os.getenv("DS_ENV", "").strip().lower()
-    _is_prod = _current_env in _PROD_ENVS
-    _allow_insecure_dev_login = (
-        os.getenv("DASHBOARD_ALLOW_INSECURE_DEV_LOGIN", "false").strip().lower()
-        in _TRUE_VALUES
-    )
-
-    if admin_pass:
-        if admin_pass in _PLACEHOLDER_PASSWORDS:
-            if _is_prod:
-                raise RuntimeError(
-                    "DASHBOARD_ADMIN_PASSWORD_ADMIN must be set to a strong non-placeholder value "
-                    f"when DS_ENV={_current_env!r}."
-                )
-            logger.warning(
-                "DASHBOARD_ADMIN_PASSWORD_ADMIN uses a weak development placeholder value."
-            )
-        users["admin"] = admin_pass
-    elif _is_prod:
-        raise RuntimeError(
-            "DASHBOARD_ADMIN_PASSWORD_ADMIN must be set when DS_ENV is production/staging."
-        )
-    elif _allow_insecure_dev_login:
-        logger.warning(
-            "DASHBOARD_ALLOW_INSECURE_DEV_LOGIN=true enabled. "
-            "Using temporary development credentials admin/admin123."
-        )
-        users["admin"] = "admin123"
-    else:
-        raise RuntimeError(
-            "DASHBOARD_ADMIN_PASSWORD_ADMIN is missing. "
-            "Set it explicitly or use DASHBOARD_ALLOW_INSECURE_DEV_LOGIN=true only for local development."
-        )
-    # Legacy single-user env vars
-    legacy_user = os.getenv("DASHBOARD_ADMIN_USERNAME")
-    legacy_pass = os.getenv("DASHBOARD_ADMIN_PASSWORD")
-    if legacy_user and legacy_pass:
-        users[legacy_user] = legacy_pass
-    # Extra users via JSON: DASHBOARD_EXTRA_USERS='{"user2":"pass2"}'
-    extra_raw = os.getenv("DASHBOARD_EXTRA_USERS", "")
-    if extra_raw:
-        try:
-            import json
-
-            extra = json.loads(extra_raw)
-            if isinstance(extra, dict):
-                users.update(extra)
-        except Exception:
-            pass
-    return users
-
-
-def _verify_credentials(username: str, password: str) -> bool:
-    """
-    Check username/password against configured users.
-
-    Supports both bcrypt-hashed and plaintext passwords in env vars:
-      - Bcrypt hash ($2b$…): verified with bcrypt.checkpw  (recommended)
-      - Plaintext: verified with hmac.compare_digest + deprecation warning
-    """
-    users = _get_users()
-    expected_pass = users.get(username)
-    if expected_pass is None:
-        return False
-    if _is_bcrypt_hash(expected_pass):
-        try:
-            return bcrypt.checkpw(
-                password.encode("utf-8"), expected_pass.encode("utf-8")
-            )
-        except Exception:
-            return False
-    # Legacy plaintext — timing-safe but passwords visible if env vars leak
-    logger.warning(
-        "Plaintext password detected for user '%s'. Use a bcrypt hash instead.",
-        username,
-    )
-    return hmac.compare_digest(password, expected_pass)
+    return os.getenv("DASHBOARD_AUTH_ENABLED", "true").strip().lower() not in {"false", "0", "no"}
 
 
 def _token_ttl_minutes() -> int:
     try:
-        v = int(os.getenv("DASHBOARD_TOKEN_TTL_MINUTES", "480"))
-        return max(v, 5)
+        return max(int(os.getenv("DASHBOARD_TOKEN_TTL_MINUTES", "480")), 5)
     except Exception:
         return 480
+
+
+def _verify_credentials(username: str, password: str) -> bool:
+    store = get_user_store()
+    if store is None:
+        logger.warning("UserStore unavailable; credential check failed.")
+        return False
+    return store.verify_password(username, password)
 
 
 def _cleanup_expired_tokens() -> None:
@@ -210,7 +124,6 @@ def _cleanup_expired_tokens() -> None:
 
 
 def _cleanup_expired_tokens_locked() -> None:
-    """Like _cleanup_expired_tokens but assumes _token_lock is already held."""
     now = datetime.now(timezone.utc)
     expired = [k for k, v in _token_store.items() if v.get("expires_at") <= now]
     for key in expired:
@@ -223,9 +136,11 @@ def _parse_bearer_token(authorization: str | None) -> str | None:
     prefix = "Bearer "
     if not authorization.startswith(prefix):
         return None
-    token = authorization[len(prefix) :].strip()
+    token = authorization[len(prefix):].strip()
     return token or None
 
+
+# ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
     username: str
@@ -239,62 +154,14 @@ class LoginResponse(BaseModel):
     username: str
 
 
-@router_dashboard_auth.post("/login", response_model=LoginResponse)
-def dashboard_login(payload: LoginRequest) -> LoginResponse:
-    if not _auth_enabled():
-        expires = datetime.now(timezone.utc) + timedelta(minutes=_token_ttl_minutes())
-        return LoginResponse(
-            access_token="auth-disabled",
-            expires_at=expires.isoformat(),
-            username="anonymous",
-        )
-
-    if not _verify_credentials(payload.username, payload.password):
-        raise HTTPException(status_code=401, detail="Geçersiz kullanıcı adı veya şifre")
-
-    token = secrets.token_urlsafe(32)
-    expires = datetime.now(timezone.utc) + timedelta(minutes=_token_ttl_minutes())
-
-    r = _get_redis_client()
-    if r is not None:
-        # Redis path: per-user limit enforced via sorted set
-        _redis_enforce_user_limit(r, payload.username)
-        _redis_add_token(r, token, payload.username, expires)
-    else:
-        # In-memory path: enforce both per-user and global cap (#23)
-        with _token_lock:
-            if len(_token_store) >= _MAX_TOTAL_TOKENS:
-                _cleanup_expired_tokens_locked()
-                if len(_token_store) >= _MAX_TOTAL_TOKENS:
-                    raise HTTPException(
-                        status_code=503,
-                        detail="Token store kapasitesi dolu. Lütfen daha sonra tekrar deneyin.",
-                    )
-            user_tokens = [
-                k
-                for k, v in _token_store.items()
-                if v.get("username") == payload.username
-            ]
-            if len(user_tokens) >= _MAX_TOKENS_PER_USER:
-                oldest = min(user_tokens, key=lambda k: _token_store[k]["expires_at"])
-                _token_store.pop(oldest, None)
-            _token_store[token] = {"username": payload.username, "expires_at": expires}
-
-    return LoginResponse(
-        access_token=token,
-        expires_at=expires.isoformat(),
-        username=payload.username,
-    )
-
+# ── Dependency ────────────────────────────────────────────────────────────────
 
 def require_dashboard_user(
     authorization: str | None = Header(default=None),
 ) -> Dict[str, Any]:
+    """Validate bearer token and return user dict."""
     if not _auth_enabled():
-        return {
-            "username": "anonymous",
-            "auth_enabled": False,
-        }
+        return {"username": "admin", "auth_enabled": False}
 
     token = _parse_bearer_token(authorization)
     if token is None:
@@ -309,13 +176,59 @@ def require_dashboard_user(
             data = _token_store.get(token)
 
     if data is None:
-        raise HTTPException(
-            status_code=401, detail="Geçersiz veya süresi dolmuş oturum"
+        raise HTTPException(status_code=401, detail="Geçersiz veya süresi dolmuş oturum")
+
+    return {"username": data.get("username", "admin"), "auth_enabled": True}
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router_dashboard_auth.post("/login", response_model=LoginResponse)
+def dashboard_login(payload: LoginRequest) -> LoginResponse:
+    if not _auth_enabled():
+        expires = datetime.now(timezone.utc) + timedelta(minutes=_token_ttl_minutes())
+        return LoginResponse(
+            access_token="auth-disabled",  # nosec B106
+            expires_at=expires.isoformat(),
+            username="admin",
         )
 
+    if not _verify_credentials(payload.username, payload.password):
+        raise HTTPException(status_code=401, detail="Geçersiz kullanıcı adı veya şifre")
+
+    token = secrets.token_urlsafe(32)
+    expires = datetime.now(timezone.utc) + timedelta(minutes=_token_ttl_minutes())
+    token_data: Dict[str, Any] = {"username": payload.username, "expires_at": expires}
+
+    r = _get_redis_client()
+    if r is not None:
+        _redis_enforce_user_limit(r, payload.username)
+        _redis_add_token(r, token, payload.username, expires)
+    else:
+        with _token_lock:
+            if len(_token_store) >= _MAX_TOTAL_TOKENS:
+                _cleanup_expired_tokens_locked()
+                if len(_token_store) >= _MAX_TOTAL_TOKENS:
+                    raise HTTPException(status_code=503, detail="Token store kapasitesi dolu.")
+            user_tokens = [k for k, v in _token_store.items() if v.get("username") == payload.username]
+            if len(user_tokens) >= _MAX_TOKENS_PER_USER:
+                oldest = min(user_tokens, key=lambda k: _token_store[k]["expires_at"])
+                _token_store.pop(oldest, None)
+            _token_store[token] = token_data
+
+    return LoginResponse(
+        access_token=token,
+        expires_at=expires.isoformat(),
+        username=payload.username,
+    )
+
+
+@router_dashboard_auth.get("/me")
+def dashboard_me(user: Dict[str, Any] = Depends(require_dashboard_user)):
     return {
-        "username": data.get("username", "unknown"),
-        "auth_enabled": True,
+        "status": "ok",
+        "username": user.get("username"),
+        "auth_enabled": user.get("auth_enabled", True),
     }
 
 
@@ -328,19 +241,8 @@ def dashboard_logout(
     if token is not None:
         r = _get_redis_client()
         if r is not None:
-            username = _user.get("username")
-            _redis_remove_token(r, token, username)
+            _redis_remove_token(r, token, _user.get("username"))
         else:
             with _token_lock:
                 _token_store.pop(token, None)
-
     return {"status": "ok", "message": "Oturum kapatıldı"}
-
-
-@router_dashboard_auth.get("/me")
-def dashboard_me(user: Dict[str, Any] = Depends(require_dashboard_user)):
-    return {
-        "status": "ok",
-        "username": user.get("username"),
-        "auth_enabled": user.get("auth_enabled", True),
-    }

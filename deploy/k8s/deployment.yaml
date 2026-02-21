@@ -14,6 +14,17 @@ spec:
         app: ds-project-api
     spec:
       terminationGracePeriodSeconds: 40
+      initContainers:
+        - name: alembic-migrate
+          image: ghcr.io/your-org/ds-project:latest
+          imagePullPolicy: IfNotPresent
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ds-project-secrets
+                  key: DATABASE_URL
       containers:
         - name: api
           image: ghcr.io/your-org/ds-project:latest
@@ -56,6 +67,23 @@ spec:
                 secretKeyRef:
                   name: ds-project-secrets
                   key: REDIS_URL
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ds-project-secrets
+                  key: DATABASE_URL
+            - name: CORS_ALLOW_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  name: ds-project-secrets
+                  key: CORS_ALLOW_ORIGINS
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: ds-project-secrets
+                  key: OTEL_EXPORTER_OTLP_ENDPOINT
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: "false"
           resources:
             requests:
               cpu: "250m"

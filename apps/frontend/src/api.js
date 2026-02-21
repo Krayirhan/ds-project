@@ -83,7 +83,10 @@ export async function fetchWithAuth(path, options = {}) {
       throw err;
     }
 
-    return res.json();
+    // 204 No Content veya boş body → json parse etme
+    if (res.status === 204) return null;
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
   } catch (err) {
     if (err.name === 'AbortError') {
       const timeoutErr = new Error('İstek zaman aşımına uğradı');
@@ -157,6 +160,7 @@ export function startChatSession(payload, apiKey, { signal } = {}) {
     method: 'POST',
     apiKey,
     signal,
+    timeout: 120_000, // LLM ilk yükleme 35-60 sn sürebilir
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
@@ -165,6 +169,7 @@ export function startChatSession(payload, apiKey, { signal } = {}) {
 export function sendChatMessage(payload, apiKey, { signal } = {}) {
   return fetchWithAuth('/chat/message', {
     method: 'POST',
+    timeout: 90_000, // LLM yanıt süresi için
     apiKey,
     signal,
     headers: { 'Content-Type': 'application/json' },
@@ -176,6 +181,110 @@ export function getChatSummary(sessionId, apiKey, { signal } = {}) {
   return fetchWithAuth(`/chat/session/${encodeURIComponent(sessionId)}/summary`, {
     apiKey,
     signal,
+  });
+}
+
+/**
+ * Stream chat message via Server-Sent Events (SSE).
+ * Returns a ReadableStream reader — caller iterates tokens via reader.read().
+ * Each SSE event is JSON: {token} | {done, quick_actions} | {error}
+ */
+export async function streamChatMessage(payload, apiKey) {
+  const response = await fetch(buildUrl('/chat/message/stream'), {
+    method: 'POST',
+    headers: buildHeaders(apiKey, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    let message = `HTTP ${response.status}`;
+    try {
+      const body = await response.json();
+      message = body?.detail || body?.message || message;
+    } catch { /* ignore */ }
+    const err = new Error(message);
+    err.status = response.status;
+    throw err;
+  }
+  return response.body.getReader();
+}
+
+/** Formdaki müşteri verisiyle modelden iptal riski tahmini al. */
+export function predictRiskScore(customerData, apiKey, { signal, modelName } = {}) {
+  const body = modelName ? { ...customerData, model_name: modelName } : customerData;
+  return fetchWithAuth('/chat/predict-risk', {
+    method: 'POST',
+    apiKey,
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Risk analizi için kullanılabilir modellerin listesini al. */
+export function getAvailableModels(apiKey, { signal } = {}) {
+  return fetchWithAuth('/chat/models', { apiKey, signal });
+}
+
+// ── Guest Management ─────────────────────────────────────────────────────────
+
+/**
+ * Create a new hotel guest (personal info + booking fields).
+ * Backend: POST /guests
+ */
+export function createGuest(data, apiKey, { signal } = {}) {
+  return fetchWithAuth('/guests', {
+    method: 'POST',
+    apiKey,
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * List guests with optional search and pagination.
+ * Backend: GET /guests?search=&limit=&offset=
+ */
+export function listGuests(params = {}, apiKey, { signal } = {}) {
+  const qs = new URLSearchParams();
+  if (params.search)  qs.set('search',  params.search);
+  if (params.limit)   qs.set('limit',   String(params.limit));
+  if (params.offset)  qs.set('offset',  String(params.offset));
+  const query = qs.toString() ? `?${qs}` : '';
+  return fetchWithAuth(`/guests${query}`, { apiKey, signal });
+}
+
+/**
+ * Get a single guest by id.
+ * Backend: GET /guests/{id}
+ */
+export function getGuest(guestId, apiKey, { signal } = {}) {
+  return fetchWithAuth(`/guests/${encodeURIComponent(guestId)}`, { apiKey, signal });
+}
+
+/**
+ * Delete a guest permanently.
+ * Backend: DELETE /guests/{id}
+ */
+export function deleteGuest(guestId, apiKey, { signal } = {}) {
+  return fetchWithAuth(`/guests/${encodeURIComponent(guestId)}`, {
+    method: 'DELETE',
+    apiKey,
+    signal,
+  });
+}
+
+/**
+ * Partially update a guest.
+ * Backend: PATCH /guests/{id}
+ */
+export function updateGuest(guestId, data, apiKey, { signal } = {}) {
+  return fetchWithAuth(`/guests/${encodeURIComponent(guestId)}`, {
+    method: 'PATCH',
+    apiKey,
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
   });
 }
 

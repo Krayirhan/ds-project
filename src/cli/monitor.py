@@ -211,6 +211,7 @@ def cmd_monitor(
         prediction_drift=pred_drift,
         outcome_report=outcome_report,
         policy=policy.raw,
+        data_volume_is_anomalous=volume_result.is_anomalous,
         thresholds=AlertThresholds(
             data_drift_psi_threshold=cfg.monitoring.data_drift_psi_threshold,
             prediction_drift_psi_threshold=cfg.monitoring.prediction_drift_psi_threshold,
