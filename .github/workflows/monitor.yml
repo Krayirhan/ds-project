@@ -27,50 +27,7 @@ jobs:
       - name: Evaluate alerts and rollback if needed
         id: evaluate_alerts
         run: |
-          python - << 'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          p = Path("reports/monitoring/latest_monitoring_report.json")
-          if not p.exists():
-              print("No monitoring report found. Skipping rollback check.")
-              rollback_required = False
-              rollback_reasons = ["no_report"]
-          else:
-              payload = json.loads(p.read_text(encoding="utf-8"))
-              alerts = payload.get("alerts", {})
-              print(f"alerts={alerts}")
-              rollback_reasons = []
-
-              # Critical model/business regressions that should trigger automated rollback.
-              if bool(alerts.get("profit_drop", False)):
-                  rollback_reasons.append("profit_drop")
-              if bool(alerts.get("prediction_drift", False)):
-                  rollback_reasons.append("prediction_drift")
-              if bool(alerts.get("data_drift", False)) and bool(
-                  alerts.get("action_rate_deviation", False)
-              ):
-                  rollback_reasons.append("data_drift+action_rate_deviation")
-
-              rollback_required = bool(rollback_reasons)
-
-          print(f"rollback_required={rollback_required}")
-          if rollback_reasons:
-              print(f"rollback_reasons={rollback_reasons}")
-
-          output_path = os.getenv("GITHUB_OUTPUT")
-          if output_path:
-              with Path(output_path).open("a", encoding="utf-8") as fh:
-                  fh.write(
-                      f"rollback_required={'true' if rollback_required else 'false'}\n"
-                  )
-                  fh.write(
-                      "rollback_reasons="
-                      + (",".join(rollback_reasons) if rollback_reasons else "none")
-                      + "\n"
-                  )
-          PY
+          python scripts/evaluate_rollback.py --report-path reports/monitoring/latest_monitoring_report.json
 
       - name: Rollback policy on alert
         if: steps.evaluate_alerts.outputs.rollback_required == 'true'
