@@ -46,56 +46,32 @@ const INITIAL_FORM = {
 };
 
 function RiskCard({ predicting, riskScore, riskLabel }) {
-  const borderColor = predicting ? '#bbb'
-    : riskLabel === 'high'   ? '#e74c3c'
-    : riskLabel === 'medium' ? '#e67e22'
-    : riskScore !== null     ? '#27ae60'
-    : '#ddd';
-  const bgColor = predicting ? '#f5f5f5'
-    : riskLabel === 'high'   ? '#fdf0f0'
-    : riskLabel === 'medium' ? '#fef9f0'
-    : riskScore !== null     ? '#f0fdf4'
-    : '#fafafa';
-  const textColor = predicting ? '#888'
-    : riskLabel === 'high'   ? '#c0392b'
-    : riskLabel === 'medium' ? '#d35400'
-    : riskScore !== null     ? '#1e8449'
-    : '#999';
-  const icon = predicting ? '⏳'
-    : riskLabel === 'high'   ? '🔴'
-    : riskLabel === 'medium' ? '🟡'
-    : riskScore !== null     ? '🟢'
-    : '❓';
-  const label = predicting ? 'Hesaplanıyor…'
+  const cardMod  = predicting ? '' : riskLabel === 'high' ? 'riskHigh' : riskLabel === 'medium' ? 'riskMed' : riskScore !== null ? 'riskLow' : '';
+  const labelMod = cardMod;
+  const icon = predicting ? '⏳' : riskLabel === 'high' ? '🔴' : riskLabel === 'medium' ? '🟡' : riskScore !== null ? '🟢' : '❓';
+  const label = predicting
+    ? 'Hesaplanıyor…'
     : riskScore !== null
       ? `%${Math.round(riskScore * 100)} — ${riskLabel === 'high' ? 'YÜKSEK RİSK' : riskLabel === 'medium' ? 'ORTA RİSK' : 'DÜŞÜK RİSK'}`
-      : 'Rezervasyon bilgilerini girin';
-
+    : 'Rezervasyon bilgilerini girin';
   return (
-    <div style={{
-      padding: '10px 14px', borderRadius: 8,
-      border: `2px solid ${borderColor}`, background: bgColor,
-      display: 'flex', alignItems: 'center', gap: 10,
-    }}>
-      <span style={{ fontSize: 20 }}>{icon}</span>
+    <div className={`riskCard ${cardMod}`}>
+      <span style={{ fontSize: 18 }}>{icon}</span>
       <div>
-        <div style={{ fontSize: 11, color: '#888', marginBottom: 1 }}>Tahmini iptal riski</div>
-        <div style={{ fontWeight: 700, fontSize: 15, color: textColor }}>{label}</div>
+        <div className="riskCardHint">Tahmini iptal riski</div>
+        <div className={`riskCardLabel ${labelMod}`}>{label}</div>
       </div>
     </div>
   );
 }
 
 function RiskBadge({ label, score }) {
-  if (!label) return <span style={{ color: '#aaa', fontSize: 12 }}>—</span>;
-  const color = label === 'high' ? '#e74c3c' : label === 'medium' ? '#e67e22' : '#27ae60';
-  const text  = label === 'high' ? 'YÜKSEK' : label === 'medium' ? 'ORTA' : 'DÜŞÜK';
+  if (!label) return <span className="textMuted" style={{ fontSize: 12 }}>—</span>;
+  const mod  = label === 'high' ? 'riskHigh' : label === 'medium' ? 'riskMed' : 'riskLow';
+  const text = label === 'high' ? 'YÜKSEK' : label === 'medium' ? 'ORTA' : 'DÜŞÜK';
   return (
-    <span style={{
-      background: color + '22', color, border: `1px solid ${color}`,
-      borderRadius: 4, padding: '2px 7px', fontSize: 11, fontWeight: 700,
-    }}>
-      {text} {score !== null && score !== undefined ? `%${Math.round(score * 100)}` : ''}
+    <span className={`riskBadge ${mod}`}>
+      {text}{score != null ? ` %${Math.round(score * 100)}` : ''}
     </span>
   );
 }
@@ -271,7 +247,7 @@ export default function GuestsPage() {
           <div className="small" style={{ marginBottom: 12 }}>Yeni Misafir Kaydı</div>
 
           {/* Kişisel Bilgiler */}
-          <div className="small" style={{ color: '#888', marginBottom: 6 }}>👤 Kişisel Bilgiler</div>
+          <div className="textMuted" style={{ fontSize: 11, marginBottom: 6 }}>👤 Kişisel Bilgiler</div>
           <div className="chatFormGrid">
             <div>
               <label>Ad *</label>
@@ -322,7 +298,7 @@ export default function GuestsPage() {
           </div>
 
           {/* Rezervasyon Bilgileri */}
-          <div className="small" style={{ color: '#888', marginBottom: 6, marginTop: 4 }}>📋 Rezervasyon Bilgileri</div>
+          <div className="textMuted" style={{ fontSize: 11, marginBottom: 6, marginTop: 4 }}>📋 Rezervasyon Bilgileri</div>
           <div className="chatFormGrid">
             <div>
               <label>Otel</label>
@@ -393,18 +369,18 @@ export default function GuestsPage() {
             <button type="submit" disabled={saving || predicting}>
               {saving ? '⏳ Kaydediliyor…' : '💾 Misafiri Kaydet'}
             </button>
-            <button type="button" style={{ background: 'transparent', border: '1px solid #ccc' }}
+            <button type="button" className="btnGhost"
               onClick={() => { setForm(INITIAL_FORM); setRiskScore(null); setRiskLabel('unknown'); setSaveError(''); setSaveOk(''); }}>
               Temizle
             </button>
           </div>
-          {saveOk    && <div style={{ marginTop: 8, color: '#27ae60', fontWeight: 600 }}>{saveOk}</div>}
+          {saveOk    && <div className="formSuccess" style={{ marginTop: 8 }}>{saveOk}</div>}
           {saveError && <div className="error" style={{ marginTop: 8 }}>{saveError}</div>}
         </form>
 
         {/* ── Sağ: Misafir Listesi ──────────────────────────────────── */}
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-color, #eee)' }}>
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--c-border, #eee)' }}>
             <div className="small" style={{ marginBottom: 8 }}>Kayıtlı Misafirler ({total})</div>
             <input
               value={search}
@@ -415,10 +391,10 @@ export default function GuestsPage() {
           </div>
 
           {listError && <div className="error" style={{ margin: 12 }}>{listError}</div>}
-          {loading   && <div style={{ padding: 20, textAlign: 'center', color: '#888' }}>⏳ Yükleniyor…</div>}
+          {loading   && <div className="textMuted" style={{ padding: 20, textAlign: 'center' }}>⏳ Yüleniyor…</div>}
 
           {!loading && guests.length === 0 && (
-            <div style={{ padding: 24, textAlign: 'center', color: '#aaa' }}>
+            <div className="textMuted" style={{ padding: 24, textAlign: 'center' }}>
               {search ? 'Arama sonucu bulunamadı.' : 'Henüz misafir kaydı yok.'}
             </div>
           )}
@@ -427,38 +403,38 @@ export default function GuestsPage() {
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
-                  <tr style={{ background: 'var(--bg-secondary, #f5f5f5)' }}>
-                    <th style={thStyle}>Ad Soyad</th>
-                    <th style={thStyle}>E-posta / Tel</th>
-                    <th style={thStyle}>Otel</th>
-                    <th style={thStyle}>Segment</th>
-                    <th style={thStyle}>Risk</th>
-                    <th style={thStyle}>VIP</th>
-                    <th style={thStyle}>Kayıt</th>
-                    <th style={thStyle}>İşlem</th>
+                  <tr>
+                    <th className="guestTh">Ad Soyad</th>
+                    <th className="guestTh">E-posta / Tel</th>
+                    <th className="guestTh">Otel</th>
+                    <th className="guestTh">Segment</th>
+                    <th className="guestTh">Risk</th>
+                    <th className="guestTh">VIP</th>
+                    <th className="guestTh">Kayıt</th>
+                    <th className="guestTh">İşlem</th>
                   </tr>
                 </thead>
                 <tbody>
                   {guests.map(g => (
-                    <tr key={g.id} style={{ borderTop: '1px solid var(--border-color, #eee)' }}>
-                      <td style={tdStyle}>
+                    <tr key={g.id}>
+                      <td className="guestTd">
                         <strong>{g.first_name} {g.last_name}</strong>
-                        {g.nationality && <span style={{ marginLeft: 4, color: '#888', fontSize: 11 }}>({g.nationality})</span>}
+                        {g.nationality && <span className="guestSecondary" style={{ marginLeft: 4 }}>({g.nationality})</span>}
                       </td>
-                      <td style={tdStyle}>
-                        <div>{g.email || <span style={{ color: '#aaa' }}>—</span>}</div>
-                        <div style={{ color: '#888', fontSize: 11 }}>{g.phone || ''}</div>
+                      <td className="guestTd">
+                        <div>{g.email || <span className="textMuted">—</span>}</div>
+                        <div className="guestSecondary">{g.phone || ''}</div>
                       </td>
-                      <td style={tdStyle}>{g.hotel}</td>
-                      <td style={tdStyle}>{g.market_segment}</td>
-                      <td style={tdStyle}>
+                      <td className="guestTd">{g.hotel}</td>
+                      <td className="guestTd">{g.market_segment}</td>
+                      <td className="guestTd">
                         <RiskBadge label={g.risk_label} score={g.risk_score} />
                       </td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>{g.vip_status ? '⭐' : '—'}</td>
-                      <td style={{ ...tdStyle, color: '#888', fontSize: 11 }}>
+                      <td className="guestTd" style={{ textAlign: 'center' }}>{g.vip_status ? '⭐' : '—'}</td>
+                      <td className="guestTd guestSecondary">
                         {g.created_at ? new Date(g.created_at).toLocaleDateString('tr-TR') : '—'}
                       </td>
-                      <td style={tdStyle}>
+                      <td className="guestTd">
                         <button
                           style={{ padding: '3px 10px', fontSize: 12 }}
                           onClick={() => navigate('/chat', { state: { guest: g } })}
@@ -476,9 +452,9 @@ export default function GuestsPage() {
 
           {/* Pagination */}
           {total > PAGE_SIZE && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid var(--border-color, #eee)', fontSize: 13 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderTop: '1px solid var(--c-border, #eee)', fontSize: 13 }}>
               <button onClick={prevPage} disabled={offset === 0} style={{ padding: '4px 12px' }}>← Önceki</button>
-              <span style={{ color: '#888' }}>{offset + 1}–{Math.min(offset + PAGE_SIZE, total)} / {total}</span>
+              <span className="textMuted">{offset + 1}–{Math.min(offset + PAGE_SIZE, total)} / {total}</span>
               <button onClick={nextPage} disabled={offset + PAGE_SIZE >= total} style={{ padding: '4px 12px' }}>Sonraki →</button>
             </div>
           )}
@@ -488,5 +464,3 @@ export default function GuestsPage() {
   );
 }
 
-const thStyle = { padding: '8px 12px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: '#666', whiteSpace: 'nowrap' };
-const tdStyle = { padding: '8px 12px', verticalAlign: 'top' };

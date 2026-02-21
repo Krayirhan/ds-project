@@ -6,14 +6,14 @@ import {
   modelBadge, modelIcon, modelCalibration, modelType,
 } from '../lib/helpers';
 
-function ScoreBar({ score }) {
+function ScoreBar({ score, isDark = false }) {
   if (score == null) return null;
   const pctVal = Math.min(100, Number(score) * 100);
-  const color = scoreColor(score);
+  const color = scoreColor(score, isDark);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      <div style={{ width: 60, height: 8, background: '#e0e0e0', border: '1px solid #b0b0b0' }}>
-        <div style={{ width: `${pctVal}%`, height: '100%', background: color }} />
+      <div style={{ width: 60, height: 8, background: 'var(--c-surface-3, #e0e0e0)', borderRadius: 2 }}>
+        <div style={{ width: `${pctVal}%`, height: '100%', background: color, borderRadius: 2 }} />
       </div>
       <span style={{ fontFamily: 'Consolas', fontSize: 11, color }}>{f(score)}</span>
     </div>
@@ -21,7 +21,7 @@ function ScoreBar({ score }) {
 }
 
 export default function ModelsPage() {
-  const { runs } = useLayoutContext();
+  const { runs, theme } = useLayoutContext();
   const { modelRows, champion, coreModels } = runs;
   const [selectedModelIdx, setSelectedModelIdx] = useState(null);
 
@@ -94,7 +94,7 @@ export default function ModelsPage() {
                     className={isSelected ? 'selected' : ''}
                     style={{
                       cursor: 'pointer',
-                      background: isChamp && !isSelected ? '#fffff0' : undefined,
+                      background: isChamp && !isSelected ? 'var(--c-warning-bg, #fffff0)' : undefined,
                       fontWeight: isChamp ? 600 : 400,
                     }}
                     onClick={() => setSelectedModelIdx(i)}
@@ -109,10 +109,10 @@ export default function ModelsPage() {
                     <td>{modelCalibration(m.model_name)}</td>
                     <td>{f(m.train_cv_roc_auc_mean)} ± {f(m.train_cv_roc_auc_std)}</td>
                     <td style={{ textAlign: 'center' }}>{m.cv_folds ?? '-'}</td>
-                    <td><ScoreBar score={m.test_roc_auc} /></td>
-                    <td><ScoreBar score={m.test_f1} /></td>
-                    <td><ScoreBar score={m.test_precision} /></td>
-                    <td><ScoreBar score={m.test_recall} /></td>
+                    <td><ScoreBar score={m.test_roc_auc} isDark={theme.isDark} /></td>
+                    <td><ScoreBar score={m.test_f1} isDark={theme.isDark} /></td>
+                    <td><ScoreBar score={m.test_precision} isDark={theme.isDark} /></td>
+                    <td><ScoreBar score={m.test_recall} isDark={theme.isDark} /></td>
                     <td style={{ fontFamily: 'Consolas' }}>{f(m.test_threshold, 3)}</td>
                     <td style={{ textAlign: 'right' }}>{m.n_test?.toLocaleString('tr-TR') || '-'}</td>
                     <td>{pct(m.positive_rate_test)}</td>
@@ -129,7 +129,7 @@ export default function ModelsPage() {
         <section className="card detailPanel">
           <div className="small">
             <span aria-hidden="true">{modelIcon(selectedModel.model_name)}</span> {displayName(selectedModel.model_name)} — Detay Bilgisi
-            {isSelectedChamp && <span style={{ marginLeft: 8, color: '#996600' }}>★ Şampiyon Model</span>}
+            {isSelectedChamp && <span style={{ marginLeft: 8, color: 'var(--c-warning, #996600)' }}>★ Şampiyon Model</span>}
           </div>
           <div className="detailGrid">
             <div className="detailItem"><span>Teknik Ad</span><strong style={{ fontSize: 10, wordBreak: 'break-all' }}>{selectedModel.model_name}</strong></div>
@@ -138,8 +138,8 @@ export default function ModelsPage() {
             <div className="detailItem"><span>Eğitim AUC (Ort)</span><strong>{f(selectedModel.train_cv_roc_auc_mean)}</strong></div>
             <div className="detailItem"><span>Eğitim AUC (Std)</span><strong>{f(selectedModel.train_cv_roc_auc_std)}</strong></div>
             <div className="detailItem"><span>CV Katlanma</span><strong>{selectedModel.cv_folds ?? '-'}</strong></div>
-            <div className="detailItem highlight"><span>Test ROC-AUC</span><strong style={{ color: scoreColor(selectedModel.test_roc_auc) }}>{f(selectedModel.test_roc_auc)}</strong></div>
-            <div className="detailItem highlight"><span>F1 Skoru</span><strong style={{ color: scoreColor(selectedModel.test_f1) }}>{f(selectedModel.test_f1)}</strong></div>
+            <div className="detailItem highlight"><span>Test ROC-AUC</span><strong style={{ color: scoreColor(selectedModel.test_roc_auc, theme.isDark) }}>{f(selectedModel.test_roc_auc)}</strong></div>
+            <div className="detailItem highlight"><span>F1 Skoru</span><strong style={{ color: scoreColor(selectedModel.test_f1, theme.isDark) }}>{f(selectedModel.test_f1)}</strong></div>
             <div className="detailItem"><span>Precision</span><strong>{f(selectedModel.test_precision)}</strong></div>
             <div className="detailItem"><span>Recall</span><strong>{f(selectedModel.test_recall)}</strong></div>
             <div className="detailItem"><span>Karar Eşiği</span><strong>{f(selectedModel.test_threshold, 3)}</strong></div>
@@ -170,7 +170,7 @@ export default function ModelsPage() {
             : ''}
         </div>
 
-        {expLoading && <div style={{ padding: '8px 0', color: '#888' }}>⏳ Önem raporu yükleniyor…</div>}
+        {expLoading && <div className="textMuted" style={{ padding: '8px 0' }}>⏳ Önem raporu yükleniyor…</div>}
         {expError   && <div className="error" role="alert">⚠ {expError}</div>}
 
         {explainData && !expLoading && (() => {
@@ -183,24 +183,24 @@ export default function ModelsPage() {
               {ranking.map(({ feature, importance_mean, importance_std }, i) => {
                 const barW = Math.min(100, ((importance_mean || 0) / maxVal) * 100);
                 const color = importance_mean > maxVal * 0.5
-                  ? '#1a56db'
+                  ? 'var(--c-accent, #1a56db)'
                   : importance_mean > maxVal * 0.2
-                    ? '#0d9488'
-                    : '#94a3b8';
+                    ? 'var(--c-success, #0d9488)'
+                    : 'var(--c-text-muted, #94a3b8)';
                 return (
                   <div key={feature} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                    <span style={{ width: 20, fontSize: 10, color: '#aaa', textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
+                    <span className="textMuted" style={{ width: 20, fontSize: 10, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
                     <span style={{ width: 220, fontSize: 11, fontFamily: 'Consolas', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {feature}
                     </span>
-                    <div style={{ flex: 1, height: 12, background: '#e8ecf0', borderRadius: 2 }}>
+                    <div style={{ flex: 1, height: 12, background: 'var(--c-surface-3, #e8ecf0)', borderRadius: 2 }}>
                       <div style={{ width: `${barW}%`, height: '100%', background: color, borderRadius: 2 }} />
                     </div>
                     <span style={{ width: 56, fontSize: 11, fontFamily: 'Consolas', textAlign: 'right', flexShrink: 0 }}>
                       {f(importance_mean, 4)}
                     </span>
                     {importance_std != null && (
-                      <span style={{ width: 48, fontSize: 10, color: '#aaa', flexShrink: 0 }}>
+                      <span className="textMuted" style={{ width: 48, fontSize: 10, flexShrink: 0 }}>
                         ±{f(importance_std, 4)}
                       </span>
                     )}

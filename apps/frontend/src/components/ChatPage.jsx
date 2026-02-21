@@ -35,48 +35,32 @@ const INITIAL_FORM = {
 
 // ─── Yardımcı bileşenler ─────────────────────────────────────────────────────
 function RiskCard({ predicting, riskScore, riskLabel }) {
-  const border = predicting ? '#bbb'
-    : riskLabel === 'high'   ? '#e74c3c'
-    : riskLabel === 'medium' ? '#e67e22'
-    : riskScore !== null     ? '#27ae60' : '#ddd';
-  const bg = predicting ? '#f5f5f5'
-    : riskLabel === 'high'   ? '#fdf0f0'
-    : riskLabel === 'medium' ? '#fef9f0'
-    : riskScore !== null     ? '#f0fdf4' : '#fafafa';
-  const color = predicting ? '#888'
-    : riskLabel === 'high'   ? '#c0392b'
-    : riskLabel === 'medium' ? '#d35400'
-    : riskScore !== null     ? '#1e8449' : '#999';
-  const icon = predicting ? '⏳'
-    : riskLabel === 'high'   ? '🔴'
-    : riskLabel === 'medium' ? '🟡'
-    : riskScore !== null     ? '🟢' : '❓';
-  const label = predicting ? 'Hesaplanıyor…'
+  const cardMod  = predicting ? '' : riskLabel === 'high' ? 'riskHigh' : riskLabel === 'medium' ? 'riskMed' : riskScore !== null ? 'riskLow' : '';
+  const labelMod = cardMod;
+  const icon = predicting ? '⏳' : riskLabel === 'high' ? '🔴' : riskLabel === 'medium' ? '🟡' : riskScore !== null ? '🟢' : '❓';
+  const label = predicting
+    ? 'Hesaplanıyor…'
     : riskScore !== null
-      ? `%${Math.round(riskScore * 100)} — ${
-          riskLabel === 'high' ? 'YÜKSEK RİSK'
-          : riskLabel === 'medium' ? 'ORTA RİSK' : 'DÜŞÜK RİSK'}`
+      ? `%${Math.round(riskScore * 100)} — ${riskLabel === 'high' ? 'YÜKSEK RİSK' : riskLabel === 'medium' ? 'ORTA RİSK' : 'DÜŞÜK RİSK'}`
     : 'Rezervasyon bilgilerini girin';
   return (
-    <div style={{ padding: '8px 14px', borderRadius: 8, border: `2px solid ${border}`,
-        background: bg, display: 'flex', alignItems: 'center', gap: 10 }}>
+    <div className={`riskCard ${cardMod}`}>
       <span style={{ fontSize: 18 }}>{icon}</span>
       <div>
-        <div style={{ fontSize: 11, color: '#888' }}>Tahmini iptal riski</div>
-        <div style={{ fontWeight: 700, fontSize: 14, color }}>{label}</div>
+        <div className="riskCardHint">Tahmini iptal riski</div>
+        <div className={`riskCardLabel ${labelMod}`}>{label}</div>
       </div>
     </div>
   );
 }
 
 function RiskBadge({ label, score }) {
-  if (!label) return <span style={{ color: '#aaa', fontSize: 12 }}>—</span>;
-  const color = label === 'high' ? '#e74c3c' : label === 'medium' ? '#e67e22' : '#27ae60';
-  const text  = label === 'high' ? 'YÜKSEK' : label === 'medium' ? 'ORTA' : 'DÜŞÜK';
+  if (!label) return <span className="textMuted" style={{ fontSize: 12 }}>—</span>;
+  const mod  = label === 'high' ? 'riskHigh' : label === 'medium' ? 'riskMed' : 'riskLow';
+  const text = label === 'high' ? 'YÜKSEK' : label === 'medium' ? 'ORTA' : 'DÜŞÜK';
   return (
-    <span style={{ background: color + '22', color, border: `1px solid ${color}`,
-        borderRadius: 4, padding: '2px 7px', fontSize: 11, fontWeight: 700 }}>
-      {text} {score != null ? `%${Math.round(score * 100)}` : ''}
+    <span className={`riskBadge ${mod}`}>
+      {text}{score != null ? ` %${Math.round(score * 100)}` : ''}
     </span>
   );
 }
@@ -162,8 +146,8 @@ function MarkdownText({ content }) {
   return <div style={{ fontSize: 'inherit' }}>{elements}</div>;
 }
 
-const thS = { padding: '7px 10px', textAlign: 'left', fontWeight: 600, fontSize: 12, color: '#666', whiteSpace: 'nowrap' };
-const tdS = { padding: '7px 10px', verticalAlign: 'middle', fontSize: 13 };
+const thS = 'guestTh';
+const tdS = 'guestTd';
 
 // ─── Ana bileşen ─────────────────────────────────────────────────────────────
 /**
@@ -340,9 +324,9 @@ export default function ChatPage() {
         </div>
 
         {listError && <div className="error" style={{ marginBottom: 8 }}>{listError}</div>}
-        {loading && <div style={{ textAlign: 'center', color: '#888', padding: 16 }}>⏳ Yükleniyor…</div>}
+        {loading && <div style={{ textAlign: 'center', padding: 16 }} className="textMuted">⏳ Yükleniyor…</div>}
         {!loading && guests.length === 0 && (
-          <div style={{ textAlign: 'center', color: '#aaa', padding: 20 }}>
+          <div style={{ textAlign: 'center', padding: 20 }} className="textMuted">
             {search ? 'Arama sonucu bulunamadı.' : 'Henüz kayıtlı misafir yok.'}
           </div>
         )}
@@ -350,80 +334,73 @@ export default function ChatPage() {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
-                <tr style={{ background: 'var(--bg-secondary,#f5f5f5)' }}>
-                  <th style={thS}>Ad Soyad</th>
-                  <th style={thS}>E-posta / Tel</th>
-                  <th style={thS}>Otel</th>
-                  <th style={thS}>Segment</th>
-                  <th style={thS}>Risk</th>
-                  <th style={thS}>VIP</th>
-                  <th style={thS}>Kayıt</th>
-                  <th style={thS}>Seç</th>
-                  <th style={thS}>Sil</th>
+                <tr>
+                  <th className={thS}>Ad Soyad</th>
+                  <th className={thS}>E-posta / Tel</th>
+                  <th className={thS}>Otel</th>
+                  <th className={thS}>Segment</th>
+                  <th className={thS}>Risk</th>
+                  <th className={thS}>VIP</th>
+                  <th className={thS}>Kayıt</th>
+                  <th className={thS}>Seç</th>
+                  <th className={thS}>Sil</th>
                 </tr>
               </thead>
               <tbody>
                 {guests.map(g => {
                   const isActive = activeGuest?.id === g.id;
                   return (
-                    <tr key={g.id} style={{
-                      borderTop: '1px solid var(--border-color,#eee)',
-                      background: isActive ? 'rgba(41,128,185,0.08)' : undefined,
-                    }}>
-                      <td style={tdS}>
+                    <tr key={g.id} className={isActive ? 'guestRowActive' : undefined}>
+                      <td className={tdS}>
                         <strong>{g.first_name} {g.last_name}</strong>
-                        {g.nationality && <span style={{ marginLeft: 4, color: '#888', fontSize: 11 }}>({g.nationality})</span>}
+                        {g.nationality && <span className="guestSecondary" style={{ marginLeft: 4 }}>({g.nationality})</span>}
                       </td>
-                      <td style={tdS}>
-                        <div>{g.email || <span style={{ color: '#aaa' }}>—</span>}</div>
-                        <div style={{ color: '#888', fontSize: 11 }}>{g.phone || ''}</div>
+                      <td className={tdS}>
+                        <div>{g.email || <span className="textMuted">—</span>}</div>
+                        <div className="guestSecondary">{g.phone || ''}</div>
                       </td>
-                      <td style={tdS}>{g.hotel}</td>
-                      <td style={tdS}>{g.market_segment}</td>
-                      <td style={tdS}><RiskBadge label={g.risk_label} score={g.risk_score} /></td>
-                      <td style={{ ...tdS, textAlign: 'center' }}>{g.vip_status ? '⭐' : '—'}</td>
-                      <td style={{ ...tdS, color: '#888', fontSize: 11 }}>
+                      <td className={tdS}>{g.hotel}</td>
+                      <td className={tdS}>{g.market_segment}</td>
+                      <td className={tdS}><RiskBadge label={g.risk_label} score={g.risk_score} /></td>
+                      <td className={tdS} style={{ textAlign: 'center' }}>{g.vip_status ? '⭐' : '—'}</td>
+                      <td className={`${tdS} guestSecondary`}>
                         {g.created_at ? new Date(g.created_at).toLocaleDateString('tr-TR') : '—'}
                       </td>
-                      <td style={tdS}>
+                      <td className={tdS}>
                         <button
-                          style={{ padding: '3px 12px', fontSize: 12,
-                            background: isActive ? '#2980b9' : undefined,
-                            color: isActive ? '#fff' : undefined }}
+                          className={isActive ? 'btnPrimary' : undefined}
+                          style={{ padding: '3px 12px', fontSize: 12 }}
                           onClick={() => selectGuest(g)}
                         >
                           {isActive ? '✓ Seçildi' : '💬 Seç'}
                         </button>
                       </td>
-                      <td style={tdS}>
+                      <td className={tdS}>
                         {confirmDelete === g.id ? (
                           <span style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                            <span style={{ fontSize: 11, color: '#e74c3c', whiteSpace: 'nowrap' }}>Emin misin?</span>
+                            <span className="textDanger" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>Emin misin?</span>
                             <button
+                              className="btnDanger"
                               onClick={() => handleDelete(g)}
                               disabled={deleting === g.id}
-                              style={{ padding: '2px 8px', fontSize: 11,
-                                background: '#e74c3c', color: '#fff',
-                                border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                              style={{ padding: '2px 8px', fontSize: 11 }}
                             >
                               {deleting === g.id ? '⏳' : '✔ Evet'}
                             </button>
                             <button
+                              className="btnNeutral"
                               onClick={() => setConfirmDelete(null)}
-                              style={{ padding: '2px 8px', fontSize: 11,
-                                background: '#95a5a6', color: '#fff',
-                                border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                              style={{ padding: '2px 8px', fontSize: 11 }}
                             >
                               ✖ İptal
                             </button>
                           </span>
                         ) : (
                           <button
+                            className="btnDanger"
                             onClick={() => setConfirmDelete(g.id)}
                             disabled={deleting === g.id}
-                            style={{ padding: '3px 10px', fontSize: 12,
-                              background: '#e74c3c', color: '#fff',
-                              border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                            style={{ padding: '3px 10px', fontSize: 12 }}
                           >
                             🗑
                           </button>
@@ -439,7 +416,7 @@ export default function ChatPage() {
         {total > PAGE_SIZE && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10, fontSize: 13 }}>
             <button onClick={prevPage} disabled={offset === 0} style={{ padding: '4px 12px' }}>← Önceki</button>
-            <span style={{ color: '#888' }}>{offset + 1}–{Math.min(offset + PAGE_SIZE, total)} / {total}</span>
+            <span className="textMuted">{offset + 1}–{Math.min(offset + PAGE_SIZE, total)} / {total}</span>
             <button onClick={nextPage} disabled={offset + PAGE_SIZE >= total} style={{ padding: '4px 12px' }}>Sonraki →</button>
           </div>
         )}
@@ -453,13 +430,13 @@ export default function ChatPage() {
           <div className="small" style={{ marginBottom: 10 }}>
             {activeGuest
               ? <>Misafir: <strong>{activeGuest.first_name} {activeGuest.last_name}</strong>
-                  <span style={{ color: '#aaa', fontWeight: 400 }}> #{activeGuest.id}</span></>
+                  <span className="textMuted" style={{ fontWeight: 400 }}> #{activeGuest.id}</span></>
               : 'Yeni Misafir'}
           </div>
 
           <form onSubmit={handleSave}>
             {/* Kişisel Bilgiler */}
-            <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>👤 Kişisel Bilgiler</div>
+            <div className="textMuted" style={{ fontSize: 11, marginBottom: 6 }}>👤 Kişisel Bilgiler</div>
             <div className="chatFormGrid">
               <div>
                 <label>Ad *</label>
@@ -510,7 +487,7 @@ export default function ChatPage() {
             </div>
 
             {/* Rezervasyon Bilgileri */}
-            <div style={{ fontSize: 11, color: '#888', marginBottom: 6 }}>📋 Rezervasyon Bilgileri</div>
+            <div className="textMuted" style={{ fontSize: 11, marginBottom: 6 }}>📋 Rezervasyon Bilgileri</div>
             <div className="chatFormGrid">
               <div>
                 <label>Otel</label>
@@ -574,12 +551,12 @@ export default function ChatPage() {
             {/* Risk & Model Seçimi */}
             <div style={{ marginTop: 10, marginBottom: 10 }}>
               {availableModels.length > 0 && (
-                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#555', whiteSpace: 'nowrap' }}>🤖 Tahmin Modeli</label>
+                <div className="modelSelectorWrap">
+                  <label className="modelSelectorLabel">🤖 Tahmin Modeli</label>
                   <select
+                    className="modelSelectorSelect"
                     value={chat.selectedModel || ''}
                     onChange={e => chat.setSelectedModel(e.target.value || null)}
-                    style={{ fontSize: 12, padding: '3px 6px', border: '1px solid #ccc', borderRadius: 4, background: '#fafafa', flex: 1 }}
                   >
                     <option value=''>🏆 Varsayılan (Aktif Şampiyon)</option>
                     {availableModels.map(m => (
@@ -598,28 +575,25 @@ export default function ChatPage() {
               <button type="submit" disabled={saving || chat.predicting}>
                 {saving ? '⏳ Kaydediliyor…' : '💾 Kaydet'}
               </button>
-              <button type="button"
-                style={{ background: 'transparent', border: '1px solid #ccc' }}
-                onClick={clearForm}>
+              <button type="button" className="btnGhost" onClick={clearForm}>
                 Temizle
               </button>
-              <button type="button"
+              <button type="button" className="btnSuccess"
                 onClick={chat.openSession}
-                disabled={chat.busy || chat.predicting}
-                style={{ background: '#27ae60', color: '#fff', border: 'none' }}>
+                disabled={chat.busy || chat.predicting}>
                 {chat.busy ? '⏳ Açılıyor…' : '🚀 Chat Oturumu Başlat'}
               </button>
             </div>
 
-            {saveOk    && <div style={{ marginTop: 8, color: '#27ae60', fontWeight: 600 }}>{saveOk}</div>}
+            {saveOk    && <div className="formSuccess">{saveOk}</div>}
             {saveError && <div className="error" style={{ marginTop: 8 }}>{saveError}</div>}
             {chat.guestSaved && (
-              <div style={{ marginTop: 6, fontSize: 12, color: '#27ae60' }}>
+              <div className="formSuccess">
                 ✅ Misafir #{chat.guestId} oturuma bağlandı
               </div>
             )}
             {chat.summary && (
-              <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>
+              <div className="formNote">
                 Mesaj sayısı: {chat.summary.message_count}
               </div>
             )}

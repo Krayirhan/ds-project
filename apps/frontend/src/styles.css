@@ -22,6 +22,26 @@
   --win-success: #006600;
   --win-grid-header: #dfe3e8;
   --win-grid-alt: #f5f5f5;
+  /* Risk renkleri — klasik tema */
+  --c-risk-high:          #c0392b;
+  --c-risk-high-bg:       #fff0f0;
+  --c-risk-high-border:   #e74c3c;
+  --c-risk-medium:        #d35400;
+  --c-risk-medium-bg:     #fef5e7;
+  --c-risk-medium-border: #e67e22;
+  --c-risk-low:           #1e8449;
+  --c-risk-low-bg:        #eafaf1;
+  --c-risk-low-border:    #27ae60;
+  --c-risk-idle:          #666666;
+  --c-risk-idle-bg:       #fafafa;
+  --c-risk-idle-border:   #cccccc;
+  --c-text-muted:         #777777;
+  --c-success:            #006600;
+  --c-danger:             #cc0000;
+  --c-warning:            #996600;
+  --c-warning-bg:         #fffbeb;
+  --c-surface-3:          #f0f0f0;
+  --c-accent-bg:          #dde8f8;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1190,6 +1210,111 @@ tbody tr:hover { background: #cce0ff; }
   background: var(--win-white);
   padding: 5px;
   font-size: 12px;
+}
+
+/* ============================
+   RISK CARD
+   ============================ */
+.riskCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 2px solid var(--c-risk-idle-border);
+  background: var(--c-risk-idle-bg);
+}
+.riskCard.riskHigh   { border-color: var(--c-risk-high-border);   background: var(--c-risk-high-bg); }
+.riskCard.riskMed    { border-color: var(--c-risk-medium-border); background: var(--c-risk-medium-bg); }
+.riskCard.riskLow    { border-color: var(--c-risk-low-border);    background: var(--c-risk-low-bg); }
+
+.riskCardHint  { font-size: 10px; color: var(--c-text-muted); margin-bottom: 1px; }
+.riskCardLabel { font-weight: 700; font-size: 13px; color: var(--c-risk-idle); }
+.riskCardLabel.riskHigh   { color: var(--c-risk-high); }
+.riskCardLabel.riskMed    { color: var(--c-risk-medium); }
+.riskCardLabel.riskLow    { color: var(--c-risk-low); }
+
+/* ============================
+   RISK BADGE
+   ============================ */
+.riskBadge {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid var(--c-risk-idle-border);
+  background: var(--c-risk-idle-bg);
+  color: var(--c-risk-idle);
+}
+.riskBadge.riskHigh   { background: var(--c-risk-high-bg);   color: var(--c-risk-high);   border-color: var(--c-risk-high-border); }
+.riskBadge.riskMed    { background: var(--c-risk-medium-bg); color: var(--c-risk-medium); border-color: var(--c-risk-medium-border); }
+.riskBadge.riskLow    { background: var(--c-risk-low-bg);    color: var(--c-risk-low);    border-color: var(--c-risk-low-border); }
+
+/* ============================
+   BUTON VARYANTLARI
+   ============================ */
+.btnPrimary  { background: var(--win-highlight) !important; border: 2px outset #4477cc !important; color: #fff !important; }
+.btnSuccess  { background: #27ae60 !important; border: 2px outset #1e8449 !important; color: #fff !important; }
+.btnGhost    { background: transparent !important; border: 1px solid #aaa !important; color: #333 !important; }
+.btnGhost:hover { background: #f0f0f0 !important; }
+.btnDanger   { background: var(--c-risk-high) !important; border: none !important; border-radius: 3px !important; color: #fff !important; }
+.btnNeutral  { background: #888 !important; border: none !important; border-radius: 3px !important; color: #fff !important; }
+
+/* ============================
+   METİN YARDIMCILARI
+   ============================ */
+.textMuted      { color: var(--c-text-muted) !important; }
+.textSecondary  { color: #555 !important; }
+.textSuccess    { color: var(--c-success) !important; }
+.textDanger     { color: var(--c-danger) !important; }
+
+/* ============================
+   MODEL SEÇICI
+   ============================ */
+.modelSelectorWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  padding: 5px 8px;
+  background: var(--win-menu-bg);
+  border: 1px solid #b0b0b0;
+}
+.modelSelectorLabel  { font-size: 11px; font-weight: 600; color: #444; white-space: nowrap; }
+.modelSelectorSelect { flex: 1; font-size: 11px; padding: 2px 5px; }
+
+/* ============================
+   MİSAFİR LİSTESİ
+   ============================ */
+.guestRowActive td   { background: #dde8f8 !important; }
+tr.selected          { background: #dde8f8 !important; }
+.guestSecondary      { font-size: 11px; color: var(--c-text-muted); }
+
+/* ============================
+   FORM BAŞARI / BİLGİ
+   ============================ */
+.formSuccess { margin-top: 8px; font-weight: 600; color: var(--c-success); font-size: 12px; }
+.formNote    { margin-top: 6px; font-size: 11px; color: var(--c-text-muted); }
+
+/* ============================
+   TABLO BAŞLIK/HÜCRE
+   ============================ */
+.guestTh {
+  padding: 5px 8px;
+  text-align: left;
+  font-weight: 700;
+  font-size: 11px;
+  color: #444;
+  white-space: nowrap;
+  background: var(--win-grid-header);
+  border: 1px solid #b0b0b0;
+}
+.guestTd {
+  padding: 5px 8px;
+  vertical-align: middle;
+  font-size: 12px;
+  color: var(--win-dark);
+  border: 1px solid #d0d0d0;
 }
 
 /* ============================

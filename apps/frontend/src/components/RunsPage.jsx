@@ -52,7 +52,7 @@ export default function RunsPage() {
                     key={r}
                     style={{
                       cursor: 'pointer',
-                      background: isCurrent ? '#e0f0ff' : undefined,
+                      background: isCurrent ? 'var(--c-accent-bg, #e0f0ff)' : undefined,
                       fontWeight: isCurrent ? 600 : 400,
                     }}
                     onClick={() => handleRunClick(r)}
@@ -67,7 +67,7 @@ export default function RunsPage() {
                     <td>
                       {dbInfo?.selected_model
                         ? <><span aria-hidden="true">{modelIcon(dbInfo.selected_model)}</span> {displayName(dbInfo.selected_model)}</>
-                        : <span style={{ color: '#999' }}>—</span>}
+                        : <span style={{ color: 'var(--c-text-muted, #999)' }}>—</span>}
                     </td>
                     <td style={{ fontFamily: 'Consolas' }}>{dbInfo?.threshold != null ? f(dbInfo.threshold, 3) : '—'}</td>
                     <td style={{ fontFamily: 'Consolas', textAlign: 'right' }}>{dbInfo?.expected_net_profit != null ? money(dbInfo.expected_net_profit) : '—'}</td>
@@ -76,8 +76,8 @@ export default function RunsPage() {
                       {isCurrent
                         ? <span className="statusBadge ok" style={{ fontSize: 10 }}>◄ Görüntüleniyor</span>
                         : dbInfo?.selected_model
-                          ? <span style={{ color: '#006600', fontSize: 10 }}>✓ Tamamlandı</span>
-                          : <span style={{ color: '#999', fontSize: 10 }}>Veri yok</span>}
+                          ? <span style={{ color: 'var(--c-success, #006600)', fontSize: 10 }}>✓ Tamamlandı</span>
+                          : <span style={{ color: 'var(--c-text-muted, #999)', fontSize: 10 }}>Veri yok</span>}
                     </td>
                   </tr>
                 );

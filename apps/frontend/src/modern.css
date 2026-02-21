@@ -53,6 +53,19 @@
   --c-radius-xs: 4px;
   --c-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --c-font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+  /* Risk renkleri */
+  --c-risk-high:          #dc2626;
+  --c-risk-high-bg:       #fef2f2;
+  --c-risk-high-border:   #fca5a5;
+  --c-risk-medium:        #b45309;
+  --c-risk-medium-bg:     #fffbeb;
+  --c-risk-medium-border: #fcd34d;
+  --c-risk-low:           #059669;
+  --c-risk-low-bg:        #ecfdf5;
+  --c-risk-low-border:    #6ee7b7;
+  --c-risk-idle:          #64748b;
+  --c-risk-idle-bg:       #f8fafc;
+  --c-risk-idle-border:   #cbd5e1;
 }
 
 /* ============================
@@ -104,6 +117,19 @@
   --c-radius-xs: 4px;
   --c-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --c-font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+  /* Risk renkleri */
+  --c-risk-high:          #f87171;
+  --c-risk-high-bg:       rgba(239,68,68,0.12);
+  --c-risk-high-border:   rgba(248,113,113,0.35);
+  --c-risk-medium:        #fbbf24;
+  --c-risk-medium-bg:     rgba(245,158,11,0.1);
+  --c-risk-medium-border: rgba(251,191,36,0.35);
+  --c-risk-low:           #34d399;
+  --c-risk-low-bg:        rgba(52,211,153,0.1);
+  --c-risk-low-border:    rgba(52,211,153,0.3);
+  --c-risk-idle:          #94a3b8;
+  --c-risk-idle-bg:       rgba(255,255,255,0.03);
+  --c-risk-idle-border:   #334155;
 }
 
 
@@ -1351,6 +1377,220 @@
   border-color: var(--c-sidebar-active);
   background: rgba(59,130,246,0.1);
   color: var(--c-sidebar-text);
+}
+
+/* ==========================================================================
+   RISK CARD
+   ========================================================================== */
+[data-theme="modern-light"] .riskCard,
+[data-theme="modern-dark"] .riskCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--c-radius-sm);
+  border: 2px solid var(--c-risk-idle-border);
+  background: var(--c-risk-idle-bg);
+  transition: border-color 0.15s, background 0.15s;
+}
+[data-theme="modern-light"] .riskCard.riskHigh,
+[data-theme="modern-dark"] .riskCard.riskHigh  { border-color: var(--c-risk-high-border);   background: var(--c-risk-high-bg); }
+[data-theme="modern-light"] .riskCard.riskMed,
+[data-theme="modern-dark"] .riskCard.riskMed   { border-color: var(--c-risk-medium-border); background: var(--c-risk-medium-bg); }
+[data-theme="modern-light"] .riskCard.riskLow,
+[data-theme="modern-dark"] .riskCard.riskLow   { border-color: var(--c-risk-low-border);    background: var(--c-risk-low-bg); }
+
+[data-theme="modern-light"] .riskCardHint,
+[data-theme="modern-dark"] .riskCardHint {
+  font-size: 11px;
+  color: var(--c-text-muted);
+  margin-bottom: 2px;
+}
+[data-theme="modern-light"] .riskCardLabel,
+[data-theme="modern-dark"] .riskCardLabel {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--c-risk-idle);
+}
+[data-theme="modern-light"] .riskCardLabel.riskHigh,
+[data-theme="modern-dark"] .riskCardLabel.riskHigh   { color: var(--c-risk-high); }
+[data-theme="modern-light"] .riskCardLabel.riskMed,
+[data-theme="modern-dark"] .riskCardLabel.riskMed    { color: var(--c-risk-medium); }
+[data-theme="modern-light"] .riskCardLabel.riskLow,
+[data-theme="modern-dark"] .riskCardLabel.riskLow    { color: var(--c-risk-low); }
+
+/* ==========================================================================
+   RISK BADGE (tablo hücre)
+   ========================================================================== */
+[data-theme="modern-light"] .riskBadge,
+[data-theme="modern-dark"] .riskBadge {
+  display: inline-block;
+  border-radius: var(--c-radius-xs);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  color: var(--c-risk-idle);
+  background: var(--c-risk-idle-bg);
+  border-color: var(--c-risk-idle-border);
+}
+[data-theme="modern-light"] .riskBadge.riskHigh,
+[data-theme="modern-dark"] .riskBadge.riskHigh   { background: var(--c-risk-high-bg);   color: var(--c-risk-high);   border-color: var(--c-risk-high-border); }
+[data-theme="modern-light"] .riskBadge.riskMed,
+[data-theme="modern-dark"] .riskBadge.riskMed    { background: var(--c-risk-medium-bg); color: var(--c-risk-medium); border-color: var(--c-risk-medium-border); }
+[data-theme="modern-light"] .riskBadge.riskLow,
+[data-theme="modern-dark"] .riskBadge.riskLow    { background: var(--c-risk-low-bg);    color: var(--c-risk-low);    border-color: var(--c-risk-low-border); }
+
+/* ==========================================================================
+   BUTON VARYANTLARI
+   ========================================================================== */
+[data-theme="modern-light"] .btnPrimary,
+[data-theme="modern-dark"] .btnPrimary {
+  background: var(--c-accent) !important;
+  border: none !important;
+  color: #fff !important;
+}
+[data-theme="modern-light"] .btnPrimary:hover,
+[data-theme="modern-dark"] .btnPrimary:hover { background: var(--c-accent-hover) !important; color: #fff !important; }
+
+[data-theme="modern-light"] .btnSuccess,
+[data-theme="modern-dark"] .btnSuccess {
+  background: var(--c-success) !important;
+  border: none !important;
+  color: #fff !important;
+}
+[data-theme="modern-light"] .btnSuccess:hover,
+[data-theme="modern-dark"] .btnSuccess:hover { filter: brightness(0.88); }
+
+[data-theme="modern-light"] .btnGhost,
+[data-theme="modern-dark"] .btnGhost {
+  background: transparent !important;
+  border: 1px solid var(--c-border) !important;
+  color: var(--c-text-secondary) !important;
+}
+[data-theme="modern-light"] .btnGhost:hover,
+[data-theme="modern-dark"] .btnGhost:hover {
+  background: var(--c-surface-3) !important;
+  border-color: var(--c-accent) !important;
+  color: var(--c-accent-text) !important;
+}
+
+[data-theme="modern-light"] .btnDanger,
+[data-theme="modern-dark"] .btnDanger {
+  background: var(--c-danger) !important;
+  border: none !important;
+  color: #fff !important;
+}
+[data-theme="modern-light"] .btnDanger:hover,
+[data-theme="modern-dark"] .btnDanger:hover { filter: brightness(0.88); }
+
+[data-theme="modern-light"] .btnNeutral,
+[data-theme="modern-dark"] .btnNeutral {
+  background: var(--c-text-muted) !important;
+  border: none !important;
+  color: #fff !important;
+}
+
+/* ==========================================================================
+   METIN YARDIMCILARI
+   ========================================================================== */
+[data-theme="modern-light"] .textMuted,
+[data-theme="modern-dark"] .textMuted   { color: var(--c-text-muted) !important; }
+[data-theme="modern-light"] .textSecondary,
+[data-theme="modern-dark"] .textSecondary { color: var(--c-text-secondary) !important; }
+[data-theme="modern-light"] .textSuccess,
+[data-theme="modern-dark"] .textSuccess { color: var(--c-success) !important; }
+[data-theme="modern-light"] .textDanger,
+[data-theme="modern-dark"] .textDanger  { color: var(--c-danger) !important; }
+
+/* ==========================================================================
+   MODEL SELECTOR
+   ========================================================================== */
+[data-theme="modern-light"] .modelSelectorWrap,
+[data-theme="modern-dark"] .modelSelectorWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border-light);
+  border-radius: var(--c-radius-xs);
+}
+[data-theme="modern-light"] .modelSelectorLabel,
+[data-theme="modern-dark"] .modelSelectorLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text-secondary);
+  white-space: nowrap;
+}
+[data-theme="modern-light"] .modelSelectorSelect,
+[data-theme="modern-dark"] .modelSelectorSelect {
+  flex: 1;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--c-input-border) !important;
+  border-radius: var(--c-radius-xs) !important;
+  background: var(--c-input-bg) !important;
+  color: var(--c-text) !important;
+}
+
+/* ==========================================================================
+   MISAFIR LISTESI — aktif satır
+   ========================================================================== */
+[data-theme="modern-light"] .guestRowActive td,
+[data-theme="modern-light"] tr.selected {
+  background: var(--c-accent-bg) !important;
+}
+[data-theme="modern-dark"] .guestRowActive td,
+[data-theme="modern-dark"] tr.selected {
+  background: rgba(59,130,246,0.12) !important;
+}
+[data-theme="modern-light"] .guestSecondary,
+[data-theme="modern-dark"] .guestSecondary {
+  font-size: 11px;
+  color: var(--c-text-muted);
+}
+
+/* ==========================================================================
+   FORM İÇİ BASARI / BİLGİ MESAJLARI
+   ========================================================================== */
+[data-theme="modern-light"] .formSuccess,
+[data-theme="modern-dark"] .formSuccess {
+  margin-top: 8px;
+  font-weight: 600;
+  color: var(--c-success);
+  font-size: 13px;
+}
+[data-theme="modern-light"] .formNote,
+[data-theme="modern-dark"] .formNote {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+/* ==========================================================================
+   TABLO BAŞLIK VARYANTI — chat/misafir tablosu
+   ========================================================================== */
+[data-theme="modern-light"] .guestTh,
+[data-theme="modern-dark"] .guestTh {
+  padding: 8px 10px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--c-text-muted);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-table-header);
+}
+[data-theme="modern-light"] .guestTd,
+[data-theme="modern-dark"] .guestTd {
+  padding: 8px 10px;
+  vertical-align: middle;
+  font-size: 13px;
+  color: var(--c-text);
+  border-bottom: 1px solid var(--c-border-light);
 }
 
 /* ==========================================================================

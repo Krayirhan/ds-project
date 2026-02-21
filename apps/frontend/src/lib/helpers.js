@@ -34,9 +34,15 @@ export function now() {
 
 // ── Skor renklendirme ───────────────────────────────────────────────
 
-export function scoreColor(score) {
-  if (score == null || Number.isNaN(Number(score))) return '#666';
+export function scoreColor(score, isDark = false) {
+  if (score == null || Number.isNaN(Number(score))) return isDark ? '#8896a7' : '#666';
   const v = Number(score);
+  if (isDark) {
+    if (v >= 0.90) return '#34d399';
+    if (v >= 0.80) return '#6ee7b7';
+    if (v >= 0.70) return '#fbbf24';
+    return '#f87171';
+  }
   if (v >= 0.90) return '#006600';
   if (v >= 0.80) return '#337700';
   if (v >= 0.70) return '#996600';

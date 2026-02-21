@@ -7,14 +7,14 @@ import {
   modelBadge, modelIcon, modelCalibration,
 } from '../lib/helpers';
 
-function ScoreBar({ score, max = 1 }) {
+function ScoreBar({ score, max = 1, isDark = false }) {
   if (score == null) return null;
   const pctVal = Math.min(100, (Number(score) / max) * 100);
-  const color = scoreColor(score);
+  const color = scoreColor(score, isDark);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      <div style={{ width: 60, height: 8, background: '#e0e0e0', border: '1px solid #b0b0b0' }}>
-        <div style={{ width: `${pctVal}%`, height: '100%', background: color }} />
+      <div style={{ width: 60, height: 8, background: 'var(--c-surface-3, #e0e0e0)', borderRadius: 2 }}>
+        <div style={{ width: `${pctVal}%`, height: '100%', background: color, borderRadius: 2 }} />
       </div>
       <span style={{ fontFamily: 'Consolas', fontSize: 11, color }}>{f(score)}</span>
     </div>
@@ -237,7 +237,7 @@ export default function OverviewPage() {
           PSI &lt; 0.1 → düşük kayma, 0.1–0.25 → orta, &gt; 0.25 → yüksek kayma.
         </div>
 
-        {monLoading && <div style={{ padding: '8px 0', color: '#888' }}>⏳ Drift raporu yükleniyor…</div>}
+        {monLoading && <div className="textMuted" style={{ padding: '8px 0' }}>⏳ Drift raporu yükleniyor…</div>}
         {monError   && <div className="error" role="alert">⚠ {monError}</div>}
 
         {monitoring && !monLoading && (() => {
@@ -251,9 +251,9 @@ export default function OverviewPage() {
             : [];
 
           function psiColor(psi) {
-            if (psi >= 0.25) return '#cc0000';
-            if (psi >= 0.1)  return '#b06000';
-            return '#006600';
+            if (psi >= 0.25) return theme.isDark ? '#f87171' : '#cc0000';
+            if (psi >= 0.1)  return theme.isDark ? '#fbbf24' : '#b06000';
+            return theme.isDark ? '#34d399' : '#006600';
           }
 
           return (
@@ -344,15 +344,15 @@ export default function OverviewPage() {
               {sortedModels.map(m => {
                 const isChamp = m.model_name === champion.selected_model;
                 return (
-                  <tr key={m.model_name} style={isChamp ? { background: '#fffff0', fontWeight: 600 } : {}}>
+                  <tr key={m.model_name} style={isChamp ? { background: 'var(--c-warning-bg, #fffff0)', fontWeight: 600 } : {}}>
                     <td style={{ textAlign: 'center' }} aria-label={isChamp ? 'Şampiyon' : ''}>{isChamp ? '★' : <span aria-hidden="true">{modelIcon(m.model_name)}</span>}</td>
                     <td><strong>{displayName(m.model_name)}</strong></td>
                     <td><span className={`typeBadge ${modelBadge(m.model_name) === 'Gelişmiş' ? 'advanced' : 'base'}`}>{modelBadge(m.model_name)}</span></td>
                     <td>{modelCalibration(m.model_name)}</td>
-                    <td style={{ color: m.test_roc_auc === bestScores.test_roc_auc ? '#006600' : undefined, fontWeight: m.test_roc_auc === bestScores.test_roc_auc ? 700 : 400 }}><ScoreBar score={m.test_roc_auc} /></td>
-                    <td style={{ color: m.test_f1 === bestScores.test_f1 ? '#006600' : undefined, fontWeight: m.test_f1 === bestScores.test_f1 ? 700 : 400 }}><ScoreBar score={m.test_f1} /></td>
-                    <td><ScoreBar score={m.test_precision} /></td>
-                    <td><ScoreBar score={m.test_recall} /></td>
+                    <td style={{ color: m.test_roc_auc === bestScores.test_roc_auc ? 'var(--c-success, #006600)' : undefined, fontWeight: m.test_roc_auc === bestScores.test_roc_auc ? 700 : 400 }}><ScoreBar score={m.test_roc_auc} isDark={theme.isDark} /></td>
+                    <td style={{ color: m.test_f1 === bestScores.test_f1 ? 'var(--c-success, #006600)' : undefined, fontWeight: m.test_f1 === bestScores.test_f1 ? 700 : 400 }}><ScoreBar score={m.test_f1} isDark={theme.isDark} /></td>
+                    <td><ScoreBar score={m.test_precision} isDark={theme.isDark} /></td>
+                    <td><ScoreBar score={m.test_recall} isDark={theme.isDark} /></td>
                   </tr>
                 );
               })}
