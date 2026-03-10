@@ -14,16 +14,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Trivy (apt — no GitHub API dependency)
+        run: |
+          sudo apt-get install -y wget apt-transport-https gnupg
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | gpg --dearmor \
+            | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update -y -qq
+          sudo apt-get install -y trivy
+          trivy --version
+
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.34.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-results.sarif
-          exit-code: '0'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
+        run: |
+          trivy fs \
+            --format sarif \
+            --output trivy-results.sarif \
+            --ignore-unfixed \
+            --severity CRITICAL,HIGH \
+            --exit-code 0 \
+            .
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v3
@@ -64,19 +75,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Trivy (apt — no GitHub API dependency)
+        run: |
+          sudo apt-get install -y wget apt-transport-https gnupg
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+            | gpg --dearmor \
+            | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
+            | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update -y -qq
+          sudo apt-get install -y trivy
+          trivy --version
+
       - name: Build image for scanning
         run: docker build -t ds-project-scan:${{ github.sha }} .
 
       - name: Trivy container image scan
-        uses: aquasecurity/trivy-action@0.34.0
-        with:
-          scan-type: image
-          image-ref: ds-project-scan:${{ github.sha }}
-          format: sarif
-          output: trivy-container-results.sarif
-          severity: CRITICAL,HIGH
-          exit-code: '1'
-          ignore-unfixed: true
+        run: |
+          trivy image \
+            --format sarif \
+            --output trivy-container-results.sarif \
+            --ignore-unfixed \
+            --severity CRITICAL,HIGH \
+            --exit-code 1 \
+            ds-project-scan:${{ github.sha }}
 
       - name: Upload container scan SARIF
         if: always()
