@@ -44,32 +44,48 @@ config.set_main_option("sqlalchemy.url", _db_url)
 # Import DashboardStore's MetaData so Alembic can diff the live DB against it.
 try:
     from src.dashboard import DashboardStore as _DS  # noqa: PLC0415
+
     _dummy = _DS.__new__(_DS)
     # We only need the MetaData object — instantiate tables without an engine
-    from sqlalchemy import MetaData as _Meta, Table, Column, String, Float, Integer, DateTime
+    from sqlalchemy import (
+        MetaData as _Meta,
+        Table,
+        Column,
+        String,
+        Float,
+        Integer,
+        DateTime,
+    )
+
     _meta = _Meta()
-    Table("experiment_runs", _meta,
-          Column("run_id", String(64), primary_key=True),
-          Column("selected_model", String(256), nullable=True),
-          Column("threshold", Float, nullable=True),
-          Column("expected_net_profit", Float, nullable=True),
-          Column("max_action_rate", Float, nullable=True),
-          Column("source_path", String(1024), nullable=True),
-          Column("updated_at", DateTime(timezone=True), nullable=False))
-    Table("model_metrics", _meta,
-          Column("id", Integer, primary_key=True, autoincrement=True),
-          Column("run_id", String(64), nullable=False),
-          Column("model_name", String(256), nullable=False),
-          Column("train_cv_roc_auc_mean", Float, nullable=True),
-          Column("train_cv_roc_auc_std", Float, nullable=True),
-          Column("test_roc_auc", Float, nullable=True),
-          Column("test_f1", Float, nullable=True),
-          Column("test_precision", Float, nullable=True),
-          Column("test_recall", Float, nullable=True),
-          Column("test_threshold", Float, nullable=True),
-          Column("n_test", Integer, nullable=True),
-          Column("positive_rate_test", Float, nullable=True),
-          Column("updated_at", DateTime(timezone=True), nullable=False))
+    Table(
+        "experiment_runs",
+        _meta,
+        Column("run_id", String(64), primary_key=True),
+        Column("selected_model", String(256), nullable=True),
+        Column("threshold", Float, nullable=True),
+        Column("expected_net_profit", Float, nullable=True),
+        Column("max_action_rate", Float, nullable=True),
+        Column("source_path", String(1024), nullable=True),
+        Column("updated_at", DateTime(timezone=True), nullable=False),
+    )
+    Table(
+        "model_metrics",
+        _meta,
+        Column("id", Integer, primary_key=True, autoincrement=True),
+        Column("run_id", String(64), nullable=False),
+        Column("model_name", String(256), nullable=False),
+        Column("train_cv_roc_auc_mean", Float, nullable=True),
+        Column("train_cv_roc_auc_std", Float, nullable=True),
+        Column("test_roc_auc", Float, nullable=True),
+        Column("test_f1", Float, nullable=True),
+        Column("test_precision", Float, nullable=True),
+        Column("test_recall", Float, nullable=True),
+        Column("test_threshold", Float, nullable=True),
+        Column("n_test", Integer, nullable=True),
+        Column("positive_rate_test", Float, nullable=True),
+        Column("updated_at", DateTime(timezone=True), nullable=False),
+    )
     target_metadata = _meta
 except Exception:
     # Fallback: autogenerate will not diff against schema but migrations still run

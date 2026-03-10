@@ -13,10 +13,10 @@ from ..utils import get_logger
 logger = get_logger("chat_ollama")
 
 # ── Circuit breaker constants ──────────────────────────────────────────────────
-_CB_FAILURE_THRESHOLD = 5   # consecutive failures before opening circuit
-_CB_RECOVERY_SECONDS = 30   # seconds to wait before attempting half-open probe
-_RETRY_ATTEMPTS = 3          # total attempts (1 original + 2 retries)
-_RETRY_BASE_DELAY = 1.0      # exponential backoff base (seconds)
+_CB_FAILURE_THRESHOLD = 5  # consecutive failures before opening circuit
+_CB_RECOVERY_SECONDS = 30  # seconds to wait before attempting half-open probe
+_RETRY_ATTEMPTS = 3  # total attempts (1 original + 2 retries)
+_RETRY_BASE_DELAY = 1.0  # exponential backoff base (seconds)
 
 
 class OllamaClient:
@@ -121,13 +121,18 @@ class OllamaClient:
                 last_exc = exc
                 self._cb_failure()
                 if attempt < _RETRY_ATTEMPTS - 1:
-                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
+                    delay = _RETRY_BASE_DELAY * (2**attempt)
                     logger.warning(
                         "Ollama chat attempt %d/%d failed: %s — retrying in %.1fs",
-                        attempt + 1, _RETRY_ATTEMPTS, exc, delay,
+                        attempt + 1,
+                        _RETRY_ATTEMPTS,
+                        exc,
+                        delay,
                     )
                     await asyncio.sleep(delay)
-        logger.error("Ollama chat failed after %d attempts: %s", _RETRY_ATTEMPTS, last_exc)
+        logger.error(
+            "Ollama chat failed after %d attempts: %s", _RETRY_ATTEMPTS, last_exc
+        )
         raise RuntimeError("Ollama yanıt veremedi") from last_exc
 
     async def health(self) -> bool:
@@ -199,6 +204,7 @@ def get_ollama_client() -> OllamaClient:
             timeout_seconds=float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120")),
         )
     return _client
+
 
 # ── Ollama Embedding Client (RAG vector search) ───────────────────────────────
 

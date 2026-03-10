@@ -13,6 +13,7 @@ Usage:
     init_user_store(database_url)
     seed_admin()
 """
+
 from __future__ import annotations
 
 import logging
@@ -231,7 +232,9 @@ def seed_admin() -> None:
     else:
         # Keep startup deterministic for tests and controlled deployments:
         # when an explicit env password is set, sync DB hash if needed.
-        if explicit_admin_pass and not store.verify_password("admin", explicit_admin_pass):
+        if explicit_admin_pass and not store.verify_password(
+            "admin", explicit_admin_pass
+        ):
             store.update_password("admin", explicit_admin_pass)
             logger.info("Admin user password updated from environment.")
         logger.debug("Admin user already exists in database.")

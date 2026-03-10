@@ -27,7 +27,9 @@ def test_run_id_and_latest_helpers(tmp_path: Path):
 
 def test_resolve_latest_run_id_missing_raises(tmp_path: Path):
     with pytest.raises(FileNotFoundError):
-        h.resolve_latest_run_id(tmp_path / "missing-1.json", tmp_path / "missing-2.json")
+        h.resolve_latest_run_id(
+            tmp_path / "missing-1.json", tmp_path / "missing-2.json"
+        )
 
 
 def test_copy_safe_load_and_read_input_dataset(tmp_path: Path, monkeypatch):
@@ -42,7 +44,9 @@ def test_copy_safe_load_and_read_input_dataset(tmp_path: Path, monkeypatch):
     assert h.safe_load(model_path) == {"a": 1}
     assert h.safe_load(tmp_path / "missing.joblib") is None
 
-    monkeypatch.setattr(h, "read_parquet", lambda p: {"kind": "parquet", "path": str(p)})
+    monkeypatch.setattr(
+        h, "read_parquet", lambda p: {"kind": "parquet", "path": str(p)}
+    )
     monkeypatch.setattr(h, "read_csv", lambda p: {"kind": "csv", "path": str(p)})
 
     assert h.read_input_dataset(Path("data.parquet"))["kind"] == "parquet"

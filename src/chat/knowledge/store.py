@@ -149,9 +149,7 @@ class KnowledgeStore:
             from ..ollama_client import get_embedding_client
 
             embed_client = get_embedding_client()
-            texts = [
-                f"{c.title}. {c.content} {' '.join(c.tags)}" for c in self._chunks
-            ]
+            texts = [f"{c.title}. {c.content} {' '.join(c.tags)}" for c in self._chunks]
             embeddings = embed_client.embed_batch_sync(texts)
             if embeddings and len(embeddings) == len(self._chunks):
                 self._embeddings = embeddings
@@ -162,9 +160,7 @@ class KnowledgeStore:
                     embed_client.model,
                 )
             else:
-                logger.debug(
-                    "Knowledge store: embedding index skipped — TF-IDF only"
-                )
+                logger.debug("Knowledge store: embedding index skipped — TF-IDF only")
         except Exception as exc:
             logger.debug("Knowledge store: embedding init skipped: %s", exc)
 
@@ -188,9 +184,7 @@ class KnowledgeStore:
                     top_indices = sorted(
                         range(len(sims)), key=lambda i: sims[i], reverse=True
                     )[:top_k]
-                    results = [
-                        self._chunks[i] for i in top_indices if sims[i] > 0.05
-                    ]
+                    results = [self._chunks[i] for i in top_indices if sims[i] > 0.05]
                     if results:
                         return results
             except Exception as exc:

@@ -5,6 +5,7 @@ Flow:
   GET  /auth/me      → validate token, return username
   POST /auth/logout  → revoke token
 """
+
 from __future__ import annotations
 
 import json
@@ -33,8 +34,8 @@ _MAX_TOTAL_TOKENS = 10_000
 
 # ── Redis token backend ───────────────────────────────────────────────────────
 _REDIS_TOKEN_PREFIX = "ds:auth:tok:"  # nosec B105
-_REDIS_USER_PREFIX  = "ds:auth:usr:"
-_redis_client: Any  = None
+_REDIS_USER_PREFIX = "ds:auth:usr:"
+_redis_client: Any = None
 
 
 def _get_redis_client() -> Any | None:
@@ -46,13 +47,19 @@ def _get_redis_client() -> Any | None:
         return None
     try:
         import redis as _redis  # type: ignore[import]
-        client = _redis.Redis.from_url(redis_url, decode_responses=True, socket_timeout=2)
+
+        client = _redis.Redis.from_url(
+            redis_url, decode_responses=True, socket_timeout=2
+        )
         client.ping()
         _redis_client = client
         logger.info("Auth token store: Redis backend active (%s)", redis_url)
         return _redis_client
     except Exception as exc:
-        logger.warning("Auth token store: Redis unavailable, using in-memory fallback. reason=%s", exc)
+        logger.warning(
+            "Auth token store: Redis unavailable, using in-memory fallback. reason=%s",
+            exc,
+        )
         return None
 
 
@@ -97,8 +104,13 @@ def _redis_enforce_user_limit(r: Any, username: str) -> None:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _auth_enabled() -> bool:
-    return os.getenv("DASHBOARD_AUTH_ENABLED", "true").strip().lower() not in {"false", "0", "no"}
+    return os.getenv("DASHBOARD_AUTH_ENABLED", "true").strip().lower() not in {
+        "false",
+        "0",
+        "no",
+    }
 
 
 def _token_ttl_minutes() -> int:
@@ -220,11 +232,12 @@ def _parse_bearer_token(authorization: str | None) -> str | None:
     prefix = "Bearer "
     if not authorization.startswith(prefix):
         return None
-    token = authorization[len(prefix):].strip()
+    token = authorization[len(prefix) :].strip()
     return token or None
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
+
 
 class LoginRequest(BaseModel):
     username: str
@@ -239,6 +252,7 @@ class LoginResponse(BaseModel):
 
 
 # ── Dependency ────────────────────────────────────────────────────────────────
+
 
 def require_dashboard_user(
     authorization: str | None = Header(default=None),
@@ -260,12 +274,15 @@ def require_dashboard_user(
             data = _token_store.get(token)
 
     if data is None:
-        raise HTTPException(status_code=401, detail="Geçersiz veya süresi dolmuş oturum")
+        raise HTTPException(
+            status_code=401, detail="Geçersiz veya süresi dolmuş oturum"
+        )
 
     return {"username": data.get("username", "admin"), "auth_enabled": True}
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
 
 @router_dashboard_auth.post("/login", response_model=LoginResponse)
 def dashboard_login(payload: LoginRequest) -> LoginResponse:
@@ -293,8 +310,14 @@ def dashboard_login(payload: LoginRequest) -> LoginResponse:
             if len(_token_store) >= _MAX_TOTAL_TOKENS:
                 _cleanup_expired_tokens_locked()
                 if len(_token_store) >= _MAX_TOTAL_TOKENS:
-                    raise HTTPException(status_code=503, detail="Token store kapasitesi dolu.")
-            user_tokens = [k for k, v in _token_store.items() if v.get("username") == payload.username]
+                    raise HTTPException(
+                        status_code=503, detail="Token store kapasitesi dolu."
+                    )
+            user_tokens = [
+                k
+                for k, v in _token_store.items()
+                if v.get("username") == payload.username
+            ]
             if len(user_tokens) >= _MAX_TOKENS_PER_USER:
                 oldest = min(user_tokens, key=lambda k: _token_store[k]["expires_at"])
                 _token_store.pop(oldest, None)

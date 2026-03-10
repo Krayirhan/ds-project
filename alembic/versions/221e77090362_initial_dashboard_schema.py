@@ -1,7 +1,7 @@
 """initial_dashboard_schema
 
 Revision ID: 221e77090362
-Revises: 
+Revises:
 Create Date: 2026-02-21 15:00:49.558379
 
 Creates the two core DashboardStore tables:
@@ -11,6 +11,7 @@ Creates the two core DashboardStore tables:
 Subsequent schema changes should be added as new revisions via:
   alembic revision --autogenerate -m "describe the change"
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -18,7 +19,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '221e77090362'
+revision: str = "221e77090362"
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -52,7 +53,9 @@ def upgrade() -> None:
         sa.Column("n_test", sa.Integer(), nullable=True),
         sa.Column("positive_rate_test", sa.Float(), nullable=True),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["run_id"], ["experiment_runs.run_id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["run_id"], ["experiment_runs.run_id"], ondelete="CASCADE"
+        ),
     )
 
 
@@ -60,4 +63,3 @@ def downgrade() -> None:
     """Drop dashboard schema tables."""
     op.drop_table("model_metrics")
     op.drop_table("experiment_runs")
-

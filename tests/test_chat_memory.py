@@ -109,7 +109,9 @@ def test_redis_store_roundtrip_and_save_ttl_paths():
     redis = FakeRedis()
     store = mem.RedisSessionStore(redis, ttl_seconds=120, max_history=4)
 
-    session = store.create_session(customer_data={"a": 1}, risk_score=0.9, risk_label="high")
+    session = store.create_session(
+        customer_data={"a": 1}, risk_score=0.9, risk_label="high"
+    )
     key = store._key(session.session_id)
     assert key in redis.data
     assert redis.ttls[key] == 120

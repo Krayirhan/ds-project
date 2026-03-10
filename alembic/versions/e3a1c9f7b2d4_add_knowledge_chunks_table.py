@@ -1,4 +1,4 @@
-﻿"""add_knowledge_chunks_table
+"""add_knowledge_chunks_table
 
 Revision ID: e3a1c9f7b2d4
 Revises: 854e7dedec10
@@ -8,6 +8,7 @@ Adds the `knowledge_chunks` table for pgvector-backed RAG knowledge base.
 Enables the pgvector extension and creates an HNSW index for sub-millisecond
 cosine similarity search across policy/knowledge embeddings.
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -23,7 +24,9 @@ EMBED_DIM = 768  # nomic-embed-text output dimension
 
 def upgrade() -> None:
     dialect = op.get_bind().dialect.name
-    ts_default = sa.text("NOW()") if dialect == "postgresql" else sa.text("CURRENT_TIMESTAMP")
+    ts_default = (
+        sa.text("NOW()") if dialect == "postgresql" else sa.text("CURRENT_TIMESTAMP")
+    )
 
     # 1) Create portable base table.
     op.create_table(
@@ -54,7 +57,9 @@ def upgrade() -> None:
     if dialect == "postgresql":
         # 2) PostgreSQL optimized path (pgvector + HNSW).
         op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-        op.execute(f"ALTER TABLE knowledge_chunks ADD COLUMN embedding vector({EMBED_DIM})")
+        op.execute(
+            f"ALTER TABLE knowledge_chunks ADD COLUMN embedding vector({EMBED_DIM})"
+        )
         op.execute(
             "CREATE INDEX ix_knowledge_embedding_hnsw "
             "ON knowledge_chunks USING hnsw (embedding vector_cosine_ops) "

@@ -91,11 +91,13 @@ def build_raw_schema(target_col: str = "is_canceled") -> DataFrameSchema:
             target_col: Column(
                 nullable=False,
                 checks=Check(
-                    lambda s: s.astype(str)
-                    .str.lower()
-                    .str.strip()
-                    .isin(["0", "1", "yes", "no"])
-                    .all(),
+                    lambda s: (
+                        s.astype(str)
+                        .str.lower()
+                        .str.strip()
+                        .isin(["0", "1", "yes", "no"])
+                        .all()
+                    ),
                     error=f"Target column '{target_col}' must contain 0/1 or yes/no",
                 ),
             ),
@@ -551,8 +553,7 @@ def assert_no_nans_after_imputation(
 
     if nan_counts:
         logger.warning(
-            f"⚠️ Post-imputation NaN found in {len(nan_counts)} column(s): "
-            f"{nan_counts}"
+            f"⚠️ Post-imputation NaN found in {len(nan_counts)} column(s): {nan_counts}"
         )
     else:
         logger.info(
@@ -1231,8 +1232,7 @@ def compute_psi(
         elif score >= col_warn:
             warn_cols.append(col)
             logger.warning(
-                f"⚠️  {metric.upper()} drift [{col}]: {score:.4f} ≥ "
-                f"warn={col_warn:.3f}"
+                f"⚠️  {metric.upper()} drift [{col}]: {score:.4f} ≥ warn={col_warn:.3f}"
             )
 
     overall_passed = len(drift_cols) == 0

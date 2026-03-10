@@ -167,6 +167,7 @@ async def summary(session_id: str) -> SessionSummaryResponse:
 
 # ── Risk skoru otomatik hesaplama ─────────────────────────────────────────────
 
+
 class PredictRiskRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -224,7 +225,9 @@ async def list_available_models(request: Request) -> dict:
 
 
 @router_chat.post("/predict-risk", response_model=PredictRiskResponse)
-async def predict_risk(body: PredictRiskRequest, request: Request) -> PredictRiskResponse:
+async def predict_risk(
+    body: PredictRiskRequest, request: Request
+) -> PredictRiskResponse:
     """Form verisinden model tahminini çalıştırarak iptal riski üretir."""
     import joblib as _joblib
     import pandas as pd
@@ -245,20 +248,28 @@ async def predict_risk(body: PredictRiskRequest, request: Request) -> PredictRis
             latest_path = root / "models" / "latest.json"
             latest = json.loads(latest_path.read_text(encoding="utf-8"))
             run_id = latest.get("run_id", "")
-            registry_path = root / "reports" / "metrics" / run_id / "model_registry.json"
+            registry_path = (
+                root / "reports" / "metrics" / run_id / "model_registry.json"
+            )
             registry = json.loads(registry_path.read_text(encoding="utf-8"))
             if body.model_name not in registry:
-                raise HTTPException(status_code=400, detail=f"Model bulunamadı: {body.model_name}")
+                raise HTTPException(
+                    status_code=400, detail=f"Model bulunamadı: {body.model_name}"
+                )
             artifact = registry[body.model_name]
             model_path = root / artifact
             if not model_path.exists():
-                raise HTTPException(status_code=404, detail=f"Model dosyası bulunamadı: {artifact}")
+                raise HTTPException(
+                    status_code=404, detail=f"Model dosyası bulunamadı: {artifact}"
+                )
             model_to_use = _joblib.load(model_path)
             model_name_used = body.model_name
         except HTTPException:
             raise
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Model yükleme hatası: {exc}") from exc
+            raise HTTPException(
+                status_code=500, detail=f"Model yükleme hatası: {exc}"
+            ) from exc
 
     # Varış tarihini lead_time'dan hesapla
     arrival = datetime.date.today() + datetime.timedelta(days=int(body.lead_time))
@@ -306,7 +317,9 @@ async def predict_risk(body: PredictRiskRequest, request: Request) -> PredictRis
         )
         proba = float(model_to_use.predict_proba(X)[0, 1])
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Model tahmin hatası: {exc}") from exc
+        raise HTTPException(
+            status_code=500, detail=f"Model tahmin hatası: {exc}"
+        ) from exc
 
     if proba >= 0.65:
         label = "high"
@@ -352,6 +365,7 @@ class KnowledgeChunkUpdateRequest(BaseModel):
 
 def _require_db_store():
     from .knowledge.db_store import get_knowledge_db_store
+
     db = get_knowledge_db_store()
     if db is None:
         raise HTTPException(
@@ -367,7 +381,9 @@ async def list_knowledge_chunks(include_inactive: bool = False) -> list[dict]:
     return _require_db_store().list_chunks(include_inactive=include_inactive)
 
 
-@router_chat.post("/admin/knowledge", status_code=201, summary="Yeni knowledge chunk ekle")
+@router_chat.post(
+    "/admin/knowledge", status_code=201, summary="Yeni knowledge chunk ekle"
+)
 async def create_knowledge_chunk(body: KnowledgeChunkCreateRequest) -> dict:
     """Yeni bir knowledge chunk oluşturur ve otomatik olarak embed eder."""
     db = _require_db_store()
@@ -385,7 +401,9 @@ async def create_knowledge_chunk(body: KnowledgeChunkCreateRequest) -> dict:
 
 
 @router_chat.put("/admin/knowledge/{chunk_id}", summary="Knowledge chunk güncelle")
-async def update_knowledge_chunk(chunk_id: str, body: KnowledgeChunkUpdateRequest) -> dict:
+async def update_knowledge_chunk(
+    chunk_id: str, body: KnowledgeChunkUpdateRequest
+) -> dict:
     """Bir chunk'ı günceller. İçerik değişirse otomatik re-embed yapar."""
     db = _require_db_store()
     updates = body.model_dump(exclude_none=True)

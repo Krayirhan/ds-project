@@ -38,8 +38,9 @@ JSON_OUT = "--json" in sys.argv
 if sys.platform == "win32":
     try:
         import ctypes
-        ctypes.windll.kernel32.SetConsoleCP(65001)           # type: ignore[attr-defined]
-        ctypes.windll.kernel32.SetConsoleOutputCP(65001)     # type: ignore[attr-defined]
+
+        ctypes.windll.kernel32.SetConsoleCP(65001)  # type: ignore[attr-defined]
+        ctypes.windll.kernel32.SetConsoleOutputCP(65001)  # type: ignore[attr-defined]
     except Exception:
         pass
     try:
@@ -82,7 +83,7 @@ def info(msg: str) -> str:
 
 def hdr(title: str, n: int, total: int) -> str:
     bar = f"{n} / {total}"
-    return _c(_BOLD + _CYAN, f"\n{'─'*60}\n  {bar}  {title}\n{'─'*60}")
+    return _c(_BOLD + _CYAN, f"\n{'─' * 60}\n  {bar}  {title}\n{'─' * 60}")
 
 
 # ─── Durum takibi ─────────────────────────────────────────────────────────────
@@ -678,7 +679,7 @@ def check_ports() -> None:
 
 
 def summary() -> int:
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
 
     if JSON_OUT:
         out = {

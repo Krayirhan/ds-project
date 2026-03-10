@@ -77,7 +77,9 @@ def _get_search_space(trial: Any, model_type: str) -> Dict[str, Any]:
             "subsample": trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
             "min_child_samples": trial.suggest_int("min_child_samples", 5, 50),
-            "min_child_weight": trial.suggest_float("min_child_weight", 1e-3, 10.0, log=True),
+            "min_child_weight": trial.suggest_float(
+                "min_child_weight", 1e-3, 10.0, log=True
+            ),
             "reg_lambda": trial.suggest_float("reg_lambda", 1e-8, 10.0, log=True),
             "reg_alpha": trial.suggest_float("reg_alpha", 1e-8, 10.0, log=True),
             "is_unbalance": trial.suggest_categorical("is_unbalance", [True, False]),

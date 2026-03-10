@@ -16,6 +16,7 @@ Columns:
   created_at    — UTC timestamp
   updated_at    — UTC timestamp
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa

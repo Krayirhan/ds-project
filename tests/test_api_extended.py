@@ -19,7 +19,10 @@ def _make_request(
     headers: dict[str, str] | None = None,
     client: tuple[str, int] | None = ("127.0.0.1", 12345),
 ) -> Request:
-    hdrs = [(k.lower().encode("utf-8"), str(v).encode("utf-8")) for k, v in (headers or {}).items()]
+    hdrs = [
+        (k.lower().encode("utf-8"), str(v).encode("utf-8"))
+        for k, v in (headers or {}).items()
+    ]
     scope = {
         "type": "http",
         "asgi": {"version": "3.0"},

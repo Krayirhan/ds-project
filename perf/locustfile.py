@@ -165,12 +165,12 @@ class ChatUser(HttpUser):
 # ─────────────────────────────────────────────────────────────────────
 class ProductionLoadShape(LoadTestShape):
     stages = [
-        {"duration": 120,  "users": 50,  "spawn_rate": 1},
-        {"duration": 420,  "users": 200, "spawn_rate": 5},
+        {"duration": 120, "users": 50, "spawn_rate": 1},
+        {"duration": 420, "users": 200, "spawn_rate": 5},
         {"duration": 1020, "users": 200, "spawn_rate": 5},
         {"duration": 1200, "users": 400, "spawn_rate": 10},
         {"duration": 1500, "users": 400, "spawn_rate": 10},
-        {"duration": 1620, "users": 0,   "spawn_rate": 20},
+        {"duration": 1620, "users": 0, "spawn_rate": 20},
     ]
 
     def tick(self):
@@ -179,4 +179,3 @@ class ProductionLoadShape(LoadTestShape):
             if run_time < stage["duration"]:
                 return stage["users"], stage["spawn_rate"]
         return None
-

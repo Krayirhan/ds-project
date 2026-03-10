@@ -73,7 +73,9 @@ def _current_state_block(customer_data: dict) -> str:
         lines.append("❌ Depozito: Yok (alınmamış)")
 
     if int(customer_data.get("is_repeated_guest", 0) or 0) == 1:
-        lines.append("✅ Sadık müşteri (daha önce konaklamış — sadakat avanıtajını tekrar sunma)")
+        lines.append(
+            "✅ Sadık müşteri (daha önce konaklamış — sadakat avanıtajını tekrar sunma)"
+        )
     else:
         lines.append("🔴 İlk ziyaret")
 

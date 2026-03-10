@@ -18,7 +18,9 @@ def _dummy_serving(model_name: str = "xgb") -> SimpleNamespace:
         selected_model=model_name,
         selected_model_artifact="models/xgb.joblib",
     )
-    return SimpleNamespace(policy=policy, policy_path=Path("reports/decision_policy.json"))
+    return SimpleNamespace(
+        policy=policy, policy_path=Path("reports/decision_policy.json")
+    )
 
 
 def _schema_report() -> dict:
@@ -47,7 +49,9 @@ def _decide_report() -> dict:
     }
 
 
-def _dummy_request(headers: dict | None = None, request_id: str = "rid-1") -> SimpleNamespace:
+def _dummy_request(
+    headers: dict | None = None, request_id: str = "rid-1"
+) -> SimpleNamespace:
     return SimpleNamespace(
         headers=headers or {},
         state=SimpleNamespace(request_id=request_id),
@@ -56,7 +60,9 @@ def _dummy_request(headers: dict | None = None, request_id: str = "rid-1") -> Si
 
 def test_v1_get_serving_state_uses_app_state(monkeypatch):
     serving = _dummy_serving()
-    monkeypatch.setattr(api_v1, "_app_ref", SimpleNamespace(state=SimpleNamespace(serving=serving)))
+    monkeypatch.setattr(
+        api_v1, "_app_ref", SimpleNamespace(state=SimpleNamespace(serving=serving))
+    )
     assert api_v1._get_serving_state() is serving
 
 
@@ -74,12 +80,20 @@ def test_v1_predict_proba_error_paths(monkeypatch):
     payload = RecordsPayload(records=[{"lead_time": 10}])
     monkeypatch.setattr(api_v1, "_get_serving_state", lambda: _dummy_serving())
 
-    monkeypatch.setattr(api_v1, "exec_predict_proba", lambda *_: (_ for _ in ()).throw(ValueError("bad")))
+    monkeypatch.setattr(
+        api_v1,
+        "exec_predict_proba",
+        lambda *_: (_ for _ in ()).throw(ValueError("bad")),
+    )
     with pytest.raises(HTTPException) as ex1:
         api_v1.v1_predict_proba(payload)
     assert ex1.value.status_code == 400
 
-    monkeypatch.setattr(api_v1, "exec_predict_proba", lambda *_: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        api_v1,
+        "exec_predict_proba",
+        lambda *_: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     with pytest.raises(HTTPException) as ex2:
         api_v1.v1_predict_proba(payload)
     assert ex2.value.status_code == 500
@@ -89,12 +103,16 @@ def test_v1_decide_error_paths(monkeypatch):
     payload = RecordsPayload(records=[{"lead_time": 10}])
     monkeypatch.setattr(api_v1, "_get_serving_state", lambda: _dummy_serving())
 
-    monkeypatch.setattr(api_v1, "exec_decide", lambda *_: (_ for _ in ()).throw(ValueError("bad")))
+    monkeypatch.setattr(
+        api_v1, "exec_decide", lambda *_: (_ for _ in ()).throw(ValueError("bad"))
+    )
     with pytest.raises(HTTPException) as ex1:
         api_v1.v1_decide(payload)
     assert ex1.value.status_code == 400
 
-    monkeypatch.setattr(api_v1, "exec_decide", lambda *_: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        api_v1, "exec_decide", lambda *_: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
     with pytest.raises(HTTPException) as ex2:
         api_v1.v1_decide(payload)
     assert ex2.value.status_code == 500
@@ -113,7 +131,9 @@ def test_v1_reload_success_and_failure(monkeypatch):
     monkeypatch.setattr(
         api_v1,
         "_app_ref",
-        SimpleNamespace(state=SimpleNamespace(serving=None, _reload_lock=asyncio.Lock())),
+        SimpleNamespace(
+            state=SimpleNamespace(serving=None, _reload_lock=asyncio.Lock())
+        ),
     )
     req = _dummy_request(headers={"x-admin-key": "admin-secret"})
 
@@ -122,7 +142,11 @@ def test_v1_reload_success_and_failure(monkeypatch):
     assert out["status"] == "ok"
     assert out["model"] == "xgb"
 
-    monkeypatch.setattr(api_v1, "load_serving_state", lambda: (_ for _ in ()).throw(RuntimeError("load failed")))
+    monkeypatch.setattr(
+        api_v1,
+        "load_serving_state",
+        lambda: (_ for _ in ()).throw(RuntimeError("load failed")),
+    )
     with pytest.raises(HTTPException) as ex:
         asyncio.run(api_v1.v1_reload(req))
     assert ex.value.status_code == 500
@@ -135,7 +159,9 @@ def test_v1_model_name_helper():
 
 def test_v2_get_serving_state_paths(monkeypatch):
     serving = _dummy_serving()
-    monkeypatch.setattr(api_v2, "_app_ref", SimpleNamespace(state=SimpleNamespace(serving=serving)))
+    monkeypatch.setattr(
+        api_v2, "_app_ref", SimpleNamespace(state=SimpleNamespace(serving=serving))
+    )
     assert api_v2._get_serving_state() is serving
 
     state = SimpleNamespace(serving=None)
@@ -153,12 +179,20 @@ def test_v2_predict_proba_error_paths(monkeypatch):
     monkeypatch.setattr(api_v2, "_get_serving_state", lambda: _dummy_serving())
     monkeypatch.setattr(api_v2, "set_span_attribute", lambda *_: None)
 
-    monkeypatch.setattr(api_v2, "exec_predict_proba", lambda *_: (_ for _ in ()).throw(ValueError("bad")))
+    monkeypatch.setattr(
+        api_v2,
+        "exec_predict_proba",
+        lambda *_: (_ for _ in ()).throw(ValueError("bad")),
+    )
     with pytest.raises(HTTPException) as ex1:
         api_v2.v2_predict_proba(payload, req)
     assert ex1.value.status_code == 400
 
-    monkeypatch.setattr(api_v2, "exec_predict_proba", lambda *_: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        api_v2,
+        "exec_predict_proba",
+        lambda *_: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
     with pytest.raises(HTTPException) as ex2:
         api_v2.v2_predict_proba(payload, req)
     assert ex2.value.status_code == 500
@@ -170,12 +204,16 @@ def test_v2_decide_error_paths(monkeypatch):
     monkeypatch.setattr(api_v2, "_get_serving_state", lambda: _dummy_serving())
     monkeypatch.setattr(api_v2, "set_span_attribute", lambda *_: None)
 
-    monkeypatch.setattr(api_v2, "exec_decide", lambda *_: (_ for _ in ()).throw(ValueError("bad")))
+    monkeypatch.setattr(
+        api_v2, "exec_decide", lambda *_: (_ for _ in ()).throw(ValueError("bad"))
+    )
     with pytest.raises(HTTPException) as ex1:
         api_v2.v2_decide(payload, req)
     assert ex1.value.status_code == 400
 
-    monkeypatch.setattr(api_v2, "exec_decide", lambda *_: (_ for _ in ()).throw(RuntimeError("boom")))
+    monkeypatch.setattr(
+        api_v2, "exec_decide", lambda *_: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
     with pytest.raises(HTTPException) as ex2:
         api_v2.v2_decide(payload, req)
     assert ex2.value.status_code == 500
@@ -188,7 +226,9 @@ def test_v2_success_paths(monkeypatch):
     monkeypatch.setattr(api_v2, "_get_serving_state", lambda: serving)
     monkeypatch.setattr(api_v2, "set_span_attribute", lambda *_: None)
 
-    monkeypatch.setattr(api_v2, "exec_predict_proba", lambda *_: ([0.12], _schema_report(), "xgb"))
+    monkeypatch.setattr(
+        api_v2, "exec_predict_proba", lambda *_: ([0.12], _schema_report(), "xgb")
+    )
     proba_resp = api_v2.v2_predict_proba(payload, req)
     assert proba_resp.n == 1
     assert proba_resp.meta.api_version == "v2"
@@ -204,7 +244,9 @@ def test_v2_success_paths(monkeypatch):
             }
         ]
     )
-    monkeypatch.setattr(api_v2, "exec_decide", lambda *_: (actions_df, _decide_report(), "xgb"))
+    monkeypatch.setattr(
+        api_v2, "exec_decide", lambda *_: (actions_df, _decide_report(), "xgb")
+    )
     decide_resp = api_v2.v2_decide(payload, req)
     assert decide_resp.n == 1
     assert decide_resp.meta.request_id == "rid-success"
@@ -215,11 +257,17 @@ def test_v2_reload_failure(monkeypatch):
     monkeypatch.setattr(
         api_v2,
         "_app_ref",
-        SimpleNamespace(state=SimpleNamespace(serving=None, _reload_lock=asyncio.Lock())),
+        SimpleNamespace(
+            state=SimpleNamespace(serving=None, _reload_lock=asyncio.Lock())
+        ),
     )
     req = _dummy_request(headers={"x-admin-key": "admin-secret"})
 
-    monkeypatch.setattr(api_v2, "load_serving_state", lambda: (_ for _ in ()).throw(RuntimeError("load failed")))
+    monkeypatch.setattr(
+        api_v2,
+        "load_serving_state",
+        lambda: (_ for _ in ()).throw(RuntimeError("load failed")),
+    )
     with pytest.raises(HTTPException) as ex:
         asyncio.run(api_v2.v2_reload(req))
     assert ex.value.status_code == 500

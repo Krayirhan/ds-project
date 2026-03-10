@@ -71,4 +71,3 @@ def ensure_required_tables(
         raise RuntimeError(f"Missing required tables: {', '.join(sorted(missing))}")
 
     logger.info("Required database tables verified.")
-

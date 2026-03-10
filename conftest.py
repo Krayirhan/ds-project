@@ -18,7 +18,9 @@ if _root not in sys.path:
 
 
 @pytest.fixture(autouse=True)
-def _isolate_test_db_and_threads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolate_test_db_and_threads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Use an isolated SQLite DB per test and avoid flaky parallel CPU detection."""
     db_path = tmp_path / "dashboard_test.db"
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path.as_posix()}")

@@ -189,7 +189,9 @@ def train_candidate_models(
     )
 
     if include_challenger:
-        challenger_name, challenger_estimator = _build_first_available_challenger(seed, hpo_params=hpo_params)
+        challenger_name, challenger_estimator = _build_first_available_challenger(
+            seed, hpo_params=hpo_params
+        )
         results[challenger_name] = _fit_one(
             name=challenger_name,
             estimator=challenger_estimator,

@@ -40,7 +40,11 @@ def test_retrieve_tag_overlap_and_extract_tags_paths():
     assert out[0].chunk_id in {"pol_001", "pol_002", "pol_005"}
 
     low_risk_tags = store._extract_tags(
-        customer_data={"deposit_type": "Non Refund", "lead_time": 1, "previous_cancellations": 0},
+        customer_data={
+            "deposit_type": "Non Refund",
+            "lead_time": 1,
+            "previous_cancellations": 0,
+        },
         risk_score=0.2,
     )
     assert any("risk" in t for t in low_risk_tags)

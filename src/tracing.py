@@ -37,7 +37,11 @@ def _otel_enabled() -> bool:
 
 def _otlp_insecure() -> bool:
     """Use insecure gRPC only when explicitly requested (default: False for prod safety)."""
-    return os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() in ("true", "1", "yes")
+    return os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
 
 def init_tracing(service_name: str = "ds-project-api") -> None:

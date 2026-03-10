@@ -17,9 +17,19 @@ REQUEST_COUNT = Counter(
 # Buckets cover fast health-checks (1 ms) through slow ML batch inference (30 s).
 # Standard Prometheus defaults are not suitable for ML workloads.
 _LATENCY_BUCKETS = (
-    0.001, 0.005, 0.010, 0.025, 0.050, 0.100,  # sub-100 ms
-    0.250, 0.500, 1.0, 2.5, 5.0,               # 100 ms – 5 s  (typical inference)
-    10.0, 30.0,                                 # slow / batch
+    0.001,
+    0.005,
+    0.010,
+    0.025,
+    0.050,
+    0.100,  # sub-100 ms
+    0.250,
+    0.500,
+    1.0,
+    2.5,
+    5.0,  # 100 ms – 5 s  (typical inference)
+    10.0,
+    30.0,  # slow / batch
 )
 
 REQUEST_LATENCY = Histogram(

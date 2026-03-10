@@ -76,7 +76,11 @@ def test_start_session_success(monkeypatch):
         lambda **kwargs: SimpleNamespace(risk_percent=80.0),
     )
     monkeypatch.setattr(orc, "assemble_first_prompt", lambda **kwargs: "first prompt")
-    monkeypatch.setattr(orc, "validate_response", lambda text: SimpleNamespace(is_valid=True, cleaned_response=text, issues=[]))
+    monkeypatch.setattr(
+        orc,
+        "validate_response",
+        lambda text: SimpleNamespace(is_valid=True, cleaned_response=text, issues=[]),
+    )
 
     sid, reply = asyncio.run(
         orchestrator.start_session(
@@ -93,13 +97,19 @@ def test_start_session_success(monkeypatch):
 def test_send_message_missing_session_raises(monkeypatch):
     orchestrator, _store, _kn, _ol = _make_orchestrator(monkeypatch)
     with pytest.raises(ValueError):
-        asyncio.run(orchestrator.send_message(session_id="missing", user_message="hello"))
+        asyncio.run(
+            orchestrator.send_message(session_id="missing", user_message="hello")
+        )
 
 
 def test_send_message_with_text_retrieval(monkeypatch):
     orchestrator, store, _kn, _ol = _make_orchestrator(monkeypatch)
-    session = store.create_session(customer_data={"lead_time": 10}, risk_score=0.5, risk_label="mid")
-    _mock_intent = ClassifiedIntent(intent=Intent.RISK_EXPLANATION, confidence=0.8, hint_for_llm="hint")
+    session = store.create_session(
+        customer_data={"lead_time": 10}, risk_score=0.5, risk_label="mid"
+    )
+    _mock_intent = ClassifiedIntent(
+        intent=Intent.RISK_EXPLANATION, confidence=0.8, hint_for_llm="hint"
+    )
     monkeypatch.setattr(orc, "classify_intent", lambda _: _mock_intent)
     monkeypatch.setattr(
         orc,
@@ -112,7 +122,11 @@ def test_send_message_with_text_retrieval(monkeypatch):
         return "assistant reply"
 
     monkeypatch.setattr(orchestrator, "_ask_llm", _ask)
-    out = asyncio.run(orchestrator.send_message(session_id=session.session_id, user_message="what now"))
+    out = asyncio.run(
+        orchestrator.send_message(
+            session_id=session.session_id, user_message="what now"
+        )
+    )
     assert out == "assistant reply"
     assert store.saved == 1
     assert store.trimmed == 1
@@ -123,9 +137,15 @@ def test_send_message_fallback_to_customer_retrieval(monkeypatch):
         def retrieve_by_customer(self, **kwargs):
             return [SimpleNamespace(title="A", content="B")]
 
-    orchestrator, store, _kn, _ol = _make_orchestrator(monkeypatch, knowledge=_KnowledgeNoText())
-    session = store.create_session(customer_data={"lead_time": 10}, risk_score=0.5, risk_label="mid")
-    _mock_intent = ClassifiedIntent(intent=Intent.RISK_EXPLANATION, confidence=0.8, hint_for_llm="hint")
+    orchestrator, store, _kn, _ol = _make_orchestrator(
+        monkeypatch, knowledge=_KnowledgeNoText()
+    )
+    session = store.create_session(
+        customer_data={"lead_time": 10}, risk_score=0.5, risk_label="mid"
+    )
+    _mock_intent = ClassifiedIntent(
+        intent=Intent.RISK_EXPLANATION, confidence=0.8, hint_for_llm="hint"
+    )
     monkeypatch.setattr(orc, "classify_intent", lambda _: _mock_intent)
     monkeypatch.setattr(
         orc,
@@ -138,19 +158,27 @@ def test_send_message_fallback_to_customer_retrieval(monkeypatch):
         return "assistant reply"
 
     monkeypatch.setattr(orchestrator, "_ask_llm", _ask)
-    out = asyncio.run(orchestrator.send_message(session_id=session.session_id, user_message="what now"))
+    out = asyncio.run(
+        orchestrator.send_message(
+            session_id=session.session_id, user_message="what now"
+        )
+    )
     assert out == "assistant reply"
 
 
 def test_ask_llm_valid_retry_fallback_and_exception(monkeypatch):
-    orchestrator, store, _kn, _ol = _make_orchestrator(monkeypatch, ollama=_Ollama(outputs=["ilk", "ikinci"]))
+    orchestrator, store, _kn, _ol = _make_orchestrator(
+        monkeypatch, ollama=_Ollama(outputs=["ilk", "ikinci"])
+    )
     session = store.create_session(customer_data={}, risk_score=0.7, risk_label="high")
 
     monkeypatch.setattr(orc, "SYSTEM_PROMPT", "SYSTEM")
     monkeypatch.setattr(
         orc,
         "validate_response",
-        lambda text: SimpleNamespace(is_valid=True, cleaned_response=f"CLEAN:{text}", issues=[]),
+        lambda text: SimpleNamespace(
+            is_valid=True, cleaned_response=f"CLEAN:{text}", issues=[]
+        ),
     )
     out1 = asyncio.run(orchestrator._ask_llm(session=session, risk_percent=70))
     assert out1.startswith("CLEAN:")
@@ -162,7 +190,9 @@ def test_ask_llm_valid_retry_fallback_and_exception(monkeypatch):
     def _validate_retry(text):
         calls["n"] += 1
         if calls["n"] == 1:
-            return SimpleNamespace(is_valid=False, cleaned_response=text, issues=["mostly_english"])
+            return SimpleNamespace(
+                is_valid=False, cleaned_response=text, issues=["mostly_english"]
+            )
         return SimpleNamespace(is_valid=True, cleaned_response="temiz", issues=[])
 
     monkeypatch.setattr(orc, "validate_response", _validate_retry)
@@ -173,9 +203,13 @@ def test_ask_llm_valid_retry_fallback_and_exception(monkeypatch):
     monkeypatch.setattr(
         orc,
         "validate_response",
-        lambda text: SimpleNamespace(is_valid=False, cleaned_response=text, issues=["too_short"]),
+        lambda text: SimpleNamespace(
+            is_valid=False, cleaned_response=text, issues=["too_short"]
+        ),
     )
-    monkeypatch.setattr(orc, "fallback_response", lambda pct, intent=None: f"fallback-{pct}")
+    monkeypatch.setattr(
+        orc, "fallback_response", lambda pct, intent=None: f"fallback-{pct}"
+    )
     out3 = asyncio.run(orchestrator._ask_llm(session=session, risk_percent=55))
     assert out3 == "fallback-55"
 
@@ -194,12 +228,16 @@ def test_quick_actions_and_summary_paths(monkeypatch):
     high_actions = asyncio.run(orchestrator.quick_actions(session_id=s_high.session_id))
     assert len(high_actions) == 3
 
-    s_mid = ChatSession(session_id="mid", customer_data={}, risk_score=0.5, risk_label="mid")
+    s_mid = ChatSession(
+        session_id="mid", customer_data={}, risk_score=0.5, risk_label="mid"
+    )
     store.sessions[s_mid.session_id] = s_mid
     mid_actions = asyncio.run(orchestrator.quick_actions(session_id=s_mid.session_id))
     assert len(mid_actions) == 2
 
-    s_low = ChatSession(session_id="low", customer_data={}, risk_score=0.2, risk_label="low")
+    s_low = ChatSession(
+        session_id="low", customer_data={}, risk_score=0.2, risk_label="low"
+    )
     store.sessions[s_low.session_id] = s_low
     low_actions = asyncio.run(orchestrator.quick_actions(session_id=s_low.session_id))
     assert len(low_actions) == 2

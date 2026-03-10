@@ -67,14 +67,14 @@ class KnowledgeDbStore:
         return Table(
             "knowledge_chunks",
             self.metadata,
-            Column("id",        Integer(),     primary_key=True, autoincrement=True),
-            Column("chunk_id",  String(50),    nullable=False),
-            Column("category",  String(50),    nullable=False),
-            Column("tags",      JSON(),         nullable=False),
-            Column("title",     String(200),   nullable=False),
-            Column("content",   Text(),         nullable=False),
-            Column("priority",  Integer(),     nullable=False),
-            Column("is_active", Boolean(),     nullable=False),
+            Column("id", Integer(), primary_key=True, autoincrement=True),
+            Column("chunk_id", String(50), nullable=False),
+            Column("category", String(50), nullable=False),
+            Column("tags", JSON(), nullable=False),
+            Column("title", String(200), nullable=False),
+            Column("content", Text(), nullable=False),
+            Column("priority", Integer(), nullable=False),
+            Column("is_active", Boolean(), nullable=False),
             Column("created_at", DateTime(timezone=True), server_default=func.now()),
             Column("updated_at", DateTime(timezone=True), server_default=func.now()),
             extend_existing=True,
@@ -86,6 +86,7 @@ class KnowledgeDbStore:
         if self._embed_client is None:
             try:
                 from ..ollama_client import get_embedding_client
+
                 self._embed_client = get_embedding_client()
             except Exception as exc:
                 logger.debug("Embed client unavailable: %s", exc)
@@ -103,9 +104,10 @@ class KnowledgeDbStore:
         """Seed DB from policies.py if empty; embed any un-embedded chunks."""
         try:
             with self.engine.begin() as conn:
-                count = conn.execute(
-                    select(func.count()).select_from(self._table)
-                ).scalar() or 0
+                count = (
+                    conn.execute(select(func.count()).select_from(self._table)).scalar()
+                    or 0
+                )
 
                 if count == 0:
                     logger.info(
@@ -128,11 +130,11 @@ class KnowledgeDbStore:
                     # Sync new chunks from policies.py not yet in DB
                     existing = {
                         r[0]
-                        for r in conn.execute(
-                            select(self._table.c.chunk_id)
-                        ).fetchall()
+                        for r in conn.execute(select(self._table.c.chunk_id)).fetchall()
                     }
-                    new_chunks = [c for c in KNOWLEDGE_BASE if c.chunk_id not in existing]
+                    new_chunks = [
+                        c for c in KNOWLEDGE_BASE if c.chunk_id not in existing
+                    ]
                     for chunk in new_chunks:
                         conn.execute(
                             insert(self._table).values(
@@ -145,7 +147,9 @@ class KnowledgeDbStore:
                                 is_active=True,
                             )
                         )
-                        logger.info("Knowledge DB: synced new chunk '%s'", chunk.chunk_id)
+                        logger.info(
+                            "Knowledge DB: synced new chunk '%s'", chunk.chunk_id
+                        )
 
             # Embed chunks that are missing embeddings
             self._embed_missing()
@@ -262,9 +266,7 @@ class KnowledgeDbStore:
         """Tag-based retrieval — wraps vector search for backward compatibility."""
         return self.retrieve_by_text(query=" ".join(tags), top_k=top_k)
 
-    def _pgvector_search(
-        self, emb: list[float], top_k: int
-    ) -> list[KnowledgeChunk]:
+    def _pgvector_search(self, emb: list[float], top_k: int) -> list[KnowledgeChunk]:
         """Execute pgvector cosine similarity search via HNSW index."""
         with self.engine.connect() as conn:
             rows = conn.execute(
@@ -317,22 +319,19 @@ class KnowledgeDbStore:
     def list_chunks(self, *, include_inactive: bool = False) -> list[dict]:
         """List all knowledge chunks with metadata (no embedding bytes)."""
         with self.engine.connect() as conn:
-            stmt = (
-                select(
-                    self._table.c.id,
-                    self._table.c.chunk_id,
-                    self._table.c.category,
-                    self._table.c.tags,
-                    self._table.c.title,
-                    self._table.c.content,
-                    self._table.c.priority,
-                    self._table.c.is_active,
-                    self._table.c.created_at,
-                    self._table.c.updated_at,
-                    text("(embedding IS NOT NULL) AS has_embedding"),
-                )
-                .order_by(self._table.c.priority, self._table.c.id)
-            )
+            stmt = select(
+                self._table.c.id,
+                self._table.c.chunk_id,
+                self._table.c.category,
+                self._table.c.tags,
+                self._table.c.title,
+                self._table.c.content,
+                self._table.c.priority,
+                self._table.c.is_active,
+                self._table.c.created_at,
+                self._table.c.updated_at,
+                text("(embedding IS NOT NULL) AS has_embedding"),
+            ).order_by(self._table.c.priority, self._table.c.id)
             if not include_inactive:
                 stmt = stmt.where(self._table.c.is_active == True)  # noqa: E712
             rows = conn.execute(stmt).fetchall()
@@ -389,7 +388,8 @@ class KnowledgeDbStore:
             "id": new_id,
             "chunk_id": chunk_id,
             "embedded": embedded,
-            "message": "Chunk oluşturuldu" + (" ve gömüldü." if embedded else " (embedding bekliyor)."),
+            "message": "Chunk oluşturuldu"
+            + (" ve gömüldü." if embedded else " (embedding bekliyor)."),
         }
 
     def update_chunk(self, *, chunk_id: str, **fields: Any) -> bool:
@@ -489,9 +489,7 @@ def init_knowledge_db_store(engine: Engine) -> KnowledgeDbStore:
     """Initialize the pgvector knowledge store. Call once in app lifespan."""
     global _db_store
     _db_store = KnowledgeDbStore(engine)
-    logger.info(
-        "KnowledgeDbStore initialized (pgvector, table=knowledge_chunks)"
-    )
+    logger.info("KnowledgeDbStore initialized (pgvector, table=knowledge_chunks)")
     return _db_store
 
 

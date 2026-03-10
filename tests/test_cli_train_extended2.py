@@ -63,9 +63,13 @@ def _result_with_model(model):
     )
 
 
-def _patch_common(monkeypatch, *, result, profile_passed=True, calibrate_func=None, copy_mock=None):
+def _patch_common(
+    monkeypatch, *, result, profile_passed=True, calibrate_func=None, copy_mock=None
+):
     monkeypatch.setattr(cli_train, "_load_splits", lambda *_args, **_kwargs: _splits())
-    monkeypatch.setattr(cli_train, "validate_processed_data", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        cli_train, "validate_processed_data", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(
         cli_train,
         "run_validation_profile",
@@ -74,27 +78,40 @@ def _patch_common(monkeypatch, *, result, profile_passed=True, calibrate_func=No
             hard_failures=([] if profile_passed else ["schema"]),
         ),
     )
-    monkeypatch.setattr(cli_train, "train_candidate_models", lambda *_args, **_kwargs: {"m1": result})
-    monkeypatch.setattr(cli_train, "generate_reference_stats", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(cli_train, "generate_reference_categories", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(cli_train, "generate_reference_correlations", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        cli_train, "train_candidate_models", lambda *_args, **_kwargs: {"m1": result}
+    )
+    monkeypatch.setattr(
+        cli_train, "generate_reference_stats", lambda *_args, **_kwargs: {}
+    )
+    monkeypatch.setattr(
+        cli_train, "generate_reference_categories", lambda *_args, **_kwargs: {}
+    )
+    monkeypatch.setattr(
+        cli_train, "generate_reference_correlations", lambda *_args, **_kwargs: {}
+    )
     monkeypatch.setattr(cli_train, "ExperimentTracker", lambda: _tracker())
     monkeypatch.setattr(cli_train.joblib, "dump", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cli_train, "sha256_file", lambda *_args, **_kwargs: "sha")
     monkeypatch.setattr(cli_train, "json_write", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cli_train, "mark_latest", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(cli_train, "copy_to_latest", copy_mock or (lambda *_args, **_kwargs: None))
+    monkeypatch.setattr(
+        cli_train, "copy_to_latest", copy_mock or (lambda *_args, **_kwargs: None)
+    )
     monkeypatch.setattr(
         cli_train,
         "calibrate_frozen_classifier",
-        calibrate_func or (lambda **_kwargs: SimpleNamespace(calibrated_model=object(), metrics={})),
+        calibrate_func
+        or (lambda **_kwargs: SimpleNamespace(calibrated_model=object(), metrics={})),
     )
 
 
 def test_cmd_train_validation_profile_fail(monkeypatch, tmp_path):
     paths = _paths(tmp_path)
     cfg = _cfg()
-    result = _result_with_model(SimpleNamespace(named_steps={"clf": object(), "preprocess": None}))
+    result = _result_with_model(
+        SimpleNamespace(named_steps={"clf": object(), "preprocess": None})
+    )
     _patch_common(monkeypatch, result=result, profile_passed=False)
 
     try:
@@ -104,11 +121,15 @@ def test_cmd_train_validation_profile_fail(monkeypatch, tmp_path):
         assert "Validation profile FAILED [train]" in str(exc)
 
 
-def test_cmd_train_calibration_metrics_error_schema_contract_and_importance(monkeypatch, tmp_path):
+def test_cmd_train_calibration_metrics_error_schema_contract_and_importance(
+    monkeypatch, tmp_path
+):
     paths = _paths(tmp_path)
     cfg = _cfg()
     (paths.reports_metrics / "schema_contract.json").write_text("{}", encoding="utf-8")
-    (paths.reports_metrics / "feature_importance.json").write_text("{}", encoding="utf-8")
+    (paths.reports_metrics / "feature_importance.json").write_text(
+        "{}", encoding="utf-8"
+    )
 
     clf = SimpleNamespace(coef_=np.array([[0.1, -0.2, 0.3]]))
     pre = SimpleNamespace(get_feature_names_out=lambda: np.array(["f1", "f2", "f3"]))
@@ -118,7 +139,9 @@ def test_cmd_train_calibration_metrics_error_schema_contract_and_importance(monk
     def _calib(**kwargs):
         method = kwargs.get("method")
         if method == "sigmoid":
-            return SimpleNamespace(calibrated_model=object(), metrics={"ece": 0.1, "note": "ok"})
+            return SimpleNamespace(
+                calibrated_model=object(), metrics={"ece": 0.1, "note": "ok"}
+            )
         raise RuntimeError("calibration failed")
 
     copy_calls = []
@@ -139,7 +162,9 @@ def test_cmd_train_calibration_metrics_error_schema_contract_and_importance(monk
     assert any("schema_contract.json" in c[0] for c in copy_calls)
 
 
-def test_cmd_train_importance_coef_fallback_on_feature_name_error(monkeypatch, tmp_path):
+def test_cmd_train_importance_coef_fallback_on_feature_name_error(
+    monkeypatch, tmp_path
+):
     paths = _paths(tmp_path)
     cfg = _cfg()
 

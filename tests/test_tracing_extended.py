@@ -48,7 +48,9 @@ def _fake_otel_modules(trace_api):
     sdk_resources.Resource = _Resource
     sdk_resources.SERVICE_NAME = "service.name"
 
-    otlp_exporter = types.ModuleType("opentelemetry.exporter.otlp.proto.grpc.trace_exporter")
+    otlp_exporter = types.ModuleType(
+        "opentelemetry.exporter.otlp.proto.grpc.trace_exporter"
+    )
     otlp_exporter.OTLPSpanExporter = _OTLPSpanExporter
 
     return {
@@ -98,7 +100,9 @@ def test_instrument_fastapi_success(monkeypatch):
     fastapi_inst.FastAPIInstrumentor = _FastAPIInstrumentor
 
     monkeypatch.setenv("OTEL_ENABLED", "true")
-    monkeypatch.setitem(sys.modules, "opentelemetry.instrumentation.fastapi", fastapi_inst)
+    monkeypatch.setitem(
+        sys.modules, "opentelemetry.instrumentation.fastapi", fastapi_inst
+    )
 
     app = object()
     tracing.instrument_fastapi(app)
@@ -199,7 +203,9 @@ def test_init_tracing_runtime_exception_branch(monkeypatch):
     sdk_resources.Resource = _Resource
     sdk_resources.SERVICE_NAME = "service.name"
 
-    otlp_exporter = types.ModuleType("opentelemetry.exporter.otlp.proto.grpc.trace_exporter")
+    otlp_exporter = types.ModuleType(
+        "opentelemetry.exporter.otlp.proto.grpc.trace_exporter"
+    )
     otlp_exporter.OTLPSpanExporter = _BrokenOTLPSpanExporter
 
     root = types.ModuleType("opentelemetry")
@@ -225,7 +231,9 @@ def test_instrument_fastapi_import_and_runtime_error_branches(monkeypatch):
     monkeypatch.setenv("OTEL_ENABLED", "true")
 
     # ImportError branch
-    monkeypatch.delitem(sys.modules, "opentelemetry.instrumentation.fastapi", raising=False)
+    monkeypatch.delitem(
+        sys.modules, "opentelemetry.instrumentation.fastapi", raising=False
+    )
     tracing.instrument_fastapi(object())
 
     # Runtime exception branch

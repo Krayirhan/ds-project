@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.features import FeatureEngineer, FeatureSpec, build_preprocessor, infer_feature_spec
+from src.features import (
+    FeatureEngineer,
+    FeatureSpec,
+    build_preprocessor,
+    infer_feature_spec,
+)
 
 
 def _df() -> pd.DataFrame:

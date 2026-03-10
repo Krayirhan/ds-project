@@ -73,7 +73,9 @@ def _noop_trace(*args, **kwargs):
     yield None
 
 
-def test_load_serving_state_success_with_optional_artifacts(tmp_path: Path, monkeypatch):
+def test_load_serving_state_success_with_optional_artifacts(
+    tmp_path: Path, monkeypatch
+):
     paths = _paths(tmp_path)
     (paths.reports_metrics / "active_slot.json").write_text(
         json.dumps({"active_slot": "blue"}),
@@ -147,7 +149,9 @@ def test_load_serving_state_ignores_invalid_lineage_json(tmp_path: Path, monkeyp
     monkeypatch.setattr(api_shared, "load_decision_policy", lambda _: _DummyPolicy())
     monkeypatch.setattr(api_shared, "sha256_file", lambda _: "ok-sha")
     monkeypatch.setattr(api_shared.joblib, "load", lambda _: "MODEL")
-    monkeypatch.setattr(api_shared, "load_feature_spec", lambda _: {"schema_version": "schema-v1"})
+    monkeypatch.setattr(
+        api_shared, "load_feature_spec", lambda _: {"schema_version": "schema-v1"}
+    )
 
     state = api_shared.load_serving_state()
     assert "_reference_volume_rows" not in state.feature_spec
@@ -196,7 +200,9 @@ def test_load_serving_state_checksum_mismatch(tmp_path: Path, monkeypatch):
 
     monkeypatch.setattr(api_shared, "ExperimentConfig", lambda: _cfg())
     monkeypatch.setattr(api_shared, "Paths", lambda: paths)
-    monkeypatch.setattr(api_shared, "load_decision_policy", lambda _: _DummyPolicy(sha256="expected"))
+    monkeypatch.setattr(
+        api_shared, "load_decision_policy", lambda _: _DummyPolicy(sha256="expected")
+    )
     monkeypatch.setattr(api_shared, "sha256_file", lambda _: "actual")
     with pytest.raises(RuntimeError, match="checksum mismatch"):
         api_shared.load_serving_state()
@@ -210,9 +216,13 @@ def test_load_serving_state_feature_schema_mismatch(tmp_path: Path, monkeypatch)
 
     monkeypatch.setattr(api_shared, "ExperimentConfig", lambda: _cfg())
     monkeypatch.setattr(api_shared, "Paths", lambda: paths)
-    monkeypatch.setattr(api_shared, "load_decision_policy", lambda _: _DummyPolicy(sha256=None))
+    monkeypatch.setattr(
+        api_shared, "load_decision_policy", lambda _: _DummyPolicy(sha256=None)
+    )
     monkeypatch.setattr(api_shared.joblib, "load", lambda _: "MODEL")
-    monkeypatch.setattr(api_shared, "load_feature_spec", lambda _: {"schema_version": "bad"})
+    monkeypatch.setattr(
+        api_shared, "load_feature_spec", lambda _: {"schema_version": "bad"}
+    )
 
     with pytest.raises(RuntimeError, match="Feature schema contract version mismatch"):
         api_shared.load_serving_state()
@@ -232,9 +242,13 @@ def test_load_serving_state_schema_contract_mismatch(tmp_path: Path, monkeypatch
 
     monkeypatch.setattr(api_shared, "ExperimentConfig", lambda: _cfg())
     monkeypatch.setattr(api_shared, "Paths", lambda: paths)
-    monkeypatch.setattr(api_shared, "load_decision_policy", lambda _: _DummyPolicy(sha256=None))
+    monkeypatch.setattr(
+        api_shared, "load_decision_policy", lambda _: _DummyPolicy(sha256=None)
+    )
     monkeypatch.setattr(api_shared.joblib, "load", lambda _: "MODEL")
-    monkeypatch.setattr(api_shared, "load_feature_spec", lambda _: {"schema_version": "schema-v1"})
+    monkeypatch.setattr(
+        api_shared, "load_feature_spec", lambda _: {"schema_version": "schema-v1"}
+    )
 
     with pytest.raises(RuntimeError, match="Schema contract artifact version mismatch"):
         api_shared.load_serving_state()

@@ -8,6 +8,7 @@ No extra dependencies — uses stdlib os.getenv only.
 Docker Compose wires every field via its ``environment:`` block;
 .env files are loaded by python-dotenv or the container runtime.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,6 +18,7 @@ from typing import Dict, List
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _env(key: str, default: str = "") -> str:
     return os.getenv(key, default)
@@ -34,6 +36,7 @@ def _env_bool(key: str, default: bool = False) -> bool:
 
 
 # ── Settings dataclass ────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class ServerSettings:
@@ -89,9 +92,7 @@ class ServerSettings:
 
     # ── Persistence ──────────────────────────────────────────────────────────
     database_url: str = field(
-        default_factory=lambda: _env(
-            "DATABASE_URL", "sqlite:///./reports/dashboard.db"
-        )
+        default_factory=lambda: _env("DATABASE_URL", "sqlite:///./reports/dashboard.db")
     )
     redis_url: str = field(default_factory=lambda: _env("REDIS_URL", ""))
     rate_limit_backend: str = field(
@@ -126,9 +127,7 @@ class ServerSettings:
     )
 
     # ── OpenTelemetry ─────────────────────────────────────────────────────────
-    otel_enabled: bool = field(
-        default_factory=lambda: _env_bool("OTEL_ENABLED", False)
-    )
+    otel_enabled: bool = field(default_factory=lambda: _env_bool("OTEL_ENABLED", False))
     otel_service_name: str = field(
         default_factory=lambda: _env("OTEL_SERVICE_NAME", "ds-project-api")
     )

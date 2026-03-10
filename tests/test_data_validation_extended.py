@@ -48,7 +48,14 @@ def _base_df() -> pd.DataFrame:
             "babies": [0, 0, 0, 0, 0, 0],
             "stays_in_weekend_nights": [1, 1, 1, 1, 1, 1],
             "stays_in_week_nights": [2, 2, 2, 2, 2, 2],
-            "hotel": ["City Hotel", "Resort Hotel", "City Hotel", "Resort Hotel", "City Hotel", "Resort Hotel"],
+            "hotel": [
+                "City Hotel",
+                "Resort Hotel",
+                "City Hotel",
+                "Resort Hotel",
+                "City Hotel",
+                "Resort Hotel",
+            ],
         }
     )
 
@@ -88,11 +95,15 @@ def test_assert_no_nans_after_imputation() -> None:
 
 def test_label_and_category_checks() -> None:
     label_df = pd.DataFrame({"is_canceled": [1, 1, 1, 0, 1]})
-    drift = detect_label_drift(label_df, target_col="is_canceled", ref_positive_rate=0.2, tolerance=0.1)
+    drift = detect_label_drift(
+        label_df, target_col="is_canceled", ref_positive_rate=0.2, tolerance=0.1
+    )
     assert drift.is_drifted is True
 
     cats_df = pd.DataFrame({"hotel": ["City Hotel", "Unknown"], "meal": ["BB", "HB"]})
-    cat_report = detect_unseen_categories(cats_df, {"hotel": ["City Hotel"], "meal": ["BB"]})
+    cat_report = detect_unseen_categories(
+        cats_df, {"hotel": ["City Hotel"], "meal": ["BB"]}
+    )
     assert cat_report.n_unseen_total == 2
     assert "hotel" in cat_report.unseen
 
@@ -112,9 +123,13 @@ def test_validate_output_volume_and_row_counts() -> None:
     vol_bad = validate_data_volume(_base_df(), expected_rows=100, tolerance_ratio=0.2)
     assert vol_bad.is_anomalous is True
 
-    row_ok = validate_row_counts(dataset_rows=100, train_rows=70, cal_rows=15, test_rows=15, tolerance=1)
+    row_ok = validate_row_counts(
+        dataset_rows=100, train_rows=70, cal_rows=15, test_rows=15, tolerance=1
+    )
     assert row_ok["passed"] is True
-    row_bad = validate_row_counts(dataset_rows=100, train_rows=10, cal_rows=10, test_rows=10, tolerance=1)
+    row_bad = validate_row_counts(
+        dataset_rows=100, train_rows=10, cal_rows=10, test_rows=10, tolerance=1
+    )
     assert row_bad["passed"] is False
 
 
@@ -208,7 +223,10 @@ def test_importance_categories_psi_and_js() -> None:
         rank_drop_threshold=1,
     )
     assert imp_report.n_changed >= 1
-    assert imp_report.rank_correlation is None or -1.0 <= imp_report.rank_correlation <= 1.0
+    assert (
+        imp_report.rank_correlation is None
+        or -1.0 <= imp_report.rank_correlation <= 1.0
+    )
 
     categories = generate_reference_categories(
         pd.DataFrame({"hotel": ["City Hotel", "Resort Hotel"], "meal": ["BB", "HB"]}),
@@ -221,8 +239,12 @@ def test_importance_categories_psi_and_js() -> None:
     assert _psi_score(a, b) == 0.0
     assert _js_divergence(a, b) == 0.0
 
-    df_reference = pd.DataFrame({"lead_time": np.linspace(0, 1, 200), "adr": np.linspace(10, 20, 200)})
-    df_current = pd.DataFrame({"lead_time": np.linspace(2, 3, 200), "adr": np.linspace(10, 20, 200)})
+    df_reference = pd.DataFrame(
+        {"lead_time": np.linspace(0, 1, 200), "adr": np.linspace(10, 20, 200)}
+    )
+    df_current = pd.DataFrame(
+        {"lead_time": np.linspace(2, 3, 200), "adr": np.linspace(10, 20, 200)}
+    )
 
     psi_report = compute_psi(
         df_reference,

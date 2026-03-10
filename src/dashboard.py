@@ -558,7 +558,9 @@ def dashboard_system(_user: Dict[str, Any] = Depends(require_dashboard_user)):
             if artifact_rel:
                 artifact_path = paths.project_root / artifact_rel
                 model_ok = artifact_path.exists()
-                model_reason = "ok" if model_ok else f"artefact bulunamadı: {artifact_path}"
+                model_reason = (
+                    "ok" if model_ok else f"artefact bulunamadı: {artifact_path}"
+                )
             else:
                 model_reason = "decision_policy'de selected_model_artifact yok"
         else:
@@ -571,14 +573,20 @@ def dashboard_system(_user: Dict[str, Any] = Depends(require_dashboard_user)):
                 p = Path(latest_registry_path)
                 registry_path = p if p.is_absolute() else (paths.project_root / p)
             elif run_id_str:
-                registry_path = paths.reports_metrics / run_id_str / "model_registry.json"
+                registry_path = (
+                    paths.reports_metrics / run_id_str / "model_registry.json"
+                )
 
             registry = (
                 _read_json(registry_path, None) if registry_path is not None else None
             )
             if registry and isinstance(registry, dict):
                 for v in registry.values():
-                    artifact_rel = v if isinstance(v, str) else (v.get("path") if isinstance(v, dict) else None)
+                    artifact_rel = (
+                        v
+                        if isinstance(v, str)
+                        else (v.get("path") if isinstance(v, dict) else None)
+                    )
                     if artifact_rel and (paths.project_root / artifact_rel).exists():
                         model_ok = True
                         model_name = run_id_str

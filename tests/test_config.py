@@ -51,7 +51,9 @@ def test_load_experiment_config_default_path_executes():
     assert cfg.target_col
 
 
-def test_load_experiment_config_yaml_importerror_returns_defaults(tmp_path, monkeypatch):
+def test_load_experiment_config_yaml_importerror_returns_defaults(
+    tmp_path, monkeypatch
+):
     p = tmp_path / "params.yaml"
     p.write_text("experiment:\n  seed: 123\n", encoding="utf-8")
     monkeypatch.setitem(sys.modules, "yaml", None)
@@ -59,12 +61,16 @@ def test_load_experiment_config_yaml_importerror_returns_defaults(tmp_path, monk
     assert cfg.seed == 42
 
 
-def test_load_experiment_config_yaml_parse_error_returns_defaults(tmp_path, monkeypatch):
+def test_load_experiment_config_yaml_parse_error_returns_defaults(
+    tmp_path, monkeypatch
+):
     p = tmp_path / "params.yaml"
     p.write_text("experiment: [bad", encoding="utf-8")
 
     yaml_mod = types.SimpleNamespace(
-        safe_load=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("bad yaml"))
+        safe_load=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError("bad yaml")
+        )
     )
     monkeypatch.setitem(sys.modules, "yaml", yaml_mod)
 

@@ -87,13 +87,17 @@ def test_auth_enabled_variants(monkeypatch: pytest.MonkeyPatch) -> None:
     assert auth._auth_enabled() is True
 
 
-def test_get_users_requires_explicit_admin_password(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_users_requires_explicit_admin_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("DS_ENV", "development")
     with pytest.raises(RuntimeError):
         auth._get_users()
 
 
-def test_get_users_allows_insecure_login_only_with_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_users_allows_insecure_login_only_with_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("DS_ENV", "development")
     monkeypatch.setenv("DASHBOARD_ALLOW_INSECURE_DEV_LOGIN", "true")
     users = auth._get_users()
@@ -116,21 +120,27 @@ def test_get_users_placeholder_in_dev_warns(monkeypatch: pytest.MonkeyPatch) -> 
     warn.assert_called()
 
 
-def test_get_users_missing_admin_in_prod_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_users_missing_admin_in_prod_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("DS_ENV", "staging")
     monkeypatch.delenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", raising=False)
     with pytest.raises(RuntimeError, match="must be set"):
         auth._get_users()
 
 
-def test_get_users_invalid_extra_users_json_is_ignored(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_users_invalid_extra_users_json_is_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", "StrongPass!123")
     monkeypatch.setenv("DASHBOARD_EXTRA_USERS", "{invalid-json")
     users = auth._get_users()
     assert users["admin"] == "StrongPass!123"
 
 
-def test_get_users_merges_legacy_and_extra_users(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_users_merges_legacy_and_extra_users(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", "StrongPass!123")
     monkeypatch.setenv("DASHBOARD_ADMIN_USERNAME", "legacy")
     monkeypatch.setenv("DASHBOARD_ADMIN_PASSWORD", "legacy-pass")
@@ -181,14 +191,23 @@ def test_token_ttl_and_parse_bearer(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_cleanup_expired_tokens_variants() -> None:
     now = datetime.now(timezone.utc)
-    auth._token_store["expired"] = {"username": "u", "expires_at": now - timedelta(minutes=1)}
-    auth._token_store["valid"] = {"username": "u", "expires_at": now + timedelta(minutes=10)}
+    auth._token_store["expired"] = {
+        "username": "u",
+        "expires_at": now - timedelta(minutes=1),
+    }
+    auth._token_store["valid"] = {
+        "username": "u",
+        "expires_at": now + timedelta(minutes=10),
+    }
 
     auth._cleanup_expired_tokens()
     assert "expired" not in auth._token_store
     assert "valid" in auth._token_store
 
-    auth._token_store["expired2"] = {"username": "u", "expires_at": now - timedelta(minutes=1)}
+    auth._token_store["expired2"] = {
+        "username": "u",
+        "expires_at": now - timedelta(minutes=1),
+    }
     with auth._token_lock:
         auth._cleanup_expired_tokens_locked()
     assert "expired2" not in auth._token_store
@@ -241,11 +260,16 @@ def test_dashboard_login_invalid_credentials(monkeypatch: pytest.MonkeyPatch) ->
     assert ex.value.status_code == 401
 
 
-def test_dashboard_login_in_memory_evicts_oldest(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dashboard_login_in_memory_evicts_oldest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", "StrongPass!123")
     now = datetime.now(timezone.utc)
     for i in range(auth._MAX_TOKENS_PER_USER):
-        auth._token_store[f"tok-{i}"] = {"username": "admin", "expires_at": now + timedelta(minutes=i + 1)}
+        auth._token_store[f"tok-{i}"] = {
+            "username": "admin",
+            "expires_at": now + timedelta(minutes=i + 1),
+        }
 
     with (
         patch.object(auth, "_verify_credentials", return_value=True),
@@ -254,17 +278,27 @@ def test_dashboard_login_in_memory_evicts_oldest(monkeypatch: pytest.MonkeyPatch
     ):
         resp = auth.dashboard_login(auth.LoginRequest(username="admin", password="ok"))
     assert resp.access_token == "new-token"
-    user_tokens = [k for k, v in auth._token_store.items() if v.get("username") == "admin"]
+    user_tokens = [
+        k for k, v in auth._token_store.items() if v.get("username") == "admin"
+    ]
     assert len(user_tokens) == auth._MAX_TOKENS_PER_USER
     assert "tok-0" not in auth._token_store
 
 
-def test_dashboard_login_in_memory_capacity_full(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dashboard_login_in_memory_capacity_full(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", "StrongPass!123")
     monkeypatch.setattr(auth, "_MAX_TOTAL_TOKENS", 2)
     now = datetime.now(timezone.utc)
-    auth._token_store["a"] = {"username": "u1", "expires_at": now + timedelta(minutes=10)}
-    auth._token_store["b"] = {"username": "u2", "expires_at": now + timedelta(minutes=10)}
+    auth._token_store["a"] = {
+        "username": "u1",
+        "expires_at": now + timedelta(minutes=10),
+    }
+    auth._token_store["b"] = {
+        "username": "u2",
+        "expires_at": now + timedelta(minutes=10),
+    }
 
     with (
         patch.object(auth, "_verify_credentials", return_value=True),
@@ -344,7 +378,9 @@ def test_dashboard_logout_and_me(monkeypatch: pytest.MonkeyPatch) -> None:
     assert me["username"] == "admin"
 
 
-def test_get_redis_client_short_circuits_when_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_redis_client_short_circuits_when_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     cached = SimpleNamespace()
     monkeypatch.setattr(auth, "_redis_client", cached)
     assert auth._get_redis_client() is cached

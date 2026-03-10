@@ -10,6 +10,7 @@ All endpoints are protected by the x-api-key middleware in api.py.
 Personal info (name, email, …) is stored to DB only.
 Booking fields (hotel, lead_time, …) are also passed to the ML model.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -25,104 +26,115 @@ logger = logging.getLogger(__name__)
 router_guests = APIRouter(prefix="/guests", tags=["guests"])
 
 # ── Booking/model feature field names (used for selective risk re-calc) ────────
-_MODEL_FIELDS = frozenset({
-    "hotel", "lead_time", "deposit_type", "market_segment",
-    "adults", "children", "babies",
-    "stays_in_week_nights", "stays_in_weekend_nights",
-    "is_repeated_guest", "previous_cancellations", "adr",
-})
+_MODEL_FIELDS = frozenset(
+    {
+        "hotel",
+        "lead_time",
+        "deposit_type",
+        "market_segment",
+        "adults",
+        "children",
+        "babies",
+        "stays_in_week_nights",
+        "stays_in_weekend_nights",
+        "is_repeated_guest",
+        "previous_cancellations",
+        "adr",
+    }
+)
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
+
 class GuestCreate(BaseModel):
     # ── Personal info (DB only) ───────────────────────────────────────────────
-    first_name:  str  = Field(min_length=1, max_length=100)
-    last_name:   str  = Field(min_length=1, max_length=100)
-    email:       str | None = None
-    phone:       str | None = None
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    email: str | None = None
+    phone: str | None = None
     nationality: str | None = None  # ISO-3166 alpha-3
     identity_no: str | None = None  # TC Kimlik / Pasaport
-    birth_date:  str | None = None  # YYYY-MM-DD string
-    gender:      str | None = None  # M / F / other
-    vip_status:  bool       = False
-    notes:       str | None = None
+    birth_date: str | None = None  # YYYY-MM-DD string
+    gender: str | None = None  # M / F / other
+    vip_status: bool = False
+    notes: str | None = None
 
     # ── Booking / model features ──────────────────────────────────────────────
-    hotel:                   str        = "City Hotel"
-    lead_time:               int        = 0
-    deposit_type:            str        = "No Deposit"
-    market_segment:          str        = "Online TA"
-    adults:                  int        = 2
-    children:                int        = 0
-    babies:                  int        = 0
-    stays_in_week_nights:    int        = 2
-    stays_in_weekend_nights: int        = 1
-    is_repeated_guest:       int        = 0
-    previous_cancellations:  int        = 0
-    adr:                     float | None = None
+    hotel: str = "City Hotel"
+    lead_time: int = 0
+    deposit_type: str = "No Deposit"
+    market_segment: str = "Online TA"
+    adults: int = 2
+    children: int = 0
+    babies: int = 0
+    stays_in_week_nights: int = 2
+    stays_in_weekend_nights: int = 1
+    is_repeated_guest: int = 0
+    previous_cancellations: int = 0
+    adr: float | None = None
 
     model_config = {"extra": "ignore"}
 
 
 class GuestUpdate(BaseModel):
     # ── Personal info (all optional) ─────────────────────────────────────────
-    first_name:  str  | None = None
-    last_name:   str  | None = None
-    email:       str  | None = None
-    phone:       str  | None = None
-    nationality: str  | None = None
-    identity_no: str  | None = None
-    birth_date:  str  | None = None
-    gender:      str  | None = None
-    vip_status:  bool | None = None
-    notes:       str  | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    nationality: str | None = None
+    identity_no: str | None = None
+    birth_date: str | None = None
+    gender: str | None = None
+    vip_status: bool | None = None
+    notes: str | None = None
 
     # ── Booking / model features (all optional) ───────────────────────────────
-    hotel:                   str        | None = None
-    lead_time:               int        | None = None
-    deposit_type:            str        | None = None
-    market_segment:          str        | None = None
-    adults:                  int        | None = None
-    children:                int        | None = None
-    babies:                  int        | None = None
-    stays_in_week_nights:    int        | None = None
-    stays_in_weekend_nights: int        | None = None
-    is_repeated_guest:       int        | None = None
-    previous_cancellations:  int        | None = None
-    adr:                     float      | None = None
+    hotel: str | None = None
+    lead_time: int | None = None
+    deposit_type: str | None = None
+    market_segment: str | None = None
+    adults: int | None = None
+    children: int | None = None
+    babies: int | None = None
+    stays_in_week_nights: int | None = None
+    stays_in_weekend_nights: int | None = None
+    is_repeated_guest: int | None = None
+    previous_cancellations: int | None = None
+    adr: float | None = None
 
     model_config = {"extra": "ignore"}
 
 
 class GuestResponse(BaseModel):
-    id:           int
-    first_name:   str
-    last_name:    str
-    email:        str | None
-    phone:        str | None
-    nationality:  str | None
-    identity_no:  str | None
-    birth_date:   str | None
-    gender:       str | None
-    vip_status:   bool
-    notes:        str | None
-    hotel:                   str
-    lead_time:               int
-    deposit_type:            str
-    market_segment:          str
-    adults:                  int
-    children:                int
-    babies:                  int
-    stays_in_week_nights:    int
+    id: int
+    first_name: str
+    last_name: str
+    email: str | None
+    phone: str | None
+    nationality: str | None
+    identity_no: str | None
+    birth_date: str | None
+    gender: str | None
+    vip_status: bool
+    notes: str | None
+    hotel: str
+    lead_time: int
+    deposit_type: str
+    market_segment: str
+    adults: int
+    children: int
+    babies: int
+    stays_in_week_nights: int
     stays_in_weekend_nights: int
-    is_repeated_guest:       int
-    previous_cancellations:  int
-    adr:          float | None
-    risk_score:   float | None
-    risk_label:   str   | None
-    created_at:   str
-    updated_at:   str
+    is_repeated_guest: int
+    previous_cancellations: int
+    adr: float | None
+    risk_score: float | None
+    risk_label: str | None
+    created_at: str
+    updated_at: str
 
 
 class GuestListResponse(BaseModel):
@@ -131,6 +143,7 @@ class GuestListResponse(BaseModel):
 
 
 # ── Helper: calculate risk from booking fields ────────────────────────────────
+
 
 def _calculate_risk(request: Request, fields: dict[str, Any]) -> tuple[float, str]:
     """Run the ML model on booking fields. Returns (risk_score, risk_label).
@@ -147,35 +160,35 @@ def _calculate_risk(request: Request, fields: dict[str, Any]) -> tuple[float, st
         days=int(fields.get("lead_time", 0))
     )
     record: dict[str, Any] = {
-        "hotel":                      fields.get("hotel", "City Hotel"),
-        "lead_time":                  fields.get("lead_time", 0),
-        "deposit_type":               fields.get("deposit_type", "No Deposit"),
-        "market_segment":             fields.get("market_segment", "Online TA"),
-        "adults":                     fields.get("adults", 2),
-        "children":                   fields.get("children", 0),
-        "babies":                     fields.get("babies", 0),
-        "stays_in_week_nights":       fields.get("stays_in_week_nights", 0),
-        "stays_in_weekend_nights":    fields.get("stays_in_weekend_nights", 1),
-        "previous_cancellations":     fields.get("previous_cancellations", 0),
-        "is_repeated_guest":          fields.get("is_repeated_guest", 0),
-        "arrival_date_year":          arrival.year,
-        "arrival_date_month":         arrival.strftime("%B"),
-        "arrival_date_week_number":   arrival.isocalendar()[1],
-        "arrival_date_day_of_month":  arrival.day,
+        "hotel": fields.get("hotel", "City Hotel"),
+        "lead_time": fields.get("lead_time", 0),
+        "deposit_type": fields.get("deposit_type", "No Deposit"),
+        "market_segment": fields.get("market_segment", "Online TA"),
+        "adults": fields.get("adults", 2),
+        "children": fields.get("children", 0),
+        "babies": fields.get("babies", 0),
+        "stays_in_week_nights": fields.get("stays_in_week_nights", 0),
+        "stays_in_weekend_nights": fields.get("stays_in_weekend_nights", 1),
+        "previous_cancellations": fields.get("previous_cancellations", 0),
+        "is_repeated_guest": fields.get("is_repeated_guest", 0),
+        "arrival_date_year": arrival.year,
+        "arrival_date_month": arrival.strftime("%B"),
+        "arrival_date_week_number": arrival.isocalendar()[1],
+        "arrival_date_day_of_month": arrival.day,
         "previous_bookings_not_canceled": 0,
-        "booking_changes":            0,
-        "agent":                      0,
-        "company":                    0,
-        "days_in_waiting_list":       0,
-        "adr":                        fields.get("adr") or 100.0,
+        "booking_changes": 0,
+        "agent": 0,
+        "company": 0,
+        "days_in_waiting_list": 0,
+        "adr": fields.get("adr") or 100.0,
         "required_car_parking_spaces": 0,
-        "total_of_special_requests":  0,
-        "meal":                       "BB",
-        "country":                    "PRT",
-        "distribution_channel":       "TA/TO",
-        "reserved_room_type":         "A",
-        "assigned_room_type":         "A",
-        "customer_type":              "Transient",
+        "total_of_special_requests": 0,
+        "meal": "BB",
+        "country": "PRT",
+        "distribution_channel": "TA/TO",
+        "reserved_room_type": "A",
+        "assigned_room_type": "A",
+        "customer_type": "Transient",
     }
     try:
         df = pd.DataFrame([record])
@@ -193,6 +206,7 @@ def _calculate_risk(request: Request, fields: dict[str, Any]) -> tuple[float, st
 
 def _row_to_response(row: dict[str, Any]) -> GuestResponse:
     """Convert a DB row dict to a GuestResponse."""
+
     def _dt(val: Any) -> str:
         return val.isoformat() if hasattr(val, "isoformat") else str(val)
 
@@ -237,6 +251,7 @@ def _store_error(exc: Exception) -> HTTPException:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+
 @router_guests.post("", response_model=GuestResponse, status_code=201)
 async def create_guest(body: GuestCreate, request: Request) -> GuestResponse:
     """Yeni misafir kaydı oluşturur. Booking alanlarından otomatik risk hesaplanır."""
@@ -277,7 +292,9 @@ async def list_guests(
     try:
         total = store.count_guests(search=search)
         items = store.list_guests(search=search, limit=min(limit, 200), offset=offset)
-        return GuestListResponse(total=total, items=[_row_to_response(r) for r in items])
+        return GuestListResponse(
+            total=total, items=[_row_to_response(r) for r in items]
+        )
     except SQLAlchemyError as exc:
         raise _store_error(exc) from exc
 

@@ -114,9 +114,13 @@ async def lifespan(app: FastAPI):
     init_guest_store(_engine)
     try:
         from .chat.knowledge.db_store import init_knowledge_db_store
+
         init_knowledge_db_store(_engine)
     except Exception as exc:
-        logger.warning("Could not initialize knowledge DB store (pgvector): %s — using TF-IDF fallback", exc)
+        logger.warning(
+            "Could not initialize knowledge DB store (pgvector): %s — using TF-IDF fallback",
+            exc,
+        )
     init_dashboard_store()
     try:
         app.state.serving = _load_serving_state()

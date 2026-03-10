@@ -86,8 +86,12 @@ def test_fit_one_returns_train_result(monkeypatch):
             self.fitted_ = True
             return self
 
-    monkeypatch.setattr(train, "_build_model_pipeline", lambda spec, estimator: DummyModel())
-    monkeypatch.setattr(train, "cross_val_score", lambda model, X, y, cv, scoring: np.array([0.7, 0.8]))
+    monkeypatch.setattr(
+        train, "_build_model_pipeline", lambda spec, estimator: DummyModel()
+    )
+    monkeypatch.setattr(
+        train, "cross_val_score", lambda model, X, y, cv, scoring: np.array([0.7, 0.8])
+    )
 
     out = train._fit_one(
         name="baseline",

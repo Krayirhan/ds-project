@@ -61,7 +61,9 @@ def _extract_risk_factors(*, customer_data: dict[str, Any]) -> list[str]:
     if dep == "No Deposit":
         factors.append("Depozito alınmamış — finansal güvence yok")
     elif dep == "Non Refund":
-        factors.append("İade edilmez depozito var — iptal olasılığı yüksek profilli müşterilerde yaygın")
+        factors.append(
+            "İade edilmez depozito var — iptal olasılığı yüksek profilli müşterilerde yaygın"
+        )
     elif dep == "Refundable":
         factors.append("İade edilebilir depozito var")
 

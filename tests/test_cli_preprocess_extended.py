@@ -31,11 +31,20 @@ def _df() -> pd.DataFrame:
     )
 
 
-def _cfg(*, duplicate_severity: str = "warn", duplicate_threshold: float = 0.02, staleness_severity: str = "warn") -> ExperimentConfig:
+def _cfg(
+    *,
+    duplicate_severity: str = "warn",
+    duplicate_threshold: float = 0.02,
+    staleness_severity: str = "warn",
+) -> ExperimentConfig:
     cfg = ExperimentConfig()
     policy = ValidationPolicy(
-        duplicate=CheckConfig(severity=duplicate_severity, enabled=True, threshold=duplicate_threshold),
-        staleness=CheckConfig(severity=staleness_severity, enabled=True, threshold=180.0),
+        duplicate=CheckConfig(
+            severity=duplicate_severity, enabled=True, threshold=duplicate_threshold
+        ),
+        staleness=CheckConfig(
+            severity=staleness_severity, enabled=True, threshold=180.0
+        ),
     )
     object.__setattr__(cfg, "validation", policy)
     return cfg
@@ -54,19 +63,30 @@ def _patch_common(
     monkeypatch.setattr(
         prep,
         "check_data_staleness",
-        lambda *_args, **_kwargs: staleness
-        or SimpleNamespace(is_stale=False, age_days=1, summary="fresh"),
+        lambda *_args, **_kwargs: (
+            staleness or SimpleNamespace(is_stale=False, age_days=1, summary="fresh")
+        ),
     )
     monkeypatch.setattr(prep, "basic_schema_checks", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(prep, "validate_target_labels", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(prep, "null_ratio_report", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(prep, "detect_duplicates", lambda *_args, **_kwargs: SimpleNamespace(n_duplicates=dup_count))
-    monkeypatch.setattr(prep, "detect_row_anomalies", lambda *_args, **_kwargs: SimpleNamespace(n_anomalies=0))
+    monkeypatch.setattr(
+        prep,
+        "detect_duplicates",
+        lambda *_args, **_kwargs: SimpleNamespace(n_duplicates=dup_count),
+    )
+    monkeypatch.setattr(
+        prep,
+        "detect_row_anomalies",
+        lambda *_args, **_kwargs: SimpleNamespace(n_anomalies=0),
+    )
     monkeypatch.setattr(prep, "validate_raw_data", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         prep,
         "preprocess_basic",
-        lambda **_kwargs: df.assign(is_canceled=[0, 1, 0, 1]).drop(columns=["reservation_status"]),
+        lambda **_kwargs: df.assign(is_canceled=[0, 1, 0, 1]).drop(
+            columns=["reservation_status"]
+        ),
     )
     monkeypatch.setattr(
         prep,
@@ -85,10 +105,26 @@ def _patch_common(
             hard_failures=([] if profile_passed else ["duplicate"]),
         ),
     )
-    monkeypatch.setattr(prep, "generate_reference_stats", lambda *_args, **_kwargs: {"lead_time": {"mean": 25.0}})
-    monkeypatch.setattr(prep, "generate_reference_categories", lambda *_args, **_kwargs: {"hotel": ["City"]})
-    monkeypatch.setattr(prep, "generate_reference_correlations", lambda *_args, **_kwargs: {"lead_time|adr": 0.2})
-    monkeypatch.setattr(prep, "get_schema_fingerprint", lambda *_args, **_kwargs: {"fingerprint": "fp-1", "n_columns": 5})
+    monkeypatch.setattr(
+        prep,
+        "generate_reference_stats",
+        lambda *_args, **_kwargs: {"lead_time": {"mean": 25.0}},
+    )
+    monkeypatch.setattr(
+        prep,
+        "generate_reference_categories",
+        lambda *_args, **_kwargs: {"hotel": ["City"]},
+    )
+    monkeypatch.setattr(
+        prep,
+        "generate_reference_correlations",
+        lambda *_args, **_kwargs: {"lead_time|adr": 0.2},
+    )
+    monkeypatch.setattr(
+        prep,
+        "get_schema_fingerprint",
+        lambda *_args, **_kwargs: {"fingerprint": "fp-1", "n_columns": 5},
+    )
     monkeypatch.setattr(prep, "write_parquet", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(prep, "json_write", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(prep, "sha256_file", lambda *_args, **_kwargs: "sha-1")
@@ -96,12 +132,14 @@ def _patch_common(
         prep,
         "validate_data_volume",
         volume_fn
-        or (lambda *_args, **_kwargs: SimpleNamespace(
-            current_rows=4,
-            expected_range=(2, 8),
-            is_anomalous=False,
-            summary="ok",
-        )),
+        or (
+            lambda *_args, **_kwargs: SimpleNamespace(
+                current_rows=4,
+                expected_range=(2, 8),
+                is_anomalous=False,
+                summary="ok",
+            )
+        ),
     )
 
 
@@ -117,9 +155,15 @@ def test_preprocess_staleness_hard_fail_raises(monkeypatch, tmp_path: Path):
         prep.cmd_preprocess(paths, cfg)
 
 
-def test_preprocess_staleness_soft_fail_and_duplicate_soft_fail(monkeypatch, tmp_path: Path):
+def test_preprocess_staleness_soft_fail_and_duplicate_soft_fail(
+    monkeypatch, tmp_path: Path
+):
     paths = _paths(tmp_path)
-    cfg = _cfg(duplicate_severity="soft_fail", duplicate_threshold=0.10, staleness_severity="soft_fail")
+    cfg = _cfg(
+        duplicate_severity="soft_fail",
+        duplicate_threshold=0.10,
+        staleness_severity="soft_fail",
+    )
     _patch_common(
         monkeypatch,
         df=_df(),
@@ -131,14 +175,20 @@ def test_preprocess_staleness_soft_fail_and_duplicate_soft_fail(monkeypatch, tmp
 
 def test_preprocess_duplicate_warn_branch(monkeypatch, tmp_path: Path):
     paths = _paths(tmp_path)
-    cfg = _cfg(duplicate_severity="warn", duplicate_threshold=0.10, staleness_severity="warn")
+    cfg = _cfg(
+        duplicate_severity="warn", duplicate_threshold=0.10, staleness_severity="warn"
+    )
     _patch_common(monkeypatch, df=_df(), dup_count=2)
     prep.cmd_preprocess(paths, cfg)
 
 
 def test_preprocess_duplicate_hard_fail_branch(monkeypatch, tmp_path: Path):
     paths = _paths(tmp_path)
-    cfg = _cfg(duplicate_severity="hard_fail", duplicate_threshold=0.10, staleness_severity="warn")
+    cfg = _cfg(
+        duplicate_severity="hard_fail",
+        duplicate_threshold=0.10,
+        staleness_severity="warn",
+    )
     _patch_common(monkeypatch, df=_df(), dup_count=2)
     with pytest.raises(ValueError, match="Duplicate check blocked by policy"):
         prep.cmd_preprocess(paths, cfg)
@@ -152,7 +202,9 @@ def test_preprocess_validation_profile_failure_raises(monkeypatch, tmp_path: Pat
         prep.cmd_preprocess(paths, cfg)
 
 
-def test_preprocess_lineage_expected_rows_from_previous_run(monkeypatch, tmp_path: Path):
+def test_preprocess_lineage_expected_rows_from_previous_run(
+    monkeypatch, tmp_path: Path
+):
     paths = _paths(tmp_path)
     cfg = _cfg()
     (paths.reports_metrics / "data_lineage_preprocess.json").write_text(
@@ -176,7 +228,9 @@ def test_preprocess_lineage_expected_rows_from_previous_run(monkeypatch, tmp_pat
     assert captured["expected_rows"] == 123
 
 
-def test_preprocess_lineage_invalid_json_falls_back_to_current_len(monkeypatch, tmp_path: Path):
+def test_preprocess_lineage_invalid_json_falls_back_to_current_len(
+    monkeypatch, tmp_path: Path
+):
     paths = _paths(tmp_path)
     cfg = _cfg()
     df = _df()

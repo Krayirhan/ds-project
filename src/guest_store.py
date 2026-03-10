@@ -11,6 +11,7 @@ Usage:
     # At startup (api.py lifespan):
     init_guest_store(engine)
 """
+
 from __future__ import annotations
 
 import logging
@@ -52,36 +53,36 @@ class GuestStore:
             "hotel_guests",
             self.metadata,
             # ── Identity ──────────────────────────────────────────────────────
-            Column("id",          Integer,       primary_key=True, autoincrement=True),
-            Column("first_name",  String(100),   nullable=False),
-            Column("last_name",   String(100),   nullable=False),
-            Column("email",       String(200),   nullable=True),
-            Column("phone",       String(30),    nullable=True),
-            Column("nationality", String(3),     nullable=True),  # ISO-3166 alpha-3
-            Column("identity_no", String(50),    nullable=True),  # TC / Pasaport
-            Column("birth_date",  Date(),        nullable=True),
-            Column("gender",      String(10),    nullable=True),  # M / F / other
-            Column("vip_status",  Boolean(),     nullable=False),
-            Column("notes",       Text(),        nullable=True),
+            Column("id", Integer, primary_key=True, autoincrement=True),
+            Column("first_name", String(100), nullable=False),
+            Column("last_name", String(100), nullable=False),
+            Column("email", String(200), nullable=True),
+            Column("phone", String(30), nullable=True),
+            Column("nationality", String(3), nullable=True),  # ISO-3166 alpha-3
+            Column("identity_no", String(50), nullable=True),  # TC / Pasaport
+            Column("birth_date", Date(), nullable=True),
+            Column("gender", String(10), nullable=True),  # M / F / other
+            Column("vip_status", Boolean(), nullable=False),
+            Column("notes", Text(), nullable=True),
             # ── Model features (used for risk prediction) ─────────────────────
-            Column("hotel",                   String(50),  nullable=False),
-            Column("lead_time",               Integer(),   nullable=False),
-            Column("deposit_type",            String(30),  nullable=False),
-            Column("market_segment",          String(30),  nullable=False),
-            Column("adults",                  Integer(),   nullable=False),
-            Column("children",                Integer(),   nullable=False),
-            Column("babies",                  Integer(),   nullable=False),
-            Column("stays_in_week_nights",    Integer(),   nullable=False),
-            Column("stays_in_weekend_nights", Integer(),   nullable=False),
-            Column("is_repeated_guest",       Integer(),   nullable=False),
-            Column("previous_cancellations",  Integer(),   nullable=False),
-            Column("adr",                     Float(),     nullable=True),
+            Column("hotel", String(50), nullable=False),
+            Column("lead_time", Integer(), nullable=False),
+            Column("deposit_type", String(30), nullable=False),
+            Column("market_segment", String(30), nullable=False),
+            Column("adults", Integer(), nullable=False),
+            Column("children", Integer(), nullable=False),
+            Column("babies", Integer(), nullable=False),
+            Column("stays_in_week_nights", Integer(), nullable=False),
+            Column("stays_in_weekend_nights", Integer(), nullable=False),
+            Column("is_repeated_guest", Integer(), nullable=False),
+            Column("previous_cancellations", Integer(), nullable=False),
+            Column("adr", Float(), nullable=True),
             # ── Prediction result ─────────────────────────────────────────────
-            Column("risk_score",  Float(),      nullable=True),
-            Column("risk_label",  String(10),   nullable=True),
+            Column("risk_score", Float(), nullable=True),
+            Column("risk_label", String(10), nullable=True),
             # ── Meta ──────────────────────────────────────────────────────────
-            Column("created_at",  DateTime(timezone=True), nullable=False),
-            Column("updated_at",  DateTime(timezone=True), nullable=False),
+            Column("created_at", DateTime(timezone=True), nullable=False),
+            Column("updated_at", DateTime(timezone=True), nullable=False),
         )
 
     # ── CRUD ─────────────────────────────────────────────────────────────────
@@ -139,15 +140,15 @@ class GuestStore:
         """Return a single guest by id, or None."""
         with self.engine.connect() as conn:
             row = (
-                conn.execute(
-                    select(self.guests).where(self.guests.c.id == guest_id)
-                )
+                conn.execute(select(self.guests).where(self.guests.c.id == guest_id))
                 .mappings()
                 .first()
             )
         return dict(row) if row else None
 
-    def update_guest(self, guest_id: int, data: Dict[str, Any]) -> Dict[str, Any] | None:
+    def update_guest(
+        self, guest_id: int, data: Dict[str, Any]
+    ) -> Dict[str, Any] | None:
         """Partial update. Returns updated row dict, or None if not found."""
         now = datetime.now(timezone.utc)
         update_data = {**data, "updated_at": now}
@@ -165,6 +166,7 @@ class GuestStore:
     def delete_guest(self, guest_id: int) -> bool:
         """Delete a guest by id. Returns True if deleted, False if not found."""
         from sqlalchemy import delete as sa_delete
+
         with self.engine.connect() as conn:
             result = conn.execute(
                 sa_delete(self.guests).where(self.guests.c.id == guest_id)
@@ -174,6 +176,7 @@ class GuestStore:
 
 
 # ── Module-level singleton ────────────────────────────────────────────────────
+
 
 def init_guest_store(engine: Engine) -> None:
     """Initialize the global GuestStore with an existing SQLAlchemy engine."""

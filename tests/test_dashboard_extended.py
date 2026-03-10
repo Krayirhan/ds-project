@@ -78,7 +78,9 @@ def project_paths(tmp_path: Path) -> Paths:
 
 
 def test_read_json_and_run_dirs(project_paths: Paths) -> None:
-    assert dashboard._read_json(project_paths.reports / "missing.json", {"d": 1}) == {"d": 1}
+    assert dashboard._read_json(project_paths.reports / "missing.json", {"d": 1}) == {
+        "d": 1
+    }
 
     bad = project_paths.reports / "bad.json"
     bad.write_text("{invalid", encoding="utf-8")
@@ -97,7 +99,9 @@ def test_detect_latest_run_id(project_paths: Paths) -> None:
     (project_paths.reports_metrics / "run_20260101").mkdir(parents=True, exist_ok=True)
     (project_paths.reports_metrics / "run_20260103").mkdir(parents=True, exist_ok=True)
     (project_paths.reports_metrics / "latest.json").unlink()
-    assert dashboard._detect_latest_run_id(project_paths.reports_metrics) == "run_20260103"
+    assert (
+        dashboard._detect_latest_run_id(project_paths.reports_metrics) == "run_20260103"
+    )
 
     empty_root = project_paths.project_root / "empty_metrics"
     empty_root.mkdir(parents=True, exist_ok=True)
@@ -110,7 +114,10 @@ def test_load_snapshot_success_and_missing_run(project_paths: Paths) -> None:
     run_dir = project_paths.reports_metrics / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    _write_json(run_dir / "cv_summary.json", {"model_a": {"roc_auc_mean": 0.81, "roc_auc_std": 0.02, "cv_folds": 5}})
+    _write_json(
+        run_dir / "cv_summary.json",
+        {"model_a": {"roc_auc_mean": 0.81, "roc_auc_std": 0.02, "cv_folds": 5}},
+    )
     _write_json(
         run_dir / "decision_policy.json",
         {
@@ -134,7 +141,10 @@ def test_load_snapshot_success_and_missing_run(project_paths: Paths) -> None:
         },
     )
     _write_json(run_dir / "bad_metrics.json", ["not-a-dict"])
-    _write_json(run_dir / "calibration_metrics.json", {"roc_auc": 0.1, "f1": 0.1, "precision": 0.1, "recall": 0.1})
+    _write_json(
+        run_dir / "calibration_metrics.json",
+        {"roc_auc": 0.1, "f1": 0.1, "precision": 0.1, "recall": 0.1},
+    )
     _write_json(project_paths.reports_metrics / "latest.json", {"run_id": run_id})
 
     snapshot = dashboard._load_snapshot(paths=project_paths)
@@ -148,12 +158,16 @@ def test_load_snapshot_success_and_missing_run(project_paths: Paths) -> None:
 
 
 def test_mask_database_url() -> None:
-    masked = dashboard._mask_database_url("postgresql://user:secret@db.example.com:5432/app")
+    masked = dashboard._mask_database_url(
+        "postgresql://user:secret@db.example.com:5432/app"
+    )
     assert "secret" not in masked
     assert "***" in masked
 
 
-def test_init_dashboard_store_and_persist_snapshot_branches(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_init_dashboard_store_and_persist_snapshot_branches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(dashboard, "SQLALCHEMY_AVAILABLE", False)
     dashboard.init_dashboard_store()
     assert dashboard._store is None
@@ -193,16 +207,24 @@ def test_dashboard_runs_and_db_status_error_paths(
     assert "***" in db_status["database_url"]
 
 
-def test_dashboard_monitoring_paths(monkeypatch: pytest.MonkeyPatch, project_paths: Paths) -> None:
+def test_dashboard_monitoring_paths(
+    monkeypatch: pytest.MonkeyPatch, project_paths: Paths
+) -> None:
     monkeypatch.setattr(dashboard, "Paths", lambda: project_paths)
 
     latest_payload = {"alerts": {"any_alert": False}, "source": "latest"}
-    _write_json(project_paths.reports_monitoring / "latest_monitoring_report.json", latest_payload)
+    _write_json(
+        project_paths.reports_monitoring / "latest_monitoring_report.json",
+        latest_payload,
+    )
     got_latest = dashboard.dashboard_monitoring(_user={"username": "admin"})
     assert got_latest["source"] == "latest"
 
     (project_paths.reports_monitoring / "latest_monitoring_report.json").unlink()
-    _write_json(project_paths.reports_monitoring / "2026-02-20" / "monitoring_report.json", {"source": "dated"})
+    _write_json(
+        project_paths.reports_monitoring / "2026-02-20" / "monitoring_report.json",
+        {"source": "dated"},
+    )
     got_dated = dashboard.dashboard_monitoring(_user={"username": "admin"})
     assert got_dated["source"] == "dated"
 
@@ -213,7 +235,9 @@ def test_dashboard_monitoring_paths(monkeypatch: pytest.MonkeyPatch, project_pat
         dashboard.dashboard_monitoring(_user={"username": "admin"})
 
 
-def test_dashboard_explain_paths(monkeypatch: pytest.MonkeyPatch, project_paths: Paths) -> None:
+def test_dashboard_explain_paths(
+    monkeypatch: pytest.MonkeyPatch, project_paths: Paths
+) -> None:
     monkeypatch.setattr(dashboard, "Paths", lambda: project_paths)
     run_id = "run_x"
     run_dir = project_paths.reports_metrics / run_id
@@ -227,7 +251,13 @@ def test_dashboard_explain_paths(monkeypatch: pytest.MonkeyPatch, project_paths:
             "scoring": "roc_auc",
             "n_repeats": 5,
             "n_features": 2,
-            "ranking": [{"feature": "lead_time", "importance_mean": 0.12, "importance_std": 0.01}],
+            "ranking": [
+                {
+                    "feature": "lead_time",
+                    "importance_mean": 0.12,
+                    "importance_std": 0.01,
+                }
+            ],
         },
     )
     expl = dashboard.dashboard_explain(run_id=run_id, _user={"username": "admin"})
@@ -244,7 +274,9 @@ def test_dashboard_explain_paths(monkeypatch: pytest.MonkeyPatch, project_paths:
         dashboard.dashboard_explain(run_id=run_id, _user={"username": "admin"})
 
 
-def test_dashboard_system_degraded(monkeypatch: pytest.MonkeyPatch, project_paths: Paths) -> None:
+def test_dashboard_system_degraded(
+    monkeypatch: pytest.MonkeyPatch, project_paths: Paths
+) -> None:
     monkeypatch.setattr(dashboard, "Paths", lambda: project_paths)
     monkeypatch.setattr(dashboard, "_store", None)
     monkeypatch.delenv("REDIS_URL", raising=False)
@@ -255,7 +287,10 @@ def test_dashboard_system_degraded(monkeypatch: pytest.MonkeyPatch, project_path
     artifact.write_text("dummy", encoding="utf-8")
     registry_path = project_paths.project_root / "models" / "registry.json"
     _write_json(registry_path, {"slot1": {"path": str(artifact), "model_name": "xgb"}})
-    _write_json(project_paths.models / "latest.json", {"run_id": "run1", "model_registry": str(registry_path)})
+    _write_json(
+        project_paths.models / "latest.json",
+        {"run_id": "run1", "model_registry": str(registry_path)},
+    )
 
     with patch("urllib.request.urlopen", side_effect=RuntimeError("ollama down")):
         system = dashboard.dashboard_system(_user={"username": "admin"})
@@ -267,7 +302,9 @@ def test_dashboard_system_degraded(monkeypatch: pytest.MonkeyPatch, project_path
     assert "model" in system["services"]
 
 
-def test_dashboard_system_all_ok(monkeypatch: pytest.MonkeyPatch, project_paths: Paths) -> None:
+def test_dashboard_system_all_ok(
+    monkeypatch: pytest.MonkeyPatch, project_paths: Paths
+) -> None:
     monkeypatch.setattr(dashboard, "Paths", lambda: project_paths)
     monkeypatch.setenv("DATABASE_URL", "sqlite:///./reports/dashboard.db")
     monkeypatch.setenv("REDIS_URL", "redis://user:pass@localhost:6379/0")
@@ -299,7 +336,10 @@ def test_dashboard_system_all_ok(monkeypatch: pytest.MonkeyPatch, project_paths:
     artifact.write_text("dummy", encoding="utf-8")
     registry_path = project_paths.project_root / "models" / "registry.json"
     _write_json(registry_path, {"slot1": {"path": str(artifact), "model_name": "xgb"}})
-    _write_json(project_paths.models / "latest.json", {"run_id": "run1", "model_registry": str(registry_path)})
+    _write_json(
+        project_paths.models / "latest.json",
+        {"run_id": "run1", "model_registry": str(registry_path)},
+    )
 
     with patch("urllib.request.urlopen", return_value=_Resp()):
         system = dashboard.dashboard_system(_user={"username": "admin"})

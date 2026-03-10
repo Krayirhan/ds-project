@@ -54,7 +54,9 @@ class ChatOrchestrator:
         first_prompt = assemble_first_prompt(ctx=ctx)
         session.add_message(role="user", content=first_prompt)
 
-        reply = await self._ask_llm(session=session, risk_percent=ctx.risk_percent, intent=None)
+        reply = await self._ask_llm(
+            session=session, risk_percent=ctx.risk_percent, intent=None
+        )
         session.add_message(role="assistant", content=reply)
         self.store.save_session(session)  # persist mutations (#25)
         return session.session_id, reply
@@ -68,7 +70,9 @@ class ChatOrchestrator:
 
         # Retrieval: Ollama embeddings → TF-IDF → tag-based fallback
         if hasattr(self.knowledge, "retrieve_by_text_async"):
-            chunks = await self.knowledge.retrieve_by_text_async(query=user_message, top_k=2)
+            chunks = await self.knowledge.retrieve_by_text_async(
+                query=user_message, top_k=2
+            )
         elif hasattr(self.knowledge, "retrieve_by_text"):
             chunks = self.knowledge.retrieve_by_text(query=user_message, top_k=2)
         else:
@@ -94,7 +98,9 @@ class ChatOrchestrator:
         session.add_message(role="user", content=prompt)
         self.store.trim_history(session=session)
 
-        reply = await self._ask_llm(session=session, risk_percent=ctx.risk_percent, intent=intent.intent.value)
+        reply = await self._ask_llm(
+            session=session, risk_percent=ctx.risk_percent, intent=intent.intent.value
+        )
         session.add_message(role="assistant", content=reply)
         self.store.save_session(session)  # persist mutations (#25)
         return reply
@@ -138,7 +144,9 @@ class ChatOrchestrator:
         intent = classify_intent(user_message)
 
         if hasattr(self.knowledge, "retrieve_by_text_async"):
-            chunks = await self.knowledge.retrieve_by_text_async(query=user_message, top_k=2)
+            chunks = await self.knowledge.retrieve_by_text_async(
+                query=user_message, top_k=2
+            )
         elif hasattr(self.knowledge, "retrieve_by_text"):
             chunks = self.knowledge.retrieve_by_text(query=user_message, top_k=2)
         else:
@@ -167,7 +175,9 @@ class ChatOrchestrator:
         messages = session.to_ollama_messages(system_prompt=SYSTEM_PROMPT)
         full_reply: list[str] = []
         try:
-            async for token in self.ollama.chat_stream(messages=messages, temperature=0.3):
+            async for token in self.ollama.chat_stream(
+                messages=messages, temperature=0.3
+            ):
                 full_reply.append(token)
                 yield token
         except Exception as exc:
