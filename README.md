@@ -251,7 +251,7 @@ Rate limit backend seçenekleri:
 
 Bu projede önerilen yapı:
 
-- Backend: FastAPI (`src`) + entrypoint (`apps/backend/main.py`)
+- Backend: FastAPI (`src`) + entrypoint (`main.py serve-api`)
 - Frontend: React/Vite (`apps/frontend`)
 - ML çekirdeği: mevcut pipeline (`src/train.py`, `src/evaluate.py`, `src/predict.py`)
 
