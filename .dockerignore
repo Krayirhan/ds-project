@@ -7,6 +7,8 @@
 apps/frontend/node_modules
 apps/frontend/dist
 apps/frontend/.vite
+.vite
+.tools/
 
 # Python artifacts
 __pycache__
@@ -34,6 +36,8 @@ reports/metrics
 reports/predictions
 reports/monitoring
 reports/figures
+reports/*.db
+reports/*.db-journal
 
 # Notebooks
 notebooks/
