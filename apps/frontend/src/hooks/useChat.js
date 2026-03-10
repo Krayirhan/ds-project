@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { startChatSession, sendChatMessage, getChatSummary, predictRiskScore, createGuest, streamChatMessage } from '../api';
+import { startChatSession, getChatSummary, predictRiskScore, createGuest, streamChatMessage } from '../api';
 
 /**
  * useChat — Chat asistanı hook'u
@@ -213,7 +213,6 @@ export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
       const decoder = new TextDecoder();
       let buffer = '';
 
-      // eslint-disable-next-line no-constant-condition
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;

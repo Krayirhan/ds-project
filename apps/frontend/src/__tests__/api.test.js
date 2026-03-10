@@ -15,7 +15,11 @@ describe('api — fetchWithAuth', () => {
   });
 
   it('sends auth headers', async () => {
-    const mockResponse = { ok: true, json: () => Promise.resolve({ data: 1 }) };
+    const mockResponse = {
+      ok: true,
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify({ data: 1 })),
+    };
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(mockResponse)));
 
     await fetchWithAuth('/test', { apiKey: 'my-key' });

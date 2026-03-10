@@ -283,7 +283,7 @@ export default function ChatPage() {
   const [loading, setLoading]     = useState(false);
   const [listError, setListError] = useState('');
 
-  const loadGuests = useCallback(async (q = search, off = offset) => {
+  const loadGuests = useCallback(async (q, off) => {
     setLoading(true); setListError('');
     try {
       const res = await listGuests({ search: q || undefined, limit: PAGE_SIZE, offset: off }, apiKey);
@@ -292,10 +292,10 @@ export default function ChatPage() {
     } catch (e) {
       setListError(e.message || 'Misafir listesi alınamadı.');
     } finally { setLoading(false); }
-  }, [apiKey, search, offset]); // eslint-disable-line
+  }, [apiKey]);
 
   // İlk yükleme
-  useEffect(() => { loadGuests('', 0); }, [apiKey]); // eslint-disable-line
+  useEffect(() => { loadGuests('', 0); }, [apiKey, loadGuests]);
 
   function handleSearch(e) { const q = e.target.value; setSearch(q); setOffset(0); loadGuests(q, 0); }
   function prevPage() { const o = Math.max(0, offset - PAGE_SIZE); setOffset(o); loadGuests(search, o); }
