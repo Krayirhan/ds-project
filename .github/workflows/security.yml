@@ -16,8 +16,11 @@ jobs:
 
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sh -s -- -b /usr/local/bin v0.68.1
+          TRIVY_VERSION="0.68.1"
+          wget -q "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+          sudo dpkg -i "trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+          rm -f "trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+          trivy --version
 
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@0.34.0
@@ -69,8 +72,11 @@ jobs:
 
       - name: Install Trivy
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sh -s -- -b /usr/local/bin v0.68.1
+          TRIVY_VERSION="0.68.1"
+          wget -q "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+          sudo dpkg -i "trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+          rm -f "trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+          trivy --version
 
       - name: Build image for scanning
         run: docker build -t ds-project-scan:${{ github.sha }} .

@@ -58,6 +58,7 @@ jobs:
             dvc-s3==3.2.0
 
       - name: Pull DVC data
+        id: dvc_pull
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.DVC_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.DVC_SECRET_ACCESS_KEY }}
@@ -68,8 +69,13 @@ jobs:
           if [ -n "$AWS_S3_ENDPOINT_URL" ]; then
             dvc remote modify prod endpointurl "$AWS_S3_ENDPOINT_URL" --local
           fi
-          dvc pull data/raw data/processed --allow-missing \
-            || echo "⚠️  DVC remote not reachable — using data already in repo cache"
+          if dvc pull data/raw data/processed --allow-missing 2>&1; then
+            echo "data_available=true" >> "$GITHUB_OUTPUT"
+            echo "✅ DVC pull succeeded"
+          else
+            echo "data_available=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️  DVC remote not reachable — smoke test will be skipped"
+          fi
 
       - name: Quality gate (pre-commit)
         run: |
@@ -208,7 +214,9 @@ jobs:
 
       - name: Integration smoke
         run: |
-          python -m pytest -q tests/test_pipeline_smoke.py
+          python -m pytest -v tests/test_pipeline_smoke.py
+        # Veri yoksa test skipif ile atlanır (exit 0) — CI bloklanmaz.
+        # Veri varsa gerçek pipeline çalışır.
 
   docker-build:
     runs-on: ubuntu-latest
