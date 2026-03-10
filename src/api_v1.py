@@ -23,11 +23,28 @@ from .api_shared import (
     exec_decide,
     load_serving_state,
     get_shared_app_ref,
-    get_serving_state_for_router as _get_serving_state,
+    get_serving_state_for_router as _shared_get_serving_state,
 )
 from .metrics import INFERENCE_ERRORS
 
 router_v1 = APIRouter(prefix="/v1", tags=["v1"])
+
+
+# Backward-compat shim for tests/legacy code that monkeypatch module-level _app_ref.
+_app_ref = None
+
+
+def _get_serving_state() -> ServingState:
+    if _app_ref is None:
+        return _shared_get_serving_state()
+
+    serving = getattr(_app_ref.state, "serving", None)
+    if serving is not None:
+        return serving
+
+    serving = load_serving_state()
+    _app_ref.state.serving = serving
+    return serving
 
 
 @router_v1.post(
@@ -104,7 +121,7 @@ async def v1_reload(request: Request) -> ReloadResponse:
     expected_admin = os.getenv("DS_ADMIN_KEY")
     if expected_admin and request.headers.get("x-admin-key") != expected_admin:
         raise HTTPException(status_code=403, detail="x-admin-key header gereklidir.")
-    _app = get_shared_app_ref()
+    _app = _app_ref or get_shared_app_ref()
     lock = getattr(_app.state if _app else None, "_reload_lock", None) or asyncio.Lock()
     async with lock:
         try:
