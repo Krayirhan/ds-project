@@ -18,6 +18,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
@@ -226,6 +227,14 @@ def _row_to_response(row: dict[str, Any]) -> GuestResponse:
     )
 
 
+def _store_error(exc: Exception) -> HTTPException:
+    logger.warning("Guest store operation failed: %s", exc)
+    return HTTPException(
+        status_code=503,
+        detail="Guest data store is unavailable. Verify DB migrations and connection.",
+    )
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router_guests.post("", response_model=GuestResponse, status_code=201)
@@ -248,8 +257,11 @@ async def create_guest(body: GuestCreate, request: Request) -> GuestResponse:
     data["risk_label"] = risk_label
 
     store = get_guest_store()
-    row = store.create_guest(data)
-    return _row_to_response(row)
+    try:
+        row = store.create_guest(data)
+        return _row_to_response(row)
+    except SQLAlchemyError as exc:
+        raise _store_error(exc) from exc
 
 
 @router_guests.get("", response_model=GuestListResponse)
@@ -262,9 +274,12 @@ async def list_guests(
     from .guest_store import get_guest_store
 
     store = get_guest_store()
-    total = store.count_guests(search=search)
-    items = store.list_guests(search=search, limit=min(limit, 200), offset=offset)
-    return GuestListResponse(total=total, items=[_row_to_response(r) for r in items])
+    try:
+        total = store.count_guests(search=search)
+        items = store.list_guests(search=search, limit=min(limit, 200), offset=offset)
+        return GuestListResponse(total=total, items=[_row_to_response(r) for r in items])
+    except SQLAlchemyError as exc:
+        raise _store_error(exc) from exc
 
 
 @router_guests.get("/{guest_id}", response_model=GuestResponse)
@@ -273,7 +288,10 @@ async def get_guest(guest_id: int) -> GuestResponse:
     from .guest_store import get_guest_store
 
     store = get_guest_store()
-    row = store.get_guest(guest_id)
+    try:
+        row = store.get_guest(guest_id)
+    except SQLAlchemyError as exc:
+        raise _store_error(exc) from exc
     if not row:
         raise HTTPException(status_code=404, detail="Misafir bulunamadı")
     return _row_to_response(row)
@@ -285,7 +303,10 @@ async def delete_guest(guest_id: int) -> None:
     from .guest_store import get_guest_store
 
     store = get_guest_store()
-    deleted = store.delete_guest(guest_id)
+    try:
+        deleted = store.delete_guest(guest_id)
+    except SQLAlchemyError as exc:
+        raise _store_error(exc) from exc
     if not deleted:
         raise HTTPException(status_code=404, detail="Misafir bulunamadı")
 
@@ -298,7 +319,10 @@ async def update_guest(
     from .guest_store import get_guest_store
 
     store = get_guest_store()
-    existing = store.get_guest(guest_id)
+    try:
+        existing = store.get_guest(guest_id)
+    except SQLAlchemyError as exc:
+        raise _store_error(exc) from exc
     if not existing:
         raise HTTPException(status_code=404, detail="Misafir bulunamadı")
 
@@ -324,7 +348,10 @@ async def update_guest(
         updates["risk_score"] = risk_score
         updates["risk_label"] = risk_label
 
-    row = store.update_guest(guest_id, updates)
+    try:
+        row = store.update_guest(guest_id, updates)
+    except SQLAlchemyError as exc:
+        raise _store_error(exc) from exc
     if not row:
         raise HTTPException(status_code=404, detail="Güncelleme başarısız")
     return _row_to_response(row)

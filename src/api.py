@@ -26,6 +26,7 @@ from .api_shared import (
     error_response,
 )
 from .config import ExperimentConfig
+from .db_bootstrap import ensure_required_tables, run_migrations
 from .dashboard import init_dashboard_store, router_dashboard
 from .dashboard_auth import router_dashboard_auth
 from .user_store import init_user_store, seed_admin
@@ -101,23 +102,18 @@ async def lifespan(app: FastAPI):
     instrument_fastapi(app)
     # ── Database init ────────────────────────────────────────────────────────
     database_url = os.getenv("DATABASE_URL", "sqlite:///./reports/dashboard.db")
-    try:
-        init_user_store(database_url)
-        seed_admin()
-    except Exception as exc:
-        logger.warning("Could not initialize user store: %s", exc)
-    _engine = None
-    try:
-        from sqlalchemy import create_engine as _create_engine
-        _engine = _create_engine(database_url, pool_pre_ping=True, future=True)
-        init_guest_store(_engine)
-    except Exception as exc:
-        logger.warning("Could not initialize guest store: %s", exc)
+    run_migrations(database_url)
+    ensure_required_tables(database_url)
+
+    init_user_store(database_url)
+    seed_admin()
+
+    from sqlalchemy import create_engine as _create_engine
+
+    _engine = _create_engine(database_url, pool_pre_ping=True, future=True)
+    init_guest_store(_engine)
     try:
         from .chat.knowledge.db_store import init_knowledge_db_store
-        if _engine is None:
-            from sqlalchemy import create_engine as _create_engine
-            _engine = _create_engine(database_url, pool_pre_ping=True, future=True)
         init_knowledge_db_store(_engine)
     except Exception as exc:
         logger.warning("Could not initialize knowledge DB store (pgvector): %s — using TF-IDF fallback", exc)

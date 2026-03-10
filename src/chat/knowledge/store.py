@@ -227,8 +227,14 @@ def get_knowledge_store() -> Any:
     # Prefer pgvector DB store if it has been initialized in the app lifespan
     try:
         from .db_store import get_knowledge_db_store
+
         db = get_knowledge_db_store()
         if db is not None:
+            from sqlalchemy import text
+
+            # Ensure underlying schema exists; otherwise fall back to in-memory store.
+            with db.engine.connect() as conn:
+                conn.execute(text("SELECT 1 FROM knowledge_chunks LIMIT 1"))
             _store = db
             logger.info("Knowledge store: using pgvector KnowledgeDbStore")
             return _store

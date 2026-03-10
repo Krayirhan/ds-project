@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
@@ -42,7 +42,7 @@ def _make_fitted_pipeline(X, y):
             ),
         ]
     )
-    clf = HistGradientBoostingClassifier(max_iter=5, random_state=42)
+    clf = LogisticRegression(max_iter=200, solver="liblinear", random_state=42)
     pipe = Pipeline([("preprocess", preprocess), ("clf", clf)])
     pipe.fit(X, y)
     return pipe
@@ -210,7 +210,8 @@ class TestComputeShapValues:
         mock_explainer.shap_values.return_value = mock_shap_values
 
         mock_shap = MagicMock()
-        mock_shap.TreeExplainer.return_value = mock_explainer
+        mock_shap.sample.side_effect = lambda arr, _k: arr
+        mock_shap.KernelExplainer.return_value = mock_explainer
 
         with patch.dict("sys.modules", {"shap": mock_shap}):
             result = compute_shap_values(model, X.head(5))

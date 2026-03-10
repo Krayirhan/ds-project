@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy.exc import SQLAlchemyError
 
 from .ollama_client import get_ollama_client
 from .orchestrator import get_orchestrator
@@ -84,6 +85,11 @@ async def start_session(body: StartSessionRequest) -> StartSessionResponse:
             risk_label=body.risk_label,
         )
     except Exception as exc:
+        if isinstance(exc, SQLAlchemyError):
+            raise HTTPException(
+                status_code=503,
+                detail="Chat knowledge/session store is unavailable. Check DB migrations.",
+            ) from exc
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
@@ -104,6 +110,11 @@ async def message(body: ChatMessageRequest) -> ChatMessageResponse:
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
+        if isinstance(exc, SQLAlchemyError):
+            raise HTTPException(
+                status_code=503,
+                detail="Chat knowledge/session store is unavailable. Check DB migrations.",
+            ) from exc
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
@@ -216,7 +227,6 @@ async def list_available_models(request: Request) -> dict:
 async def predict_risk(body: PredictRiskRequest, request: Request) -> PredictRiskResponse:
     """Form verisinden model tahminini çalıştırarak iptal riski üretir."""
     import joblib as _joblib
-    import numpy as np
     import pandas as pd
     from pathlib import Path
     from ..predict import validate_and_prepare_features

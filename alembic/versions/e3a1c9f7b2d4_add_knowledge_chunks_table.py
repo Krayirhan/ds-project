@@ -1,4 +1,4 @@
-"""add_knowledge_chunks_table
+﻿"""add_knowledge_chunks_table
 
 Revision ID: e3a1c9f7b2d4
 Revises: 854e7dedec10
@@ -22,46 +22,50 @@ EMBED_DIM = 768  # nomic-embed-text output dimension
 
 
 def upgrade() -> None:
-    # ── 1. Enable pgvector extension ─────────────────────────────────────────
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    dialect = op.get_bind().dialect.name
+    ts_default = sa.text("NOW()") if dialect == "postgresql" else sa.text("CURRENT_TIMESTAMP")
 
-    # ── 2. Create knowledge_chunks table ─────────────────────────────────────
+    # 1) Create portable base table.
     op.create_table(
         "knowledge_chunks",
-        sa.Column("id",         sa.Integer(),      primary_key=True, autoincrement=True),
-        sa.Column("chunk_id",   sa.String(50),     nullable=False),
-        sa.Column("category",   sa.String(50),     nullable=False, server_default="general"),
-        sa.Column("tags",       sa.JSON(),          nullable=False, server_default="[]"),
-        sa.Column("title",      sa.String(200),    nullable=False),
-        sa.Column("content",    sa.Text(),          nullable=False),
-        sa.Column("priority",   sa.Integer(),      nullable=False, server_default="5"),
-        sa.Column("is_active",  sa.Boolean(),      nullable=False, server_default="true"),
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("chunk_id", sa.String(50), nullable=False),
+        sa.Column("category", sa.String(50), nullable=False, server_default="general"),
+        sa.Column("tags", sa.JSON(), nullable=False, server_default="[]"),
+        sa.Column("title", sa.String(200), nullable=False),
+        sa.Column("content", sa.Text(), nullable=False),
+        sa.Column("priority", sa.Integer(), nullable=False, server_default="5"),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            server_default=sa.text("NOW()"),
+            server_default=ts_default,
             nullable=False,
         ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
-            server_default=sa.text("NOW()"),
+            server_default=ts_default,
             nullable=False,
         ),
         sa.UniqueConstraint("chunk_id", name="uq_knowledge_chunks_chunk_id"),
     )
 
-    # ── 3. Add vector column (pgvector type — cannot use SA natively) ─────────
-    op.execute(f"ALTER TABLE knowledge_chunks ADD COLUMN embedding vector({EMBED_DIM})")
-
-    # ── 4. HNSW index for fast cosine similarity search ───────────────────────
-    # m=16, ef_construction=64 are good defaults for small-medium corpora.
-    # HNSW trades index build time for extremely fast query time (sub-ms).
-    op.execute(
-        "CREATE INDEX ix_knowledge_embedding_hnsw "
-        "ON knowledge_chunks USING hnsw (embedding vector_cosine_ops) "
-        "WITH (m = 16, ef_construction = 64)"
-    )
+    if dialect == "postgresql":
+        # 2) PostgreSQL optimized path (pgvector + HNSW).
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        op.execute(f"ALTER TABLE knowledge_chunks ADD COLUMN embedding vector({EMBED_DIM})")
+        op.execute(
+            "CREATE INDEX ix_knowledge_embedding_hnsw "
+            "ON knowledge_chunks USING hnsw (embedding vector_cosine_ops) "
+            "WITH (m = 16, ef_construction = 64)"
+        )
+    else:
+        # 3) SQLite/dev fallback for local and CI test environments.
+        op.add_column(
+            "knowledge_chunks",
+            sa.Column("embedding", sa.Text(), nullable=True),
+        )
 
 
 def downgrade() -> None:

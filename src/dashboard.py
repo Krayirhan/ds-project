@@ -255,7 +255,6 @@ def init_dashboard_store() -> None:
 
     try:
         _store = DashboardStore(database_url=database_url)
-        _store.create_schema()
         logger.info("Dashboard database initialized: %s", database_url)
     except Exception as exc:
         logger.warning(
@@ -566,9 +565,17 @@ def dashboard_system(_user: Dict[str, Any] = Depends(require_dashboard_user)):
             # Fallback: model_registry.json (string değer desteğiyle)
             latest_json = _read_json(paths.models / "latest.json", None)
             run_id_str = (latest_json or {}).get("run_id", "")
-            registry = _read_json(
-                paths.reports_metrics / run_id_str / "model_registry.json", None
-            ) if run_id_str else None
+            latest_registry_path = (latest_json or {}).get("model_registry")
+            registry_path = None
+            if isinstance(latest_registry_path, str) and latest_registry_path:
+                p = Path(latest_registry_path)
+                registry_path = p if p.is_absolute() else (paths.project_root / p)
+            elif run_id_str:
+                registry_path = paths.reports_metrics / run_id_str / "model_registry.json"
+
+            registry = (
+                _read_json(registry_path, None) if registry_path is not None else None
+            )
             if registry and isinstance(registry, dict):
                 for v in registry.values():
                     artifact_rel = v if isinstance(v, str) else (v.get("path") if isinstance(v, dict) else None)

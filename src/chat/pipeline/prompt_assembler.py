@@ -83,5 +83,5 @@ def _current_state_block(customer_data: dict) -> str:
     else:
         lines.append("✅ Geçmiş iptal yok")
 
-    block = "\n".join(f"  {l}" for l in lines)
+    block = "\n".join(f"  {line}" for line in lines)
     return f"\n\n📌 Mevcut Durum (bunları tekrar önerme):\n{block}"

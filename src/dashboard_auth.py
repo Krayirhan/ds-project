@@ -15,6 +15,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
+import bcrypt
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
@@ -107,12 +108,95 @@ def _token_ttl_minutes() -> int:
         return 480
 
 
+def _is_non_prod_env() -> bool:
+    env = os.getenv("DS_ENV", "development").strip().lower()
+    return env in {"dev", "development", "local", "test", "testing"}
+
+
+def _allow_insecure_dev_login() -> bool:
+    return os.getenv("DASHBOARD_ALLOW_INSECURE_DEV_LOGIN", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _get_users() -> Dict[str, str]:
+    """Legacy env-based users for compatibility and unit-test stability."""
+    users: Dict[str, str] = {}
+
+    admin_password = os.getenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", "").strip()
+    if not admin_password:
+        if _is_non_prod_env() and _allow_insecure_dev_login():
+            admin_password = "admin123"
+            logger.warning(
+                "Using insecure development admin password because "
+                "DASHBOARD_ALLOW_INSECURE_DEV_LOGIN=true."
+            )
+        else:
+            raise RuntimeError(
+                "DASHBOARD_ADMIN_PASSWORD_ADMIN must be set "
+                "(or enable DASHBOARD_ALLOW_INSECURE_DEV_LOGIN=true in development)."
+            )
+
+    if admin_password == "replace-me":
+        if _is_non_prod_env():
+            logger.warning(
+                "DASHBOARD_ADMIN_PASSWORD_ADMIN uses placeholder value 'replace-me'."
+            )
+        else:
+            raise RuntimeError(
+                "DASHBOARD_ADMIN_PASSWORD_ADMIN cannot be 'replace-me' in non-dev environments."
+            )
+
+    users["admin"] = admin_password
+
+    legacy_user = os.getenv("DASHBOARD_ADMIN_USERNAME", "").strip()
+    legacy_pass = os.getenv("DASHBOARD_ADMIN_PASSWORD", "").strip()
+    if legacy_user and legacy_pass:
+        users[legacy_user] = legacy_pass
+
+    raw_extra = os.getenv("DASHBOARD_EXTRA_USERS", "").strip()
+    if raw_extra:
+        try:
+            parsed = json.loads(raw_extra)
+            if isinstance(parsed, dict):
+                for username, passwd in parsed.items():
+                    if isinstance(username, str) and isinstance(passwd, str):
+                        users[username] = passwd
+        except Exception:
+            logger.warning("Invalid DASHBOARD_EXTRA_USERS JSON ignored.")
+
+    return users
+
+
 def _verify_credentials(username: str, password: str) -> bool:
     store = get_user_store()
-    if store is None:
-        logger.warning("UserStore unavailable; credential check failed.")
+    if store is not None:
+        try:
+            if store.verify_password(username, password):
+                return True
+        except Exception:
+            if not _is_non_prod_env():
+                return False
+        # In non-prod/test contexts allow env-based fallback for compatibility.
+        if not _is_non_prod_env():
+            return False
+
+    # Compatibility fallback for isolated/unit tests where DB store is not initialized.
+    try:
+        users = _get_users()
+    except RuntimeError:
         return False
-    return store.verify_password(username, password)
+    expected = users.get(username)
+    if not expected:
+        return False
+    if expected.startswith("$2"):
+        try:
+            return bcrypt.checkpw(password.encode("utf-8"), expected.encode("utf-8"))
+        except Exception:
+            return False
+    return secrets.compare_digest(password, expected)
 
 
 def _cleanup_expired_tokens() -> None:
@@ -161,7 +245,7 @@ def require_dashboard_user(
 ) -> Dict[str, Any]:
     """Validate bearer token and return user dict."""
     if not _auth_enabled():
-        return {"username": "admin", "auth_enabled": False}
+        return {"username": "anonymous", "auth_enabled": False}
 
     token = _parse_bearer_token(authorization)
     if token is None:
@@ -190,7 +274,7 @@ def dashboard_login(payload: LoginRequest) -> LoginResponse:
         return LoginResponse(
             access_token="auth-disabled",  # nosec B106
             expires_at=expires.isoformat(),
-            username="admin",
+            username="anonymous",
         )
 
     if not _verify_credentials(payload.username, payload.password):

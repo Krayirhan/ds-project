@@ -195,10 +195,9 @@ def get_user_store() -> UserStore | None:
 
 
 def init_user_store(database_url: str) -> UserStore:
-    """Initialize the global UserStore and create the schema."""
+    """Initialize the global UserStore."""
     global _user_store
     _user_store = UserStore(database_url=database_url)
-    _user_store.create_schema()
     logger.info("UserStore initialized: %s", database_url.split("@")[-1])
     return _user_store
 
@@ -216,7 +215,8 @@ def seed_admin() -> None:
         logger.warning("UserStore not initialized; skipping admin seed.")
         return
 
-    admin_pass = os.getenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", "").strip()
+    explicit_admin_pass = os.getenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", "").strip()
+    admin_pass = explicit_admin_pass
     if not admin_pass:
         admin_pass = "admin123"
         logger.warning(
@@ -224,8 +224,14 @@ def seed_admin() -> None:
             "Seeding 'admin' with default password 'admin123'. Change this immediately!"
         )
 
-    if store.get_user("admin") is None:
+    admin_user = store.get_user("admin")
+    if admin_user is None:
         store.create_user("admin", admin_pass)
         logger.info("Admin user seeded into database.")
     else:
+        # Keep startup deterministic for tests and controlled deployments:
+        # when an explicit env password is set, sync DB hash if needed.
+        if explicit_admin_pass and not store.verify_password("admin", explicit_admin_pass):
+            store.update_password("admin", explicit_admin_pass)
+            logger.info("Admin user password updated from environment.")
         logger.debug("Admin user already exists in database.")

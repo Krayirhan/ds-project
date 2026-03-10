@@ -14,7 +14,7 @@ Usage:
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
@@ -28,7 +28,6 @@ from sqlalchemy import (
     String,
     Table,
     Text,
-    create_engine,
     func,
     insert,
     or_,

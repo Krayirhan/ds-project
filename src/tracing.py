@@ -146,11 +146,15 @@ def trace_span(
         yield None
         return
 
-    with tracer.start_as_current_span(name) as span:
-        if attributes:
-            for k, v in attributes.items():
-                span.set_attribute(k, v)
-        yield span
+    try:
+        with tracer.start_as_current_span(name) as span:
+            if attributes:
+                for k, v in attributes.items():
+                    span.set_attribute(k, v)
+            yield span
+    except Exception as exc:
+        logger.debug("trace_span fallback (span creation failed): %s", exc)
+        yield None
 
 
 @contextmanager

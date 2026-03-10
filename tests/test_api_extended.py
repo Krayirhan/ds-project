@@ -327,6 +327,11 @@ def test_lifespan_degraded_and_shutdown_paths(monkeypatch):
     monkeypatch.setenv("RATE_LIMIT_BACKEND", "memory")
     monkeypatch.setattr(api, "init_tracing", lambda **kwargs: None)
     monkeypatch.setattr(api, "instrument_fastapi", lambda *_: None)
+    monkeypatch.setattr(api, "run_migrations", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(api, "ensure_required_tables", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(api, "init_user_store", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(api, "seed_admin", lambda: None)
+    monkeypatch.setattr(api, "init_guest_store", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(api, "init_dashboard_store", lambda: None)
     monkeypatch.setattr(
         api,
