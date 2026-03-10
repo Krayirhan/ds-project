@@ -24,10 +24,79 @@ jobs:
         run: |
           python main.py monitor
 
+      - name: Collect operational rollback signals (5xx + p95)
+        env:
+          PROMETHEUS_BASE_URL: ${{ secrets.PROMETHEUS_BASE_URL }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          out = Path("reports/monitoring/ops_signals.json")
+          out.parent.mkdir(parents=True, exist_ok=True)
+
+          payload = {
+              "ops_signals_available": False,
+              "high_5xx_rate": False,
+              "high_p95_latency": False,
+              "error_budget_burn_fast": False,
+              "five_xx_ratio": None,
+              "p95_latency_seconds": None,
+              "note": "",
+          }
+
+          base = os.getenv("PROMETHEUS_BASE_URL", "").strip().rstrip("/")
+          if not base:
+              payload["note"] = "PROMETHEUS_BASE_URL is not configured."
+              out.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+              raise SystemExit(0)
+
+          def query(expr: str) -> float | None:
+              url = f"{base}/api/v1/query?query={urllib.parse.quote_plus(expr)}"
+              with urllib.request.urlopen(url, timeout=20) as resp:
+                  body = json.loads(resp.read().decode("utf-8"))
+              if body.get("status") != "success":
+                  return None
+              result = body.get("data", {}).get("result", [])
+              if not result:
+                  return None
+              try:
+                  return float(result[0]["value"][1])
+              except (ValueError, TypeError, KeyError, IndexError):
+                  return None
+
+          try:
+              five_xx_ratio = query('sum(rate(ds_api_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(ds_api_requests_total[5m])), 0.001)')
+              p95_latency = query('histogram_quantile(0.95, sum(rate(ds_api_request_latency_seconds_bucket[5m])) by (le))')
+          except Exception as exc:
+              payload["note"] = f"prometheus_query_failed: {exc}"
+              out.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+              raise SystemExit(0)
+
+          payload["five_xx_ratio"] = five_xx_ratio
+          payload["p95_latency_seconds"] = p95_latency
+          payload["ops_signals_available"] = (
+              five_xx_ratio is not None and p95_latency is not None
+          )
+          if payload["ops_signals_available"]:
+              payload["high_5xx_rate"] = bool(five_xx_ratio > 0.001)
+              payload["high_p95_latency"] = bool(p95_latency > 0.3)
+          if five_xx_ratio is not None:
+              payload["error_budget_burn_fast"] = bool(five_xx_ratio > (14.4 * 0.001))
+
+          out.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+          print(out.read_text(encoding="utf-8"))
+          PY
+
       - name: Evaluate alerts and rollback if needed
         id: evaluate_alerts
         run: |
-          python scripts/evaluate_rollback.py --report-path reports/monitoring/latest_monitoring_report.json
+          python scripts/evaluate_rollback.py \
+            --report-path reports/monitoring/latest_monitoring_report.json \
+            --ops-signals-path reports/monitoring/ops_signals.json
 
       - name: Rollback policy on alert
         if: steps.evaluate_alerts.outputs.rollback_required == 'true'

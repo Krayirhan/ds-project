@@ -9,9 +9,3 @@
 
 ['remote "prod"']
     url = s3://ds-dvc-bucket
-
-['remote "gcs"']
-    url = gs://ds-dvc-bucket
-
-['remote "azure"']
-    url = azure://ds-dvc-bucket

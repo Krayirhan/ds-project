@@ -16,6 +16,7 @@
 ## Alert Rules
 - `DSProjectHighP95Latency`: p95 latency > 300ms for 15m (warning)
 - `DSProjectHigh5xxRate`: 5xx ratio > 0.1% for 10m (critical)
+- `DSProjectCorrelatedRollbackSignal`: 5xx + p95 latency + model-quality breach together for 10m (critical)
 - `DSProjectErrorBudgetBurnFast`: 5xx ratio > 1.44% for 5m (critical)
 - `DSProjectErrorBudgetBurnSlow`: 5xx ratio > 0.6% for 30m (warning)
 - `DSProjectHighPSI`: feature PSI > 0.2 for 5m (warning)
@@ -32,5 +33,17 @@
 - On burn > 80%: rollback to previous stable policy/model
 
 ## Automated Response
-- Canary auto-halt/rollback source: `DSProjectErrorBudgetBurnFast` and critical model/business alerts in runbook.
-- Scheduled monitor rollback source: `.github/workflows/monitor.yml` evaluates `latest_monitoring_report.json` and triggers rollback for critical conditions.
+- Canary auto-halt/rollback source: `DSProjectCorrelatedRollbackSignal` and `DSProjectErrorBudgetBurnFast` according to runbook.
+- Scheduled monitor rollback source: `.github/workflows/monitor.yml` evaluates both `latest_monitoring_report.json` and Prometheus-derived operational signals (5xx + p95) before triggering rollback.
+
+## Alert Ownership and Runbook Links
+
+| Alert | Owner | Runbook |
+|-------|-------|---------|
+| `DSProjectCorrelatedRollbackSignal` | `ml-platform-oncall` | `docs/runbook.md#canary-auto-rollback-actions` |
+| `DSProjectErrorBudgetBurnFast` | `platform-sre-oncall` | `docs/runbook.md#rollback` |
+| `DSProjectHigh5xxRate` | `platform-sre-oncall` | `docs/runbook.md#incidents` |
+| `DSProjectHighP95Latency` | `platform-sre-oncall` | `docs/runbook.md#incidents` |
+| `DSProjectLowAUC` | `ml-oncall` | `docs/runbook.md#model-health-monitoring` |
+| `DSProjectHighPSI` | `ml-oncall` | `docs/runbook.md#model-health-monitoring` |
+| `DSProjectActionRateAnomaly` | `ml-oncall` | `docs/runbook.md#model-health-monitoring` |

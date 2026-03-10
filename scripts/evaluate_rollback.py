@@ -13,10 +13,10 @@ from pathlib import Path
 from typing import Any
 
 
-def _evaluate_reasons(alerts: dict[str, Any]) -> list[str]:
+def _model_quality_reasons(alerts: dict[str, Any]) -> list[str]:
     reasons: list[str] = []
 
-    # Critical model/business regressions that should trigger automated rollback.
+    # Critical model/business signals from latest monitoring report.
     if bool(alerts.get("profit_drop", False)):
         reasons.append("profit_drop")
     if bool(alerts.get("prediction_drift", False)):
@@ -29,11 +29,77 @@ def _evaluate_reasons(alerts: dict[str, Any]) -> list[str]:
     return reasons
 
 
-def _evaluate_non_rollback_signals(alerts: dict[str, Any]) -> list[str]:
+def _load_json(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
+def _ops_signals(payload: dict[str, Any]) -> dict[str, Any]:
+    # Payload is intentionally tolerant to support future schema changes.
+    return {
+        "available": bool(payload.get("ops_signals_available", False)),
+        "high_5xx_rate": bool(payload.get("high_5xx_rate", False)),
+        "high_p95_latency": bool(payload.get("high_p95_latency", False)),
+        "error_budget_burn_fast": bool(payload.get("error_budget_burn_fast", False)),
+        "five_xx_ratio": payload.get("five_xx_ratio"),
+        "p95_latency_seconds": payload.get("p95_latency_seconds"),
+    }
+
+
+def _evaluate_rollback_matrix(
+    *,
+    model_quality_reasons: list[str],
+    ops: dict[str, Any],
+) -> list[str]:
+    """Correlated rollback matrix.
+
+    Rollback requires multi-signal correlation:
+      - operational 5xx breach
+      - operational p95 latency breach
+      - at least one model/business quality breach
+    """
+    reasons: list[str] = []
+    if (
+        bool(model_quality_reasons)
+        and bool(ops.get("high_5xx_rate", False))
+        and bool(ops.get("high_p95_latency", False))
+    ):
+        reasons.append("correlated_5xx+latency+model_quality")
+        reasons.extend(model_quality_reasons)
+    return reasons
+
+
+def _evaluate_non_rollback_signals(
+    alerts: dict[str, Any],
+    *,
+    model_quality_reasons: list[str],
+    ops: dict[str, Any],
+) -> list[str]:
     signals: list[str] = []
+
     # Operational signal only: this should not trigger policy rollback by itself.
     if bool(alerts.get("data_volume_anomaly", False)):
         signals.append("data_volume_anomaly")
+
+    if not bool(ops.get("available", False)):
+        signals.append("ops_signals_unavailable")
+        if model_quality_reasons:
+            signals.append("model_quality_without_ops_correlation")
+        return signals
+
+    ops_pair = bool(ops.get("high_5xx_rate", False)) and bool(
+        ops.get("high_p95_latency", False)
+    )
+    if model_quality_reasons and not ops_pair:
+        signals.append("model_quality_without_ops_correlation")
+    if ops_pair and not model_quality_reasons:
+        signals.append("ops_correlation_without_model_quality")
+
+    if bool(ops.get("error_budget_burn_fast", False)):
+        signals.append("error_budget_burn_fast")
+
     return signals
 
 
@@ -69,6 +135,11 @@ def main() -> int:
         help="Path to monitoring report JSON",
     )
     parser.add_argument(
+        "--ops-signals-path",
+        default="reports/monitoring/ops_signals.json",
+        help="Path to operational (5xx/latency) signal JSON",
+    )
+    parser.add_argument(
         "--fail-on-rollback",
         action="store_true",
         help="Exit with status 42 when rollback is required.",
@@ -83,13 +154,25 @@ def main() -> int:
     if not report_path.exists():
         print(f"No monitoring report found: {report_path}. Skipping rollback check.")
     else:
-        payload = json.loads(report_path.read_text(encoding="utf-8"))
+        payload = _load_json(report_path)
         alerts = payload.get("alerts", {})
         if not isinstance(alerts, dict):
             alerts = {}
+        ops = _ops_signals(_load_json(Path(args.ops_signals_path)))
+
         print(f"alerts={alerts}")
-        rollback_reasons = _evaluate_reasons(alerts)
-        non_rollback_signals = _evaluate_non_rollback_signals(alerts)
+        print(f"ops_signals={ops}")
+
+        model_reasons = _model_quality_reasons(alerts)
+        rollback_reasons = _evaluate_rollback_matrix(
+            model_quality_reasons=model_reasons,
+            ops=ops,
+        )
+        non_rollback_signals = _evaluate_non_rollback_signals(
+            alerts,
+            model_quality_reasons=model_reasons,
+            ops=ops,
+        )
         rollback_required = bool(rollback_reasons)
 
     print(f"rollback_required={rollback_required}")

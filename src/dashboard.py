@@ -20,6 +20,7 @@ logger = get_logger("dashboard")
 
 _CACHE_TTL_SECONDS = int(os.getenv("DASHBOARD_CACHE_TTL_SECONDS", "45"))
 _CACHE_PREFIX = "ds:dash:overview:"
+_CACHE_NAMESPACE_KEY = "ds:dash:overview:namespace"
 _dashboard_redis: Any = None
 
 
@@ -34,7 +35,9 @@ def _get_dashboard_redis() -> Any | None:
     try:
         import redis as _redis  # type: ignore[import]
 
-        client = _redis.Redis.from_url(redis_url, decode_responses=True, socket_timeout=2)
+        client = _redis.Redis.from_url(
+            redis_url, decode_responses=True, socket_timeout=2
+        )
         client.ping()
         _dashboard_redis = client
         logger.info("Dashboard cache: Redis active (TTL=%ds)", _CACHE_TTL_SECONDS)
@@ -65,17 +68,35 @@ def _cache_set(key: str, value: Dict[str, Any]) -> None:
         logger.debug("Dashboard cache write failed: %s", exc)
 
 
-def _cache_invalidate(pattern: str = f"{_CACHE_PREFIX}*") -> None:
-    """Invalidate all dashboard overview cache keys (used on reload)."""
+def _cache_namespace() -> str:
+    r = _get_dashboard_redis()
+    if r is None:
+        return "0"
+    try:
+        current = r.get(_CACHE_NAMESPACE_KEY)
+        if current is None:
+            r.set(_CACHE_NAMESPACE_KEY, "1")
+            return "1"
+        return str(current)
+    except Exception as exc:
+        logger.debug("Dashboard cache namespace read failed: %s", exc)
+        return "0"
+
+
+def _cache_key_for_overview(run_id: str | None) -> str:
+    return f"{_CACHE_PREFIX}{_cache_namespace()}:{run_id or 'latest'}"
+
+
+def _cache_invalidate() -> None:
+    """Invalidate dashboard overview cache via namespace bump."""
     r = _get_dashboard_redis()
     if r is None:
         return
     try:
-        keys = r.keys(pattern)
-        if keys:
-            r.delete(*keys)
+        r.incr(_CACHE_NAMESPACE_KEY)
     except Exception as exc:
         logger.debug("Dashboard cache invalidation failed: %s", exc)
+
 
 router_dashboard = APIRouter(prefix="/dashboard/api", tags=["dashboard"])
 
@@ -218,7 +239,7 @@ def dashboard_overview(
     to avoid repeated filesystem scans on refresh-heavy dashboards.
     The cache is keyed on run_id so different runs are cached independently.
     """
-    cache_key = f"{_CACHE_PREFIX}{run_id or 'latest'}"
+    cache_key = _cache_key_for_overview(run_id)
     cached = _cache_get(cache_key)
     if cached is not None:
         cached["cache_hit"] = True

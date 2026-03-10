@@ -18,14 +18,33 @@
 
 ## Canary Auto-Rollback Criteria
 - Immediate rollback trigger:
+  - `DSProjectCorrelatedRollbackSignal` fires (5xx + p95 latency + model-quality breach for 10m).
   - `DSProjectErrorBudgetBurnFast` fires (5xx ratio > 1.44% for 5m).
-  - Scheduled monitor job reports critical model/business degradation:
-    - `profit_drop=true`, or
-    - `prediction_drift=true`, or
-    - `data_drift=true` and `action_rate_deviation=true`.
+  - Scheduled monitor matrix confirms correlated critical state:
+    - `high_5xx_rate=true`, and
+    - `high_p95_latency=true`, and
+    - one of `profit_drop=true`, `prediction_drift=true`, `data_drift=true + action_rate_deviation=true`.
 - Release freeze (no automatic rollback):
   - `DSProjectErrorBudgetBurnSlow` fires (5xx ratio > 0.6% for 30m).
+  - Uncorrelated signals (only model quality or only operational) are investigated first.
   - Warning-only model alerts (`DSProjectHighPSI`, `DSProjectActionRateAnomaly`).
+
+## Alert-to-Runbook Mapping
+
+| Alert | Severity | Owner | Runbook |
+|-------|----------|-------|---------|
+| `DSProjectCorrelatedRollbackSignal` | critical | `ml-platform-oncall` | This document, "Canary Auto-Rollback Actions" section |
+| `DSProjectErrorBudgetBurnFast` | critical | `platform-sre-oncall` | This document, "Rollback" + "Incidents" sections |
+| `DSProjectHigh5xxRate` | critical | `platform-sre-oncall` | This document, "Incidents" section |
+| `DSProjectHighP95Latency` | warning | `platform-sre-oncall` | This document, "Incidents" section |
+| `DSProjectLowAUC` | critical | `ml-oncall` | This document, "Model Health Monitoring" section |
+| `DSProjectHighPSI` | warning | `ml-oncall` | This document, "Model Health Monitoring" section |
+| `DSProjectActionRateAnomaly` | warning | `ml-oncall` | This document, "Model Health Monitoring" section |
+
+Owner handoff rule:
+- `platform-sre-oncall` owns infra/service incidents.
+- `ml-oncall` owns model-quality incidents.
+- `ml-platform-oncall` coordinates correlated incidents and rollback execution.
 
 ## Canary Auto-Rollback Actions
 1. Keep canary traffic at 0-10% and stop any increase.

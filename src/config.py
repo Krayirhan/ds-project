@@ -449,6 +449,13 @@ class MonitoringConfig:
 class ApiConfig:
     api_key_env_var: str = "DS_API_KEY"
     require_api_key: bool = True
+    public_paths_exact: Tuple[str, ...] = (
+        "/health",
+        "/ready",
+        "/metrics",
+        "/dashboard",
+    )
+    public_paths_prefixes: Tuple[str, ...] = ("/dashboard/api/", "/auth/")
     rate_limit_per_minute: int = 120
     rate_limit_backend: str = "memory"  # memory | redis
     redis_url: str | None = None

@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import PropTypes from 'prop-types';
 import { NAV_ITEMS } from '../lib/constants';
 import { formatRunId } from '../lib/helpers';
 
@@ -45,3 +46,18 @@ export default function Sidebar({ auth, theme, runs }) {
     </aside>
   );
 }
+
+Sidebar.propTypes = {
+  auth: PropTypes.shape({
+    handleLogout: PropTypes.func.isRequired,
+    currentUser: PropTypes.string,
+  }).isRequired,
+  theme: PropTypes.shape({
+    toggleTheme: PropTypes.func.isRequired,
+    themeLabel: PropTypes.string.isRequired,
+    themeIcon: PropTypes.string.isRequired,
+  }).isRequired,
+  runs: PropTypes.shape({
+    selectedRun: PropTypes.string,
+  }).isRequired,
+};

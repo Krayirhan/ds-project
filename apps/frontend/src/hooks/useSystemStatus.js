@@ -1,23 +1,43 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+﻿import { useState, useCallback, useEffect, useRef } from 'react';
 import { getSystemStatus } from '../api';
 
 /**
- * useSystemStatus — Tüm backend servislerinin sağlık durumunu çeker.
+ * @typedef {Object} SystemServiceStatus
+ * @property {string} name
+ * @property {string} status
+ * @property {string=} reason
+ * @property {string=} url
+ * @property {string=} backend
+ * @property {string=} model
+ * @property {string=} model_name
+ */
+
+/**
+ * @typedef {Object} SystemStatusPayload
+ * @property {string} overall
+ * @property {string} generated_at
+ * @property {Record<string, SystemServiceStatus>} services
+ */
+
+/**
+ * @typedef {Object} UseSystemStatusState
+ * @property {SystemStatusPayload|null} status
+ * @property {boolean} loading
+ * @property {string} error
+ * @property {() => Promise<void>} refresh
+ */
+/**
+ * useSystemStatus â€” TÃ¼m backend servislerinin saÄŸlÄ±k durumunu Ã§eker.
  *
- * GET /dashboard/api/system → { overall, generated_at, services: { database, redis, ollama, model } }
+ * GET /dashboard/api/system â†’ { overall, generated_at, services: { database, redis, ollama, model } }
  *
- * AbortController ile sayfa değişiminde inflight istek otomatik olarak iptal edilir.
+ * AbortController ile sayfa deÄŸiÅŸiminde inflight istek otomatik olarak iptal edilir.
  *
  * @param {object}   [opts={}]
- * @param {string}   opts.apiKey        - API anahtarı (VITE_DEFAULT_API_KEY varsayılan)
- * @param {function} opts.onAuthFailed  - 401 durumunda çağrılır
+ * @param {string}   opts.apiKey        - API anahtarÄ± (VITE_DEFAULT_API_KEY varsayÄ±lan)
+ * @param {function} opts.onAuthFailed  - 401 durumunda Ã§aÄŸrÄ±lÄ±r
  *
- * @returns {{
- *   status:  {overall: string, generated_at: string, services: object}|null,
- *   loading: boolean,
- *   error:   string,
- *   refresh: () => Promise<void>,
- * }}
+ * @returns {UseSystemStatusState}
  */
 export function useSystemStatus({ apiKey, onAuthFailed } = {}) {
   const [status, setStatus]   = useState(null);
@@ -41,14 +61,16 @@ export function useSystemStatus({ apiKey, onAuthFailed } = {}) {
         onAuthFailed?.(err);
         return;
       }
-      setError(err.message || 'Sistem durumu alınamadı');
+      setError(err.message || 'Sistem durumu alÄ±namadÄ±');
     } finally {
       setLoading(false);
     }
   }, [apiKey, onAuthFailed]);
 
-  // Unmount'ta inflight isteği iptal et
+  // Unmount'ta inflight isteÄŸi iptal et
   useEffect(() => () => abortRef.current?.abort(), []);
 
   return { status, loading, error, refresh };
 }
+
+

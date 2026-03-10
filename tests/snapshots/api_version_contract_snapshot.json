@@ -1,0 +1,911 @@
+{
+  "headers": {
+    "v1_deprecation": "true",
+    "v1_successor_link": "</v2>; rel=\"successor-version\"",
+    "v1_sunset": "Wed, 31 Dec 2026 23:59:59 GMT"
+  },
+  "request_models": {
+    "records_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "records": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Records",
+          "type": "array"
+        }
+      },
+      "title": "RecordsPayload",
+      "type": "object"
+    }
+  },
+  "response_examples": {
+    "request_payload": {
+      "records": [
+        {
+          "lead_time": 10
+        }
+      ]
+    },
+    "v1_decide": {
+      "n": 1,
+      "report": {
+        "extra_columns": [],
+        "feature_count_expected": 3,
+        "feature_count_input": 3,
+        "feature_count_used": 3,
+        "max_action_rate_used": 0.8,
+        "missing_columns": [],
+        "model_used": "xgb",
+        "n_rows": 1,
+        "predicted_action_rate": 1.0,
+        "ranking_mode": "threshold",
+        "threshold_used": 0.5
+      },
+      "results": [
+        {
+          "action": 1,
+          "max_action_rate_used": 0.8,
+          "model_used": "xgb",
+          "proba": 0.91,
+          "threshold_used": 0.5
+        }
+      ]
+    },
+    "v1_predict_proba": {
+      "n": 1,
+      "proba": [
+        0.11
+      ],
+      "schema_report": {
+        "extra_columns": [],
+        "feature_count_expected": 3,
+        "feature_count_input": 3,
+        "feature_count_used": 3,
+        "missing_columns": []
+      }
+    },
+    "v1_reload": {
+      "message": "Serving state reloaded",
+      "model": "xgb",
+      "policy_path": "reports\\decision_policy.json",
+      "status": "ok"
+    },
+    "v2_decide": {
+      "meta": {
+        "api_version": "v2",
+        "explain_schema_version": null,
+        "latency_ms": 0.0,
+        "model_used": "xgb",
+        "request_id": "rid-1"
+      },
+      "n": 1,
+      "report": {
+        "extra_columns": [],
+        "feature_count_expected": 3,
+        "feature_count_input": 3,
+        "feature_count_used": 3,
+        "max_action_rate_used": 0.8,
+        "missing_columns": [],
+        "model_used": "xgb",
+        "n_rows": 1,
+        "predicted_action_rate": 1.0,
+        "ranking_mode": "threshold",
+        "threshold_used": 0.5
+      },
+      "results": [
+        {
+          "action": 1,
+          "max_action_rate_used": 0.8,
+          "model_used": "xgb",
+          "proba": 0.91,
+          "threshold_used": 0.5
+        }
+      ]
+    },
+    "v2_explain": {
+      "meta": {
+        "api_version": "v2",
+        "explain_schema_version": "1.0.0",
+        "latency_ms": 0.0,
+        "model_used": "",
+        "request_id": "rid-1"
+      },
+      "method": "permutation_importance",
+      "n_features": 1,
+      "n_repeats": 5,
+      "ranking": [
+        {
+          "feature": "lead_time",
+          "importance_mean": 0.2,
+          "importance_std": 0.01
+        }
+      ],
+      "run_id": "run_contract",
+      "scoring": "roc_auc",
+      "shap_summary": null
+    },
+    "v2_predict_proba": {
+      "meta": {
+        "api_version": "v2",
+        "explain_schema_version": null,
+        "latency_ms": 0.0,
+        "model_used": "xgb",
+        "request_id": "rid-1"
+      },
+      "n": 1,
+      "proba": [
+        0.11
+      ],
+      "schema_report": {
+        "extra_columns": [],
+        "feature_count_expected": 3,
+        "feature_count_input": 3,
+        "feature_count_used": 3,
+        "missing_columns": []
+      }
+    },
+    "v2_reload": {
+      "message": "Serving state reloaded",
+      "meta": {
+        "api_version": "v2",
+        "explain_schema_version": null,
+        "latency_ms": 0.0,
+        "model_used": "xgb",
+        "request_id": "rid-1"
+      },
+      "model": "xgb",
+      "policy_path": "reports\\decision_policy.json",
+      "status": "ok"
+    }
+  },
+  "response_models": {
+    "v1_decide": {
+      "$defs": {
+        "DecideReportResponse": {
+          "properties": {
+            "extra_columns": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Extra Columns",
+              "type": "array"
+            },
+            "feature_count_expected": {
+              "title": "Feature Count Expected",
+              "type": "integer"
+            },
+            "feature_count_input": {
+              "title": "Feature Count Input",
+              "type": "integer"
+            },
+            "feature_count_used": {
+              "title": "Feature Count Used",
+              "type": "integer"
+            },
+            "max_action_rate_used": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Max Action Rate Used"
+            },
+            "missing_columns": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Missing Columns",
+              "type": "array"
+            },
+            "model_used": {
+              "title": "Model Used",
+              "type": "string"
+            },
+            "n_rows": {
+              "title": "N Rows",
+              "type": "integer"
+            },
+            "predicted_action_rate": {
+              "title": "Predicted Action Rate",
+              "type": "number"
+            },
+            "ranking_mode": {
+              "title": "Ranking Mode",
+              "type": "string"
+            },
+            "threshold_used": {
+              "title": "Threshold Used",
+              "type": "number"
+            }
+          },
+          "required": [
+            "feature_count_expected",
+            "feature_count_input",
+            "feature_count_used",
+            "n_rows",
+            "predicted_action_rate",
+            "threshold_used",
+            "model_used",
+            "ranking_mode"
+          ],
+          "title": "DecideReportResponse",
+          "type": "object"
+        },
+        "DecideResultItem": {
+          "properties": {
+            "action": {
+              "title": "Action",
+              "type": "integer"
+            },
+            "max_action_rate_used": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Max Action Rate Used"
+            },
+            "model_used": {
+              "title": "Model Used",
+              "type": "string"
+            },
+            "proba": {
+              "title": "Proba",
+              "type": "number"
+            },
+            "threshold_used": {
+              "title": "Threshold Used",
+              "type": "number"
+            }
+          },
+          "required": [
+            "proba",
+            "action",
+            "threshold_used",
+            "model_used"
+          ],
+          "title": "DecideResultItem",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "report": {
+          "$ref": "#/$defs/DecideReportResponse"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/DecideResultItem"
+          },
+          "title": "Results",
+          "type": "array"
+        }
+      },
+      "required": [
+        "n",
+        "results",
+        "report"
+      ],
+      "title": "DecideResponse",
+      "type": "object"
+    },
+    "v1_predict_proba": {
+      "$defs": {
+        "SchemaReportResponse": {
+          "properties": {
+            "extra_columns": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Extra Columns",
+              "type": "array"
+            },
+            "feature_count_expected": {
+              "title": "Feature Count Expected",
+              "type": "integer"
+            },
+            "feature_count_input": {
+              "title": "Feature Count Input",
+              "type": "integer"
+            },
+            "feature_count_used": {
+              "title": "Feature Count Used",
+              "type": "integer"
+            },
+            "missing_columns": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Missing Columns",
+              "type": "array"
+            }
+          },
+          "required": [
+            "feature_count_expected",
+            "feature_count_input",
+            "feature_count_used"
+          ],
+          "title": "SchemaReportResponse",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "proba": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Proba",
+          "type": "array"
+        },
+        "schema_report": {
+          "$ref": "#/$defs/SchemaReportResponse"
+        }
+      },
+      "required": [
+        "n",
+        "proba",
+        "schema_report"
+      ],
+      "title": "PredictProbaResponse",
+      "type": "object"
+    },
+    "v1_reload": {
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "policy_path": {
+          "title": "Policy Path",
+          "type": "string"
+        },
+        "status": {
+          "const": "ok",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "message",
+        "model",
+        "policy_path"
+      ],
+      "title": "ReloadResponse",
+      "type": "object"
+    },
+    "v2_decide": {
+      "$defs": {
+        "DecideResultItem": {
+          "properties": {
+            "action": {
+              "title": "Action",
+              "type": "integer"
+            },
+            "max_action_rate_used": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Max Action Rate Used"
+            },
+            "model_used": {
+              "title": "Model Used",
+              "type": "string"
+            },
+            "proba": {
+              "title": "Proba",
+              "type": "number"
+            },
+            "threshold_used": {
+              "title": "Threshold Used",
+              "type": "number"
+            }
+          },
+          "required": [
+            "proba",
+            "action",
+            "threshold_used",
+            "model_used"
+          ],
+          "title": "DecideResultItem",
+          "type": "object"
+        },
+        "V2DecideReportResponse": {
+          "properties": {
+            "extra_columns": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Extra Columns",
+              "type": "array"
+            },
+            "feature_count_expected": {
+              "title": "Feature Count Expected",
+              "type": "integer"
+            },
+            "feature_count_input": {
+              "title": "Feature Count Input",
+              "type": "integer"
+            },
+            "feature_count_used": {
+              "title": "Feature Count Used",
+              "type": "integer"
+            },
+            "max_action_rate_used": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Max Action Rate Used"
+            },
+            "missing_columns": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Missing Columns",
+              "type": "array"
+            },
+            "model_used": {
+              "title": "Model Used",
+              "type": "string"
+            },
+            "n_rows": {
+              "title": "N Rows",
+              "type": "integer"
+            },
+            "predicted_action_rate": {
+              "title": "Predicted Action Rate",
+              "type": "number"
+            },
+            "ranking_mode": {
+              "title": "Ranking Mode",
+              "type": "string"
+            },
+            "threshold_used": {
+              "title": "Threshold Used",
+              "type": "number"
+            }
+          },
+          "required": [
+            "feature_count_expected",
+            "feature_count_input",
+            "feature_count_used",
+            "n_rows",
+            "predicted_action_rate",
+            "threshold_used",
+            "model_used",
+            "ranking_mode"
+          ],
+          "title": "V2DecideReportResponse",
+          "type": "object"
+        },
+        "V2Meta": {
+          "properties": {
+            "api_version": {
+              "default": "v2",
+              "title": "Api Version",
+              "type": "string"
+            },
+            "explain_schema_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Explain Schema Version"
+            },
+            "latency_ms": {
+              "default": 0.0,
+              "title": "Latency Ms",
+              "type": "number"
+            },
+            "model_used": {
+              "default": "",
+              "title": "Model Used",
+              "type": "string"
+            },
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Id"
+            }
+          },
+          "title": "V2Meta",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/V2Meta"
+        },
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "report": {
+          "$ref": "#/$defs/V2DecideReportResponse"
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/DecideResultItem"
+          },
+          "title": "Results",
+          "type": "array"
+        }
+      },
+      "required": [
+        "n",
+        "results",
+        "report",
+        "meta"
+      ],
+      "title": "V2DecideResponse",
+      "type": "object"
+    },
+    "v2_explain": {
+      "$defs": {
+        "V2Meta": {
+          "properties": {
+            "api_version": {
+              "default": "v2",
+              "title": "Api Version",
+              "type": "string"
+            },
+            "explain_schema_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Explain Schema Version"
+            },
+            "latency_ms": {
+              "default": 0.0,
+              "title": "Latency Ms",
+              "type": "number"
+            },
+            "model_used": {
+              "default": "",
+              "title": "Model Used",
+              "type": "string"
+            },
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Id"
+            }
+          },
+          "title": "V2Meta",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/V2Meta"
+        },
+        "method": {
+          "title": "Method",
+          "type": "string"
+        },
+        "n_features": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Features"
+        },
+        "n_repeats": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "N Repeats"
+        },
+        "ranking": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Ranking",
+          "type": "array"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "scoring": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scoring"
+        },
+        "shap_summary": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Shap Summary"
+        }
+      },
+      "required": [
+        "run_id",
+        "method",
+        "meta"
+      ],
+      "title": "V2ExplainResponse",
+      "type": "object"
+    },
+    "v2_predict_proba": {
+      "$defs": {
+        "SchemaReportResponse": {
+          "properties": {
+            "extra_columns": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Extra Columns",
+              "type": "array"
+            },
+            "feature_count_expected": {
+              "title": "Feature Count Expected",
+              "type": "integer"
+            },
+            "feature_count_input": {
+              "title": "Feature Count Input",
+              "type": "integer"
+            },
+            "feature_count_used": {
+              "title": "Feature Count Used",
+              "type": "integer"
+            },
+            "missing_columns": {
+              "items": {
+                "type": "string"
+              },
+              "title": "Missing Columns",
+              "type": "array"
+            }
+          },
+          "required": [
+            "feature_count_expected",
+            "feature_count_input",
+            "feature_count_used"
+          ],
+          "title": "SchemaReportResponse",
+          "type": "object"
+        },
+        "V2Meta": {
+          "properties": {
+            "api_version": {
+              "default": "v2",
+              "title": "Api Version",
+              "type": "string"
+            },
+            "explain_schema_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Explain Schema Version"
+            },
+            "latency_ms": {
+              "default": 0.0,
+              "title": "Latency Ms",
+              "type": "number"
+            },
+            "model_used": {
+              "default": "",
+              "title": "Model Used",
+              "type": "string"
+            },
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Id"
+            }
+          },
+          "title": "V2Meta",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "meta": {
+          "$ref": "#/$defs/V2Meta"
+        },
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "proba": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Proba",
+          "type": "array"
+        },
+        "schema_report": {
+          "$ref": "#/$defs/SchemaReportResponse"
+        }
+      },
+      "required": [
+        "n",
+        "proba",
+        "schema_report",
+        "meta"
+      ],
+      "title": "V2PredictProbaResponse",
+      "type": "object"
+    },
+    "v2_reload": {
+      "$defs": {
+        "V2Meta": {
+          "properties": {
+            "api_version": {
+              "default": "v2",
+              "title": "Api Version",
+              "type": "string"
+            },
+            "explain_schema_version": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Explain Schema Version"
+            },
+            "latency_ms": {
+              "default": 0.0,
+              "title": "Latency Ms",
+              "type": "number"
+            },
+            "model_used": {
+              "default": "",
+              "title": "Model Used",
+              "type": "string"
+            },
+            "request_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Request Id"
+            }
+          },
+          "title": "V2Meta",
+          "type": "object"
+        }
+      },
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "meta": {
+          "$ref": "#/$defs/V2Meta"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "policy_path": {
+          "title": "Policy Path",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "message",
+        "model",
+        "policy_path",
+        "meta"
+      ],
+      "title": "V2ReloadResponse",
+      "type": "object"
+    }
+  },
+  "versions": {
+    "v2_explain_schema_version": "1.0.0"
+  }
+}

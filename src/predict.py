@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from .data_validation import (
+from .validation import (
     validate_inference_payload,
     detect_training_serving_skew,
     detect_unseen_categories,

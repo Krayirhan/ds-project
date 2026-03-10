@@ -5,6 +5,7 @@ stages:
       - data/raw/hotel_bookings.csv
       - src/preprocess.py
       - src/validate.py
+      - src/data_validation.py
       - src/io.py
       - main.py
     outs:
@@ -42,6 +43,7 @@ stages:
     cmd: python main.py evaluate
     deps:
       - data/processed/test.parquet
+      - models
       - src/evaluate.py
       - src/cost_matrix.py
       - src/policy.py

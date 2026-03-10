@@ -17,7 +17,13 @@ Usage (called in api.py lifespan):
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
+import os
+from collections import deque
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import (
@@ -44,12 +50,19 @@ from src.metrics import (
     KNOWLEDGE_RETRIEVAL_TOTAL,
     KNOWLEDGE_RETRIEVAL_EMPTY,
     KNOWLEDGE_RETRIEVAL_HIT_COUNT,
+    KNOWLEDGE_RETRIEVAL_HIT_RATIO,
+    KNOWLEDGE_RETRIEVAL_QUALITY_TOTAL,
     KNOWLEDGE_SIMILARITY_SCORE,
 )
 
 logger = logging.getLogger(__name__)
 
 EMBED_DIM = 768  # nomic-embed-text output dimension
+_RETRIEVAL_WINDOW_SIZE = int(os.getenv("CHAT_KB_RETRIEVAL_WINDOW", "200"))
+_LOW_SIMILARITY_THRESHOLD = float(os.getenv("CHAT_KB_SIMILARITY_LOW_THRESHOLD", "0.55"))
+_HIGH_SIMILARITY_THRESHOLD = float(
+    os.getenv("CHAT_KB_SIMILARITY_HIGH_THRESHOLD", "0.80")
+)
 
 
 class KnowledgeDbStore:
@@ -65,6 +78,10 @@ class KnowledgeDbStore:
         self.metadata = MetaData()
         self._table = self._define_table()
         self._embed_client: Any = None
+        self._retrieval_windows: dict[str, deque[int]] = {
+            "vector": deque(maxlen=_RETRIEVAL_WINDOW_SIZE),
+            "fallback": deque(maxlen=_RETRIEVAL_WINDOW_SIZE),
+        }
         self._seed_and_embed()
 
     # ── Table definition ───────────────────────────────────────────────────────
@@ -223,12 +240,20 @@ class KnowledgeDbStore:
             try:
                 emb = client.embed_sync(query)
                 if emb is not None:
-                    results = self._pgvector_search(emb, top_k)
+                    results, similarities = self._pgvector_search(emb, top_k)
                     method = "vector"
                     KNOWLEDGE_RETRIEVAL_TOTAL.labels(method=method).inc()
-                    KNOWLEDGE_RETRIEVAL_HIT_COUNT.labels(method=method).observe(len(results))
+                    KNOWLEDGE_RETRIEVAL_HIT_COUNT.labels(method=method).observe(
+                        len(results)
+                    )
                     if not results:
                         KNOWLEDGE_RETRIEVAL_EMPTY.labels(method=method).inc()
+                    self._record_retrieval_observability(
+                        method=method,
+                        query=query,
+                        result_count=len(results),
+                        similarities=similarities,
+                    )
                     return results
             except Exception as exc:
                 logger.debug("pgvector search failed, falling back: %s", exc)
@@ -238,6 +263,12 @@ class KnowledgeDbStore:
         KNOWLEDGE_RETRIEVAL_HIT_COUNT.labels(method=method).observe(len(results))
         if not results:
             KNOWLEDGE_RETRIEVAL_EMPTY.labels(method=method).inc()
+        self._record_retrieval_observability(
+            method=method,
+            query=query,
+            result_count=len(results),
+            similarities=[],
+        )
         return results
 
     async def retrieve_by_text_async(
@@ -285,7 +316,9 @@ class KnowledgeDbStore:
         """Tag-based retrieval — wraps vector search for backward compatibility."""
         return self.retrieve_by_text(query=" ".join(tags), top_k=top_k)
 
-    def _pgvector_search(self, emb: list[float], top_k: int) -> list[KnowledgeChunk]:
+    def _pgvector_search(
+        self, emb: list[float], top_k: int
+    ) -> tuple[list[KnowledgeChunk], list[float]]:
         """Execute pgvector cosine similarity search via HNSW index."""
         with self.engine.connect() as conn:
             rows = conn.execute(
@@ -300,11 +333,12 @@ class KnowledgeDbStore:
                 {"emb": str(emb), "k": top_k},
             ).fetchall()
 
-        if rows:
-            top_similarity = float(rows[0][6]) if rows[0][6] is not None else 0.0
-            KNOWLEDGE_SIMILARITY_SCORE.observe(top_similarity)
+        similarities: list[float] = []
+        for row in rows:
+            if row[6] is not None:
+                similarities.append(float(row[6]))
 
-        return [
+        chunks = [
             KnowledgeChunk(
                 chunk_id=r[0],
                 category=r[1],
@@ -315,6 +349,66 @@ class KnowledgeDbStore:
             )
             for r in rows
         ]
+        return chunks, similarities
+
+    def _record_retrieval_observability(
+        self,
+        *,
+        method: str,
+        query: str,
+        result_count: int,
+        similarities: list[float],
+    ) -> None:
+        """Emit metrics/logs for retrieval quality and threshold tuning."""
+        if similarities:
+            for score in similarities:
+                KNOWLEDGE_SIMILARITY_SCORE.observe(score)
+
+        hit_window = self._retrieval_windows.setdefault(
+            method, deque(maxlen=_RETRIEVAL_WINDOW_SIZE)
+        )
+        hit_window.append(1 if result_count > 0 else 0)
+        hit_ratio = sum(hit_window) / len(hit_window) if hit_window else 0.0
+        KNOWLEDGE_RETRIEVAL_HIT_RATIO.labels(method=method).set(hit_ratio)
+
+        if not similarities:
+            quality_bucket = "no_similarity"
+            top_similarity = 0.0
+            mean_similarity = 0.0
+        else:
+            top_similarity = similarities[0]
+            mean_similarity = sum(similarities) / len(similarities)
+            if top_similarity < _LOW_SIMILARITY_THRESHOLD:
+                quality_bucket = "low"
+            elif top_similarity >= _HIGH_SIMILARITY_THRESHOLD:
+                quality_bucket = "high"
+            else:
+                quality_bucket = "medium"
+
+        KNOWLEDGE_RETRIEVAL_QUALITY_TOTAL.labels(
+            method=method, bucket=quality_bucket
+        ).inc()
+
+        # Log query fingerprints (not raw text) to protect payload content.
+        query_hash = hashlib.sha1(query.encode("utf-8")).hexdigest()[:12]
+        logger.info(
+            "knowledge_retrieval_observed %s",
+            json.dumps(
+                {
+                    "method": method,
+                    "query_hash": query_hash,
+                    "result_count": result_count,
+                    "top_similarity": round(top_similarity, 6),
+                    "mean_similarity": round(mean_similarity, 6),
+                    "quality_bucket": quality_bucket,
+                    "rolling_hit_ratio": round(hit_ratio, 6),
+                    "low_threshold": _LOW_SIMILARITY_THRESHOLD,
+                    "high_threshold": _HIGH_SIMILARITY_THRESHOLD,
+                },
+                ensure_ascii=True,
+                sort_keys=True,
+            ),
+        )
 
     def _priority_fallback(self, top_k: int) -> list[KnowledgeChunk]:
         """Return highest-priority active chunks when vector search is unavailable."""
@@ -336,6 +430,93 @@ class KnowledgeDbStore:
             )
             for r in rows
         ]
+
+    def evaluate_retrieval_dataset(
+        self,
+        *,
+        dataset_path: str,
+        top_k: int = 3,
+    ) -> dict[str, Any]:
+        """Run offline retrieval evaluation from JSON/JSONL samples.
+
+        Supported sample format:
+        - {"query": "...", "expected_chunk_ids": ["id1", "id2"]}
+        - {"query": "...", "expected_chunk_id": "id1"}
+        """
+        path = Path(dataset_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Retrieval dataset not found: {dataset_path}")
+
+        raw = path.read_text(encoding="utf-8").strip()
+        if not raw:
+            return {
+                "dataset_path": dataset_path,
+                "sample_count": 0,
+                "top_k": top_k,
+                "hit_rate_at_k": 0.0,
+                "mrr_at_k": 0.0,
+            }
+
+        if path.suffix.lower() == ".jsonl":
+            records = [json.loads(line) for line in raw.splitlines() if line.strip()]
+        else:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                records = parsed
+            else:
+                records = list(parsed.get("samples", []))
+
+        total = 0
+        hits = 0
+        reciprocal_rank_sum = 0.0
+
+        for item in records:
+            if not isinstance(item, dict):
+                continue
+            query = str(item.get("query") or "").strip()
+            if not query:
+                continue
+
+            expected_ids: set[str] = set()
+            expected_many = item.get("expected_chunk_ids")
+            if isinstance(expected_many, list):
+                expected_ids.update(str(v) for v in expected_many if str(v).strip())
+            expected_one = item.get("expected_chunk_id")
+            if expected_one:
+                expected_ids.add(str(expected_one))
+            if not expected_ids:
+                continue
+
+            total += 1
+            retrieved = self.retrieve_by_text(query=query, top_k=top_k)
+            retrieved_ids = [chunk.chunk_id for chunk in retrieved]
+
+            first_hit_rank = next(
+                (
+                    idx
+                    for idx, chunk_id in enumerate(retrieved_ids, start=1)
+                    if chunk_id in expected_ids
+                ),
+                None,
+            )
+            if first_hit_rank is not None:
+                hits += 1
+                reciprocal_rank_sum += 1.0 / float(first_hit_rank)
+
+        hit_rate = (hits / total) if total else 0.0
+        mrr_at_k = (reciprocal_rank_sum / total) if total else 0.0
+        return {
+            "dataset_path": dataset_path,
+            "sample_count": total,
+            "top_k": top_k,
+            "hit_rate_at_k": round(hit_rate, 6),
+            "mrr_at_k": round(mrr_at_k, 6),
+            "evaluated_at": datetime.now(tz=timezone.utc).isoformat(),
+            "thresholds": {
+                "low_similarity": _LOW_SIMILARITY_THRESHOLD,
+                "high_similarity": _HIGH_SIMILARITY_THRESHOLD,
+            },
+        }
 
     # ── Admin CRUD ─────────────────────────────────────────────────────────────
 

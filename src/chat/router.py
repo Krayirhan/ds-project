@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from typing import Any
 
@@ -385,14 +386,27 @@ class KnowledgeIngestRequest(BaseModel):
     chunk_overlap: int = Field(default=100, ge=0, le=1000)
 
 
-def _require_db_store():
+_MAX_INGEST_BASE64_BYTES = int(os.getenv("CHAT_KB_MAX_BASE64_BYTES", "5242880"))
+_MAX_INGEST_TEXT_CHARS = int(os.getenv("CHAT_KB_MAX_TEXT_CHARS", "200000"))
+_MAX_INGEST_CHUNKS = int(os.getenv("CHAT_KB_MAX_CHUNKS", "200"))
+_INGEST_RATE_LIMIT_PER_MIN = int(os.getenv("CHAT_KB_INGEST_RATE_LIMIT_PER_MIN", "12"))
+_INGEST_RATE_FALLBACK_WINDOW_SECONDS = 60
+_ingest_rate_fallback: dict[str, list[float]] = {}
+
+
+def get_knowledge_db_store_dep():
+    """Dependency accessor to make knowledge DB store monkeypatch-friendly in tests."""
     from .knowledge.db_store import get_knowledge_db_store
 
-    db = get_knowledge_db_store()
+    return get_knowledge_db_store()
+
+
+def _require_db_store():
+    db = get_knowledge_db_store_dep()
     if db is None:
         raise HTTPException(
             status_code=503,
-            detail="pgvector knowledge store henüz başlatılmadı. DATABASE_URL ayarını kontrol edin.",
+            detail="pgvector knowledge store henuz baslatilmadi. DATABASE_URL ayarini kontrol edin.",
         )
     return db
 
@@ -403,6 +417,87 @@ def _require_admin_key(request: Request) -> None:
         request.headers.get("x-admin-key") or "", expected_admin
     ):
         raise HTTPException(status_code=403, detail="x-admin-key header gereklidir.")
+
+
+def _enforce_ingest_rate_limit(request: Request) -> None:
+    client = getattr(request, "client", None)
+    client_ip = getattr(client, "host", "unknown")
+    app = getattr(request, "app", None)
+    limiter = getattr(getattr(app, "state", None), "rate_limiter", None)
+    limiter_key = f"chat:knowledge_ingest:{client_ip}"
+
+    if limiter is not None and hasattr(limiter, "allow"):
+        if not limiter.allow(limiter_key, _INGEST_RATE_LIMIT_PER_MIN):
+            raise HTTPException(
+                status_code=429,
+                detail="Knowledge ingest rate limit exceeded. Please retry later.",
+            )
+        return
+
+    now = time.time()
+    bucket = _ingest_rate_fallback.setdefault(client_ip, [])
+    bucket[:] = [
+        ts for ts in bucket if now - ts <= _INGEST_RATE_FALLBACK_WINDOW_SECONDS
+    ]
+    if len(bucket) >= _INGEST_RATE_LIMIT_PER_MIN:
+        raise HTTPException(
+            status_code=429,
+            detail="Knowledge ingest rate limit exceeded. Please retry later.",
+        )
+    bucket.append(now)
+
+
+def _decode_base64_payload(
+    payload: str,
+    *,
+    expected_mime: str | None = None,
+) -> bytes:
+    raw_payload = payload.strip()
+    mime: str | None = None
+
+    if raw_payload.startswith("data:"):
+        match = re.match(
+            r"^data:(?P<mime>[^;]+);base64,(?P<data>.+)$",
+            raw_payload,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if not match:
+            raise HTTPException(
+                status_code=400, detail="content_base64 formati gecersiz."
+            )
+        mime = str(match.group("mime")).lower().strip()
+        raw_payload = str(match.group("data")).strip()
+
+    if expected_mime and mime and mime != expected_mime:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Beklenen MIME tipi '{expected_mime}' ama '{mime}' alindi.",
+        )
+
+    max_base64_chars = int((_MAX_INGEST_BASE64_BYTES * 4) / 3) + 4
+    if len(raw_payload) > max_base64_chars:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Base64 payload cok buyuk. Maksimum decode boyutu "
+                f"{_MAX_INGEST_BASE64_BYTES} bayt."
+            ),
+        )
+
+    try:
+        decoded = base64.b64decode(raw_payload, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="content_base64 gecersiz.") from exc
+
+    if len(decoded) > _MAX_INGEST_BASE64_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Decoded payload cok buyuk. Maksimum {_MAX_INGEST_BASE64_BYTES} bayt."
+            ),
+        )
+
+    return decoded
 
 
 def _chunk_text(content: str, *, chunk_size: int, chunk_overlap: int) -> list[str]:
@@ -435,8 +530,8 @@ def _extract_pdf_text(content_bytes: bytes) -> str:
         raise HTTPException(
             status_code=400,
             detail=(
-                "PDF parse icin pypdf gerekli. pypdf yoksa source_type='text' "
-                "ile cikarilmis metni gonderin."
+                'PDF parse icin pypdf gerekli. Kurulum: pip install -e ".[pdf]". '
+                "Alternatif olarak source_type='text' ile cikarilmis metin gonderin."
             ),
         ) from exc
 
@@ -465,6 +560,7 @@ def _make_chunk_id(source_name: str, index: int) -> str:
 async def ingest_knowledge(body: KnowledgeIngestRequest, request: Request) -> dict:
     """Ingest text/PDF content, chunk it, embed, and persist to pgvector store."""
     _require_admin_key(request)
+    _enforce_ingest_rate_limit(request)
     db = _require_db_store()
 
     if body.chunk_overlap >= body.chunk_size:
@@ -479,14 +575,30 @@ async def ingest_knowledge(body: KnowledgeIngestRequest, request: Request) -> di
                 status_code=400,
                 detail="PDF ingest icin content_base64 zorunludur.",
             )
-        try:
-            raw_pdf = base64.b64decode(body.content_base64, validate=True)
-        except (binascii.Error, ValueError) as exc:
-            raise HTTPException(status_code=400, detail="content_base64 gecersiz.") from exc
+        raw_pdf = _decode_base64_payload(
+            body.content_base64, expected_mime="application/pdf"
+        )
+        if not raw_pdf.startswith(b"%PDF"):
+            raise HTTPException(
+                status_code=400,
+                detail="PDF payload gecersiz: %PDF imzasi bulunamadi.",
+            )
         source_text = _extract_pdf_text(raw_pdf)
     else:
+        if body.content_base64:
+            raise HTTPException(
+                status_code=400,
+                detail="source_type='text' icin content_base64 gondermeyin.",
+            )
         source_text = (body.content or "").strip()
 
+    if len(source_text) > _MAX_INGEST_TEXT_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"Ingest metni cok buyuk. Maksimum {_MAX_INGEST_TEXT_CHARS} karakter."
+            ),
+        )
     if len(source_text) < 20:
         raise HTTPException(
             status_code=400,
@@ -500,6 +612,11 @@ async def ingest_knowledge(body: KnowledgeIngestRequest, request: Request) -> di
     )
     if not chunks:
         raise HTTPException(status_code=400, detail="Chunk olusturulamadi.")
+    if len(chunks) > _MAX_INGEST_CHUNKS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Chunk sayisi limiti asildi. Maksimum {_MAX_INGEST_CHUNKS}.",
+        )
 
     created_ids: list[str] = []
     failures: list[str] = []

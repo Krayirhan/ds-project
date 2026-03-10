@@ -16,8 +16,7 @@ import {
 } from 'chart.js';
 import ErrorBoundary from './components/ErrorBoundary';
 import App from './App';
-import './styles.css';
-import './modern.css';
+import './theme.css';
 
 /* Chart.js bileşenlerini global olarak kaydet */
 Chart.register(

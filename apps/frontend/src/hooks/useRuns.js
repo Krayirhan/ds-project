@@ -1,29 +1,35 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+﻿import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { getRuns, getOverview, getDbStatus } from '../api';
 
 /**
- * useRuns — Koşu verileri, model ve DB durumu hook'u
+ * @typedef {Object} UseRunsState
+ * @property {string} apiKey
+ * @property {(key: string) => void} setApiKey
+ * @property {string[]} runs
+ * @property {object[]} dbRuns
+ * @property {string} selectedRun
+ * @property {(runId: string) => void} setSelectedRun
+ * @property {object|null} data
+ * @property {object|null} dbStatus
+ * @property {string} error
+ * @property {boolean} loading
+ * @property {() => Promise<void>} refreshRunsAndData
+ * @property {(runId: string) => Promise<void>} refreshOverviewOnly
+ * @property {() => Promise<void>} refreshDbStatus
+ * @property {object[]} modelRows
+ * @property {object} champion
+ * @property {string} generatedAt
+ * @property {object[]} coreModels
+ */
+/**
+ * useRuns â€” KoÅŸu verileri, model ve DB durumu hook'u
  *
- * AbortController ile sayfa değişiminde inflight request'ler iptal edilir.
+ * AbortController ile sayfa deÄŸiÅŸiminde inflight request'ler iptal edilir.
  *
  * @param {object}   opts
- * @param {function} opts.onAuthFailed - 401 durumunda çağrılır
+ * @param {function} opts.onAuthFailed - 401 durumunda Ã§aÄŸrÄ±lÄ±r
  *
- * @returns {{
- *   apiKey:               string,
- *   setApiKey:            (k: string) => void,
- *   runs:                 string[],
- *   dbRuns:               object[],
- *   selectedRun:          string,
- *   setSelectedRun:       (id: string) => void,
- *   data:                 object|null,
- *   dbStatus:             object|null,
- *   error:                string,
- *   loading:              boolean,
- *   refreshRunsAndData:   () => Promise<void>,
- *   refreshOverviewOnly:  (runId: string) => Promise<void>,
- *   loadDbStatus:         () => Promise<void>,
- * }}
+ * @returns {UseRunsState}
  */
 export function useRuns({ onAuthFailed }) {
   const [apiKey, setApiKey]           = useState(import.meta.env.VITE_DEFAULT_API_KEY || '');
@@ -107,7 +113,7 @@ export function useRuns({ onAuthFailed }) {
   // Unmount'ta inflight request'leri iptal et
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // ── Türetilmiş veriler ──────────────────────────────────────────
+  // â”€â”€ TÃ¼retilmiÅŸ veriler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const modelRows = useMemo(() => data?.models ?? [], [data]);
   const champion   = data?.champion || {};
   const generatedAt = data?.generated_at
@@ -123,7 +129,9 @@ export function useRuns({ onAuthFailed }) {
     runs, dbRuns, selectedRun, setSelectedRun,
     data, dbStatus, error, loading,
     refreshRunsAndData, refreshOverviewOnly, refreshDbStatus,
-    // Türetilmiş
+    // TÃ¼retilmiÅŸ
     modelRows, champion, generatedAt, coreModels,
   };
 }
+
+

@@ -101,8 +101,17 @@ def _aggregate_shap_to_original(
 
     for i, tname in enumerate(transformed_names):
         matched = False
+        normalized_names = [tname]
+        # ColumnTransformer default names look like "num__lead_time".
+        # Strip transformer prefix so matching works with original columns.
+        if "__" in tname:
+            normalized_names.insert(0, tname.split("__", 1)[1])
+
         for orig in sorted_originals:
-            if tname == orig or tname.startswith(f"{orig}_"):
+            if any(
+                name == orig or name.startswith(f"{orig}_")
+                for name in normalized_names
+            ):
                 result[orig] += shap_values[:, i]
                 matched = True
                 break

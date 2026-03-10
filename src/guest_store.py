@@ -14,7 +14,6 @@ Usage:
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -24,6 +23,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Float,
+    Index,
     Integer,
     MetaData,
     String,
@@ -37,10 +37,25 @@ from sqlalchemy import (
     desc,
 )
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
 
-logger = logging.getLogger(__name__)
+from .utils import get_logger
+
+logger = get_logger("guest_store")
 
 _guest_store: Optional["GuestStore"] = None
+
+
+class GuestStoreError(RuntimeError):
+    """Base class for GuestStore failures."""
+
+
+class GuestStoreNotInitializedError(GuestStoreError):
+    """Raised when module-level GuestStore singleton is not initialised."""
+
+
+class GuestStoreUnavailableError(GuestStoreError):
+    """Raised for operational DB failures (connection, SQL errors, etc.)."""
 
 
 class GuestStore:
@@ -62,20 +77,20 @@ class GuestStore:
             Column("identity_no", String(50), nullable=True),  # TC / Pasaport
             Column("birth_date", Date(), nullable=True),
             Column("gender", String(10), nullable=True),  # M / F / other
-            Column("vip_status", Boolean(), nullable=False),
+            Column("vip_status", Boolean(), nullable=False, server_default="false"),
             Column("notes", Text(), nullable=True),
             # ── Model features (used for risk prediction) ─────────────────────
-            Column("hotel", String(50), nullable=False),
-            Column("lead_time", Integer(), nullable=False),
-            Column("deposit_type", String(30), nullable=False),
-            Column("market_segment", String(30), nullable=False),
-            Column("adults", Integer(), nullable=False),
-            Column("children", Integer(), nullable=False),
-            Column("babies", Integer(), nullable=False),
-            Column("stays_in_week_nights", Integer(), nullable=False),
-            Column("stays_in_weekend_nights", Integer(), nullable=False),
-            Column("is_repeated_guest", Integer(), nullable=False),
-            Column("previous_cancellations", Integer(), nullable=False),
+            Column("hotel", String(50), nullable=False, server_default="City Hotel"),
+            Column("lead_time", Integer(), nullable=False, server_default="0"),
+            Column("deposit_type", String(30), nullable=False, server_default="No Deposit"),
+            Column("market_segment", String(30), nullable=False, server_default="Online TA"),
+            Column("adults", Integer(), nullable=False, server_default="2"),
+            Column("children", Integer(), nullable=False, server_default="0"),
+            Column("babies", Integer(), nullable=False, server_default="0"),
+            Column("stays_in_week_nights", Integer(), nullable=False, server_default="0"),
+            Column("stays_in_weekend_nights", Integer(), nullable=False, server_default="1"),
+            Column("is_repeated_guest", Integer(), nullable=False, server_default="0"),
+            Column("previous_cancellations", Integer(), nullable=False, server_default="0"),
             Column("adr", Float(), nullable=True),
             # ── Prediction result ─────────────────────────────────────────────
             Column("risk_score", Float(), nullable=True),
@@ -84,6 +99,8 @@ class GuestStore:
             Column("created_at", DateTime(timezone=True), nullable=False),
             Column("updated_at", DateTime(timezone=True), nullable=False),
         )
+        Index("ix_hotel_guests_last_name", self.guests.c.last_name)
+        Index("ix_hotel_guests_email", self.guests.c.email)
 
     # ── CRUD ─────────────────────────────────────────────────────────────────
 
@@ -91,12 +108,34 @@ class GuestStore:
         """Insert a new guest row and return the complete row dict."""
         now = datetime.now(timezone.utc)
         row_data = {**data, "created_at": now, "updated_at": now}
-        with self.engine.connect() as conn:
-            result = conn.execute(
-                insert(self.guests).values(**row_data).returning(self.guests)
-            )
-            conn.commit()
-            new_row = result.mappings().first()
+        try:
+            with self.engine.begin() as conn:
+                stmt = insert(self.guests).values(**row_data)
+                if getattr(conn.dialect, "insert_returning", False):
+                    result = conn.execute(stmt.returning(self.guests))
+                    new_row = result.mappings().first()
+                else:
+                    result = conn.execute(stmt)
+                    inserted_id = (
+                        result.inserted_primary_key[0]
+                        if result.inserted_primary_key
+                        else None
+                    )
+                    if inserted_id is None:
+                        raise GuestStoreUnavailableError(
+                            "Guest create failed: inserted id is unavailable"
+                        )
+                    new_row = (
+                        conn.execute(
+                            select(self.guests).where(self.guests.c.id == inserted_id)
+                        )
+                        .mappings()
+                        .first()
+                    )
+        except SQLAlchemyError as exc:
+            raise GuestStoreUnavailableError("Guest create failed") from exc
+        if new_row is None:
+            raise GuestStoreUnavailableError("Guest create failed: empty insert result")
         return dict(new_row)
 
     def list_guests(
@@ -117,8 +156,11 @@ class GuestStore:
                 )
             )
         stmt = stmt.limit(limit).offset(offset)
-        with self.engine.connect() as conn:
-            rows = conn.execute(stmt).mappings().all()
+        try:
+            with self.engine.connect() as conn:
+                rows = conn.execute(stmt).mappings().all()
+        except SQLAlchemyError as exc:
+            raise GuestStoreUnavailableError("Guest list failed") from exc
         return [dict(r) for r in rows]
 
     def count_guests(self, search: str | None = None) -> int:
@@ -133,17 +175,25 @@ class GuestStore:
                     self.guests.c.email.ilike(pattern),
                 )
             )
-        with self.engine.connect() as conn:
-            return conn.execute(stmt).scalar() or 0
+        try:
+            with self.engine.connect() as conn:
+                return conn.execute(stmt).scalar() or 0
+        except SQLAlchemyError as exc:
+            raise GuestStoreUnavailableError("Guest count failed") from exc
 
     def get_guest(self, guest_id: int) -> Dict[str, Any] | None:
         """Return a single guest by id, or None."""
-        with self.engine.connect() as conn:
-            row = (
-                conn.execute(select(self.guests).where(self.guests.c.id == guest_id))
-                .mappings()
-                .first()
-            )
+        try:
+            with self.engine.connect() as conn:
+                row = (
+                    conn.execute(
+                        select(self.guests).where(self.guests.c.id == guest_id)
+                    )
+                    .mappings()
+                    .first()
+                )
+        except SQLAlchemyError as exc:
+            raise GuestStoreUnavailableError("Guest get failed") from exc
         return dict(row) if row else None
 
     def update_guest(
@@ -152,26 +202,42 @@ class GuestStore:
         """Partial update. Returns updated row dict, or None if not found."""
         now = datetime.now(timezone.utc)
         update_data = {**data, "updated_at": now}
-        with self.engine.connect() as conn:
-            result = conn.execute(
-                update(self.guests)
-                .where(self.guests.c.id == guest_id)
-                .values(**update_data)
-                .returning(self.guests)
-            )
-            conn.commit()
-            row = result.mappings().first()
+        try:
+            with self.engine.begin() as conn:
+                stmt = (
+                    update(self.guests)
+                    .where(self.guests.c.id == guest_id)
+                    .values(**update_data)
+                )
+                if getattr(conn.dialect, "update_returning", False):
+                    result = conn.execute(stmt.returning(self.guests))
+                    row = result.mappings().first()
+                else:
+                    result = conn.execute(stmt)
+                    if result.rowcount == 0:
+                        return None
+                    row = (
+                        conn.execute(
+                            select(self.guests).where(self.guests.c.id == guest_id)
+                        )
+                        .mappings()
+                        .first()
+                    )
+        except SQLAlchemyError as exc:
+            raise GuestStoreUnavailableError("Guest update failed") from exc
         return dict(row) if row else None
 
     def delete_guest(self, guest_id: int) -> bool:
         """Delete a guest by id. Returns True if deleted, False if not found."""
         from sqlalchemy import delete as sa_delete
 
-        with self.engine.connect() as conn:
-            result = conn.execute(
-                sa_delete(self.guests).where(self.guests.c.id == guest_id)
-            )
-            conn.commit()
+        try:
+            with self.engine.begin() as conn:
+                result = conn.execute(
+                    sa_delete(self.guests).where(self.guests.c.id == guest_id)
+                )
+        except SQLAlchemyError as exc:
+            raise GuestStoreUnavailableError("Guest delete failed") from exc
         return result.rowcount > 0
 
 
@@ -187,7 +253,9 @@ def init_guest_store(engine: Engine) -> None:
 
 def get_guest_store() -> GuestStore:
     if _guest_store is None:
-        raise RuntimeError(
+        raise GuestStoreNotInitializedError(
             "GuestStore is not initialized. Call init_guest_store() first."
         )
     return _guest_store
+
+

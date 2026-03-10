@@ -1,21 +1,7 @@
 """
 alembic/env.py
 
-Alembic migration environment for ds-project DashboardStore schema.
-
-DATABASE_URL is read from the environment variable at runtime — never
-hardcoded here.  Falls back to a local SQLite file for development
-convenience when the env var is not set.
-
-Usage:
-  # Generate a new revision after changing DashboardStore tables:
-  alembic revision --autogenerate -m "add column X to model_metrics"
-
-  # Apply pending migrations:
-  alembic upgrade head
-
-  # Rollback one step:
-  alembic downgrade -1
+Alembic migration environment for ds-project schema.
 """
 
 from __future__ import annotations
@@ -23,30 +9,22 @@ from __future__ import annotations
 import os
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
-# ── Alembic config ───────────────────────────────────────────────────────────
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# ── Resolve DATABASE_URL from environment ─────────────────────────────────────
 _db_url = os.getenv(
     "DATABASE_URL",
     config.get_main_option("sqlalchemy.url", "sqlite:///./reports/dashboard.db"),
 )
-# Override whatever is in alembic.ini with the runtime env var
 config.set_main_option("sqlalchemy.url", _db_url)
 
-# ── Target metadata (autogenerate support) ────────────────────────────────────
-# Tüm store'ların tablo şemaları burada birleştirilir:
-#   - DashboardStore   → experiment_runs, model_metrics
-#   - UserStore        → users
-#   - GuestStore       → hotel_guests
-#   - KnowledgeDbStore → knowledge_chunks
-# Bu sayede `alembic revision --autogenerate` gerçek schema diffini hesaplayabilir.
+# Target metadata for autogenerate/check.
+# Keep this aligned with alembic revision history.
 try:
     from sqlalchemy import (
         Boolean,
@@ -54,17 +32,26 @@ try:
         Date,
         DateTime,
         Float,
+        ForeignKeyConstraint,
+        Index,
         Integer,
         JSON,
         MetaData as _Meta,
         String,
         Table,
         Text,
+        UniqueConstraint,
     )
 
     _meta = _Meta()
 
-    # ── DashboardStore ────────────────────────────────────────────────────────
+    try:
+        from pgvector.sqlalchemy import Vector
+
+        _embedding_type = Vector(768).with_variant(Text(), "sqlite")
+    except Exception:
+        _embedding_type = Text()
+
     Table(
         "experiment_runs",
         _meta,
@@ -76,7 +63,8 @@ try:
         Column("source_path", String(1024), nullable=True),
         Column("updated_at", DateTime(timezone=True), nullable=False),
     )
-    Table(
+
+    model_metrics = Table(
         "model_metrics",
         _meta,
         Column("id", Integer, primary_key=True, autoincrement=True),
@@ -92,10 +80,11 @@ try:
         Column("n_test", Integer, nullable=True),
         Column("positive_rate_test", Float, nullable=True),
         Column("updated_at", DateTime(timezone=True), nullable=False),
+        ForeignKeyConstraint(["run_id"], ["experiment_runs.run_id"], ondelete="CASCADE"),
     )
+    Index("ix_model_metrics_run_id", model_metrics.c.run_id)
 
-    # ── UserStore ─────────────────────────────────────────────────────────────
-    Table(
+    users = Table(
         "users",
         _meta,
         Column("id", Integer, primary_key=True, autoincrement=True),
@@ -106,9 +95,9 @@ try:
         Column("created_at", DateTime(timezone=True), nullable=False),
         Column("updated_at", DateTime(timezone=True), nullable=False),
     )
+    Index("ix_users_username", users.c.username, unique=True)
 
-    # ── GuestStore ────────────────────────────────────────────────────────────
-    Table(
+    hotel_guests = Table(
         "hotel_guests",
         _meta,
         Column("id", Integer, primary_key=True, autoincrement=True),
@@ -116,57 +105,57 @@ try:
         Column("last_name", String(100), nullable=False),
         Column("email", String(200), nullable=True),
         Column("phone", String(30), nullable=True),
-        Column("nationality", String(10), nullable=True),
+        Column("nationality", String(3), nullable=True),
         Column("identity_no", String(50), nullable=True),
         Column("birth_date", Date, nullable=True),
         Column("gender", String(10), nullable=True),
         Column("vip_status", Boolean, nullable=False, server_default="false"),
         Column("notes", Text, nullable=True),
-        Column("hotel", String(50), nullable=True),
-        Column("lead_time", Integer, nullable=True),
-        Column("deposit_type", String(50), nullable=True),
-        Column("market_segment", String(50), nullable=True),
-        Column("adults", Integer, nullable=True),
-        Column("children", Float, nullable=True),
-        Column("babies", Integer, nullable=True),
-        Column("stays_in_week_nights", Integer, nullable=True),
-        Column("stays_in_weekend_nights", Integer, nullable=True),
-        Column("is_repeated_guest", Integer, nullable=True),
-        Column("previous_cancellations", Integer, nullable=True),
+        Column("hotel", String(50), nullable=False, server_default="City Hotel"),
+        Column("lead_time", Integer, nullable=False, server_default="0"),
+        Column("deposit_type", String(30), nullable=False, server_default="No Deposit"),
+        Column("market_segment", String(30), nullable=False, server_default="Online TA"),
+        Column("adults", Integer, nullable=False, server_default="2"),
+        Column("children", Integer, nullable=False, server_default="0"),
+        Column("babies", Integer, nullable=False, server_default="0"),
+        Column("stays_in_week_nights", Integer, nullable=False, server_default="0"),
+        Column("stays_in_weekend_nights", Integer, nullable=False, server_default="1"),
+        Column("is_repeated_guest", Integer, nullable=False, server_default="0"),
+        Column("previous_cancellations", Integer, nullable=False, server_default="0"),
         Column("adr", Float, nullable=True),
         Column("risk_score", Float, nullable=True),
-        Column("risk_label", String(20), nullable=True),
-        Column("risk_scored_at", DateTime(timezone=True), nullable=True),
-        Column("is_active", Boolean, nullable=False, server_default="true"),
+        Column("risk_label", String(10), nullable=True),
         Column("created_at", DateTime(timezone=True), nullable=False),
         Column("updated_at", DateTime(timezone=True), nullable=False),
     )
+    Index("ix_hotel_guests_last_name", hotel_guests.c.last_name)
+    Index("ix_hotel_guests_email", hotel_guests.c.email)
 
-    # ── KnowledgeDbStore (pgvector) ───────────────────────────────────────────
     Table(
         "knowledge_chunks",
         _meta,
         Column("id", Integer, primary_key=True, autoincrement=True),
-        Column("chunk_id", String(80), nullable=False, unique=True),
+        Column("chunk_id", String(50), nullable=False),
         Column("category", String(50), nullable=False, server_default="general"),
-        Column("tags", JSON, nullable=True),
+        Column("tags", JSON, nullable=False, server_default="[]"),
         Column("title", String(200), nullable=False),
         Column("content", Text, nullable=False),
         Column("priority", Integer, nullable=False, server_default="5"),
         Column("is_active", Boolean, nullable=False, server_default="true"),
-        Column("has_embedding", Boolean, nullable=False, server_default="false"),
         Column("created_at", DateTime(timezone=True), nullable=False),
         Column("updated_at", DateTime(timezone=True), nullable=False),
+        Column("embedding", _embedding_type, nullable=True),
+        UniqueConstraint("chunk_id", name="uq_knowledge_chunks_chunk_id"),
     )
 
     target_metadata = _meta
 except Exception:
-    # Fallback: autogenerate will not diff against schema but migrations still run
+    # Fallback: migrations still run but autogenerate/check is disabled.
     target_metadata = None
 
 
 def run_migrations_offline() -> None:
-    """Offline mode: emit SQL to stdout without connecting to the DB."""
+    """Offline mode: emit SQL without connecting to the DB."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,

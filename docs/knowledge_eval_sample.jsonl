@@ -1,0 +1,5 @@
+{"query":"depozitosuz rezervasyonda iptal nasil azaltilir","expected_chunk_ids":["pol_002"]}
+{"query":"uzun lead time rezervasyonlarda hangi aksiyonlar gerekli","expected_chunk_ids":["pol_003","pol_015"]}
+{"query":"online acente rezervasyonunda elde tutma stratejisi","expected_chunk_ids":["pol_005"]}
+{"query":"dusuk riskli misafire hangi upsell teklifleri verilmeli","expected_chunk_ids":["pol_006","pol_012"]}
+{"query":"check-in oncesi proaktif iletisim etkisi","expected_chunk_ids":["pol_011"]}

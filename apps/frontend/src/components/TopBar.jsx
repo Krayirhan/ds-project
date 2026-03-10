@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import { displayName } from '../lib/helpers';
 
 /**
@@ -21,3 +22,12 @@ export default function TopBar({ runs }) {
     </div>
   );
 }
+
+TopBar.propTypes = {
+  runs: PropTypes.shape({
+    generatedAt: PropTypes.string,
+    champion: PropTypes.shape({
+      selected_model: PropTypes.string,
+    }),
+  }).isRequired,
+};

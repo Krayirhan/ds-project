@@ -15,11 +15,18 @@ from __future__ import annotations
 
 import datetime
 import logging
-from typing import Any
+from enum import Enum
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
-from sqlalchemy.exc import SQLAlchemyError
+from pydantic import BaseModel, EmailStr, Field, StringConstraints
+
+from .guest_store import (
+    GuestStoreError,
+    GuestStoreNotInitializedError,
+    GuestStoreUnavailableError,
+)
+from .metrics import GUEST_RISK_FALLBACK_TOTAL
 
 logger = logging.getLogger(__name__)
 
@@ -43,68 +50,104 @@ _MODEL_FIELDS = frozenset(
     }
 )
 
+NonEmptyName = Annotated[str, StringConstraints(min_length=1, max_length=100)]
+PhoneStr = Annotated[
+    str,
+    StringConstraints(min_length=7, max_length=20, pattern=r"^\+?[0-9\- ]+$"),
+]
+ISO3Country = Annotated[
+    str,
+    StringConstraints(min_length=3, max_length=3, pattern=r"^[A-Z]{3}$"),
+]
+IdentityNo = Annotated[str, StringConstraints(min_length=3, max_length=50)]
+
+
+class HotelType(str, Enum):
+    city = "City Hotel"
+    resort = "Resort Hotel"
+
+
+class DepositType(str, Enum):
+    no_deposit = "No Deposit"
+    non_refund = "Non Refund"
+    refundable = "Refundable"
+
+
+class MarketSegment(str, Enum):
+    online_ta = "Online TA"
+    offline_ta_to = "Offline TA/TO"
+    direct = "Direct"
+    corporate = "Corporate"
+    groups = "Groups"
+
+
+class GenderType(str, Enum):
+    male = "M"
+    female = "F"
+    other = "other"
+
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 
 class GuestCreate(BaseModel):
     # ── Personal info (DB only) ───────────────────────────────────────────────
-    first_name: str = Field(min_length=1, max_length=100)
-    last_name: str = Field(min_length=1, max_length=100)
-    email: str | None = None
-    phone: str | None = None
-    nationality: str | None = None  # ISO-3166 alpha-3
-    identity_no: str | None = None  # TC Kimlik / Pasaport
-    birth_date: str | None = None  # YYYY-MM-DD string
-    gender: str | None = None  # M / F / other
+    first_name: NonEmptyName
+    last_name: NonEmptyName
+    email: EmailStr | None = None
+    phone: PhoneStr | None = None
+    nationality: ISO3Country | None = None  # ISO-3166 alpha-3
+    identity_no: IdentityNo | None = None  # TC Kimlik / Pasaport
+    birth_date: datetime.date | None = None
+    gender: GenderType | None = None
     vip_status: bool = False
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=2000)
 
     # ── Booking / model features ──────────────────────────────────────────────
-    hotel: str = "City Hotel"
-    lead_time: int = 0
-    deposit_type: str = "No Deposit"
-    market_segment: str = "Online TA"
-    adults: int = 2
-    children: int = 0
-    babies: int = 0
-    stays_in_week_nights: int = 2
-    stays_in_weekend_nights: int = 1
-    is_repeated_guest: int = 0
-    previous_cancellations: int = 0
-    adr: float | None = None
+    hotel: HotelType = HotelType.city
+    lead_time: int = Field(default=0, ge=0, le=3650)
+    deposit_type: DepositType = DepositType.no_deposit
+    market_segment: MarketSegment = MarketSegment.online_ta
+    adults: int = Field(default=2, ge=1, le=20)
+    children: int = Field(default=0, ge=0, le=20)
+    babies: int = Field(default=0, ge=0, le=10)
+    stays_in_week_nights: int = Field(default=2, ge=0, le=365)
+    stays_in_weekend_nights: int = Field(default=1, ge=0, le=365)
+    is_repeated_guest: Literal[0, 1] = 0
+    previous_cancellations: int = Field(default=0, ge=0, le=100)
+    adr: float | None = Field(default=None, ge=0, le=100000)
 
-    model_config = {"extra": "ignore"}
+    model_config = {"extra": "ignore", "use_enum_values": True}
 
 
 class GuestUpdate(BaseModel):
     # ── Personal info (all optional) ─────────────────────────────────────────
-    first_name: str | None = None
-    last_name: str | None = None
-    email: str | None = None
-    phone: str | None = None
-    nationality: str | None = None
-    identity_no: str | None = None
-    birth_date: str | None = None
-    gender: str | None = None
+    first_name: NonEmptyName | None = None
+    last_name: NonEmptyName | None = None
+    email: EmailStr | None = None
+    phone: PhoneStr | None = None
+    nationality: ISO3Country | None = None
+    identity_no: IdentityNo | None = None
+    birth_date: datetime.date | None = None
+    gender: GenderType | None = None
     vip_status: bool | None = None
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=2000)
 
     # ── Booking / model features (all optional) ───────────────────────────────
-    hotel: str | None = None
-    lead_time: int | None = None
-    deposit_type: str | None = None
-    market_segment: str | None = None
-    adults: int | None = None
-    children: int | None = None
-    babies: int | None = None
-    stays_in_week_nights: int | None = None
-    stays_in_weekend_nights: int | None = None
-    is_repeated_guest: int | None = None
-    previous_cancellations: int | None = None
-    adr: float | None = None
+    hotel: HotelType | None = None
+    lead_time: int | None = Field(default=None, ge=0, le=3650)
+    deposit_type: DepositType | None = None
+    market_segment: MarketSegment | None = None
+    adults: int | None = Field(default=None, ge=1, le=20)
+    children: int | None = Field(default=None, ge=0, le=20)
+    babies: int | None = Field(default=None, ge=0, le=10)
+    stays_in_week_nights: int | None = Field(default=None, ge=0, le=365)
+    stays_in_weekend_nights: int | None = Field(default=None, ge=0, le=365)
+    is_repeated_guest: Literal[0, 1] | None = None
+    previous_cancellations: int | None = Field(default=None, ge=0, le=100)
+    adr: float | None = Field(default=None, ge=0, le=100000)
 
-    model_config = {"extra": "ignore"}
+    model_config = {"extra": "ignore", "use_enum_values": True}
 
 
 class GuestResponse(BaseModel):
@@ -153,7 +196,9 @@ def _calculate_risk(request: Request, fields: dict[str, Any]) -> tuple[float, st
 
     serving = getattr(request.app.state, "serving", None)
     if serving is None:
-        logger.warning("Model not loaded — risk defaults to medium")
+        reason = "model_not_loaded"
+        GUEST_RISK_FALLBACK_TOTAL.labels(reason=reason).inc()
+        logger.warning("Guest risk fallback reason=%s", reason)
         return 0.5, "medium"
 
     arrival = datetime.date.today() + datetime.timedelta(
@@ -197,7 +242,9 @@ def _calculate_risk(request: Request, fields: dict[str, Any]) -> tuple[float, st
         )
         proba = float(serving.model.predict_proba(X)[0, 1])
     except Exception as exc:
-        logger.warning("Risk calculation failed: %s", exc)
+        reason = "inference_error"
+        GUEST_RISK_FALLBACK_TOTAL.labels(reason=reason).inc()
+        logger.warning("Guest risk fallback reason=%s error=%s", reason, exc)
         return 0.5, "medium"
 
     label = "high" if proba >= 0.65 else ("medium" if proba >= 0.35 else "low")
@@ -241,11 +288,17 @@ def _row_to_response(row: dict[str, Any]) -> GuestResponse:
     )
 
 
-def _store_error(exc: Exception) -> HTTPException:
+def _store_error(exc: GuestStoreError) -> HTTPException:
     logger.warning("Guest store operation failed: %s", exc)
+    if isinstance(exc, GuestStoreNotInitializedError):
+        detail = "Guest data store is not initialized."
+    elif isinstance(exc, GuestStoreUnavailableError):
+        detail = "Guest data store is unavailable. Verify DB migrations and connection."
+    else:
+        detail = "Guest data store is unavailable."
     return HTTPException(
         status_code=503,
-        detail="Guest data store is unavailable. Verify DB migrations and connection.",
+        detail=detail,
     )
 
 
@@ -257,25 +310,19 @@ async def create_guest(body: GuestCreate, request: Request) -> GuestResponse:
     """Yeni misafir kaydı oluşturur. Booking alanlarından otomatik risk hesaplanır."""
     from .guest_store import get_guest_store
 
-    data = body.model_dump()
+    data = body.model_dump(mode="python")
 
-    # birth_date: string → Python date object
-    if data.get("birth_date"):
-        try:
-            data["birth_date"] = datetime.date.fromisoformat(data["birth_date"])
-        except ValueError:
-            data["birth_date"] = None
-
+    # birth_date is already validated/coerced by Pydantic.
     # Compute risk from booking fields
     risk_score, risk_label = _calculate_risk(request, data)
     data["risk_score"] = risk_score
     data["risk_label"] = risk_label
 
-    store = get_guest_store()
     try:
+        store = get_guest_store()
         row = store.create_guest(data)
         return _row_to_response(row)
-    except SQLAlchemyError as exc:
+    except GuestStoreError as exc:
         raise _store_error(exc) from exc
 
 
@@ -288,14 +335,14 @@ async def list_guests(
     """Misafir listesi. `search` isim/email'e göre filtreler."""
     from .guest_store import get_guest_store
 
-    store = get_guest_store()
     try:
+        store = get_guest_store()
         total = store.count_guests(search=search)
         items = store.list_guests(search=search, limit=min(limit, 200), offset=offset)
         return GuestListResponse(
             total=total, items=[_row_to_response(r) for r in items]
         )
-    except SQLAlchemyError as exc:
+    except GuestStoreError as exc:
         raise _store_error(exc) from exc
 
 
@@ -304,10 +351,10 @@ async def get_guest(guest_id: int) -> GuestResponse:
     """Tek misafir getir."""
     from .guest_store import get_guest_store
 
-    store = get_guest_store()
     try:
+        store = get_guest_store()
         row = store.get_guest(guest_id)
-    except SQLAlchemyError as exc:
+    except GuestStoreError as exc:
         raise _store_error(exc) from exc
     if not row:
         raise HTTPException(status_code=404, detail="Misafir bulunamadı")
@@ -319,10 +366,10 @@ async def delete_guest(guest_id: int) -> None:
     """Misafiri kalıcı olarak siler."""
     from .guest_store import get_guest_store
 
-    store = get_guest_store()
     try:
+        store = get_guest_store()
         deleted = store.delete_guest(guest_id)
-    except SQLAlchemyError as exc:
+    except GuestStoreError as exc:
         raise _store_error(exc) from exc
     if not deleted:
         raise HTTPException(status_code=404, detail="Misafir bulunamadı")
@@ -335,25 +382,21 @@ async def update_guest(
     """Kısmi güncelleme. Booking alanı değişmişse risk yeniden hesaplanır."""
     from .guest_store import get_guest_store
 
-    store = get_guest_store()
     try:
+        store = get_guest_store()
         existing = store.get_guest(guest_id)
-    except SQLAlchemyError as exc:
+    except GuestStoreError as exc:
         raise _store_error(exc) from exc
     if not existing:
         raise HTTPException(status_code=404, detail="Misafir bulunamadı")
 
     # Only non-None values are applied
     updates: dict[str, Any] = {
-        k: v for k, v in body.model_dump().items() if v is not None
+        k: v for k, v in body.model_dump(mode="python").items() if v is not None
     }
 
-    # birth_date string → date object
-    if "birth_date" in updates:
-        try:
-            updates["birth_date"] = datetime.date.fromisoformat(updates["birth_date"])
-        except ValueError:
-            updates.pop("birth_date", None)
+    if not updates:
+        raise HTTPException(status_code=400, detail="En az bir alan guncellenmelidir.")
 
     # Re-calculate risk if any booking/model field changed
     if updates.keys() & _MODEL_FIELDS:
@@ -367,7 +410,7 @@ async def update_guest(
 
     try:
         row = store.update_guest(guest_id, updates)
-    except SQLAlchemyError as exc:
+    except GuestStoreError as exc:
         raise _store_error(exc) from exc
     if not row:
         raise HTTPException(status_code=404, detail="Güncelleme başarısız")

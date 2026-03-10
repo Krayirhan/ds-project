@@ -1,4 +1,4 @@
-.PHONY: setup setup-env check hooks lint test test-cov train evaluate predict monitor serve hpo explain load-locust load-k6 dev-up dev-down helm-lint helm-template
+.PHONY: setup setup-env check hooks lint test test-cov train evaluate predict monitor serve hpo explain load-locust load-k6 clean-artifacts clean-artifacts-dry dev-up dev-down helm-lint helm-template
 
 # ── İlk kurulum (yeni PC) ───────────────────────────────────────────────────
 
@@ -49,6 +49,16 @@ load-locust:
 ## k6 smoke load test (requires k6 installed: https://k6.io)
 load-k6:
 	k6 run perf/k6_smoke.js
+
+# Artifact retention policy:
+# - Keep newest N run dirs
+# - Always keep run in models/latest.json
+# - Delete only older-than-threshold dirs outside keep set
+clean-artifacts:
+	.venv\\Scripts\\python.exe scripts/clean_artifacts.py --models-dir models --latest-json models/latest.json --keep-runs 20 --max-age-days 30 --apply
+
+clean-artifacts-dry:
+	.venv\\Scripts\\python.exe scripts/clean_artifacts.py --models-dir models --latest-json models/latest.json --keep-runs 20 --max-age-days 30 --dry-run
 
 hpo:
 	.venv\\Scripts\\python.exe main.py hpo --n-trials 50

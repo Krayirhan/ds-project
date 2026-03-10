@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import { now } from '../lib/helpers';
 
 /**
@@ -13,3 +14,11 @@ export default function AppStatusBar({ runs }) {
     </div>
   );
 }
+
+AppStatusBar.propTypes = {
+  runs: PropTypes.shape({
+    loading: PropTypes.bool.isRequired,
+    coreModels: PropTypes.array.isRequired,
+    runs: PropTypes.arrayOf(PropTypes.string).isRequired,
+  }).isRequired,
+};

@@ -2,11 +2,19 @@
 Tests for Pandera-based data validation framework.
 """
 
+import os
+import time
+import tracemalloc
+
+import numpy as np
 import pandas as pd
 import pytest
 from pandera.errors import SchemaErrors
 
 from src.data_validation import (
+    compute_psi,
+    detect_row_anomalies,
+    detect_training_serving_skew,
     validate_raw_data,
     validate_processed_data,
     validate_inference_payload,
@@ -165,3 +173,66 @@ class TestDistributions:
         assert abs(stats["a"]["mean"] - 3.0) < 1e-6
         assert "std" in stats["a"]
         assert "q25" in stats["a"]
+
+
+def test_validation_performance_budget():
+    rows = int(os.getenv("VALIDATION_BENCH_ROWS", "10000"))
+    runtime_budget_s = float(os.getenv("VALIDATION_BENCH_MAX_SECONDS", "12.0"))
+    memory_budget_mb = float(os.getenv("VALIDATION_BENCH_MAX_PEAK_MB", "512.0"))
+
+    rng = np.random.default_rng(42)
+    df = pd.DataFrame(
+        {
+            "is_canceled": rng.integers(0, 2, size=rows),
+            "lead_time": rng.integers(0, 365, size=rows),
+            "adr": rng.normal(loc=110.0, scale=25.0, size=rows).clip(20, 400),
+            "hotel": rng.choice(["City Hotel", "Resort Hotel"], size=rows),
+            "adults": rng.integers(1, 5, size=rows),
+            "children": rng.integers(0, 2, size=rows),
+            "babies": rng.integers(0, 2, size=rows),
+            "stays_in_weekend_nights": rng.integers(0, 4, size=rows),
+            "stays_in_week_nights": rng.integers(1, 8, size=rows),
+        }
+    )
+    df_ref = df.copy(deep=True)
+    df_cur = df.copy(deep=True)
+    df_cur["lead_time"] = (df_cur["lead_time"] * 1.05).astype(int)
+
+    tracemalloc.start()
+    started = time.perf_counter()
+
+    validate_processed_data(
+        df[["is_canceled", "lead_time", "adr", "hotel"]],
+        numeric_cols=["lead_time", "adr"],
+        categorical_cols=["hotel"],
+        raise_on_error=True,
+    )
+    detect_row_anomalies(df)
+    reference_stats = generate_reference_stats(df_ref, ["lead_time", "adr"])
+    detect_training_serving_skew(
+        df_cur,
+        reference_stats=reference_stats,
+        numeric_cols=["lead_time", "adr"],
+        tolerance=3.0,
+    )
+    compute_psi(
+        df_reference=df_ref,
+        df_current=df_cur,
+        numeric_cols=["lead_time", "adr"],
+        warn_threshold=0.1,
+        block_threshold=0.25,
+        n_bins=10,
+        metric="psi",
+    )
+
+    elapsed_s = time.perf_counter() - started
+    _cur, peak_bytes = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    peak_mb = peak_bytes / (1024 * 1024)
+    assert elapsed_s <= runtime_budget_s, (
+        f"Validation runtime budget exceeded: {elapsed_s:.3f}s > {runtime_budget_s:.3f}s"
+    )
+    assert peak_mb <= memory_budget_mb, (
+        f"Validation memory budget exceeded: {peak_mb:.2f}MB > {memory_budget_mb:.2f}MB"
+    )

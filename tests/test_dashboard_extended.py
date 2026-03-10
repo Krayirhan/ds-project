@@ -184,6 +184,36 @@ def test_init_dashboard_store_and_persist_snapshot_branches(
     dashboard._persist_snapshot({"run_id": "r2"})
 
 
+def test_dashboard_cache_namespace_invalidation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Redis:
+        def __init__(self):
+            self.kv: dict[str, str] = {}
+
+        def get(self, key: str):
+            return self.kv.get(key)
+
+        def set(self, key: str, value: str):
+            self.kv[key] = str(value)
+
+        def incr(self, key: str):
+            cur = int(self.kv.get(key, "0"))
+            nxt = cur + 1
+            self.kv[key] = str(nxt)
+            return nxt
+
+    redis = _Redis()
+    monkeypatch.setattr(dashboard, "_get_dashboard_redis", lambda: redis)
+
+    key1 = dashboard._cache_key_for_overview("run-1")
+    assert ":1:run-1" in key1
+
+    dashboard._cache_invalidate()
+    key2 = dashboard._cache_key_for_overview("run-1")
+    assert ":2:run-1" in key2
+
+
 def test_dashboard_runs_and_db_status_error_paths(
     monkeypatch: pytest.MonkeyPatch, project_paths: Paths
 ) -> None:

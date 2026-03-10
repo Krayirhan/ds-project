@@ -1,26 +1,28 @@
-import { useState, useCallback, useEffect } from 'react';
+﻿import { useState, useCallback, useEffect } from 'react';
 import { applyChartTheme } from '../lib/helpers';
 
 /**
- * useTheme — Tema yönetimi hook'u
+ * @typedef {Object} UseThemeState
+ * @property {'classic'|'modern-light'|'modern-dark'} theme
+ * @property {boolean} isModern
+ * @property {boolean} isDark
+ * @property {() => void} toggleTheme
+ * @property {string} themeLabel
+ * @property {string} themeIcon
+ */
+/**
+ * useTheme â€” Tema yÃ¶netimi hook'u
  *
- * 3 tema destekler: classic → modern-light → modern-dark
- * CSS variable'ları data-theme attribute'u ile kontrol edilir.
- * Tercih localStorage'da saklanır (anahtar: 'ds_theme').
+ * 3 tema destekler: classic â†’ modern-light â†’ modern-dark
+ * CSS variable'larÄ± data-theme attribute'u ile kontrol edilir.
+ * Tercih localStorage'da saklanÄ±r (anahtar: 'ds_theme').
  *
- * @returns {{
- *   theme:        'classic'|'modern-light'|'modern-dark',
- *   isModern:     boolean,
- *   isDark:       boolean,
- *   toggleTheme:  () => void,
- *   themeLabel:   string,
- *   themeIcon:    string,
- * }}
+ * @returns {UseThemeState}
  */
 export function useTheme() {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('ds_theme') || 'classic';
-    if (saved === 'modern') return 'modern-light'; // eski değer geçişi
+    if (saved === 'modern') return 'modern-light'; // eski deÄŸer geÃ§iÅŸi
     return saved;
   });
 
@@ -45,9 +47,11 @@ export function useTheme() {
     });
   }, []);
 
-  const themeLabel = theme === 'classic' ? 'Modern Aydınlık'
-    : isDark ? 'Klasik Görünüm' : 'Modern Karanlık';
-  const themeIcon  = theme === 'classic' ? '☀️' : isDark ? '🖥️' : '🌙';
+  const themeLabel = theme === 'classic' ? 'Modern AydÄ±nlÄ±k'
+    : isDark ? 'Klasik GÃ¶rÃ¼nÃ¼m' : 'Modern KaranlÄ±k';
+  const themeIcon  = theme === 'classic' ? 'â˜€ï¸' : isDark ? 'ğŸ–¥ï¸' : 'ğŸŒ™';
 
   return { theme, isModern, isDark, toggleTheme, themeLabel, themeIcon };
 }
+
+

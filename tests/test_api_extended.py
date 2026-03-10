@@ -10,6 +10,8 @@ from fastapi import HTTPException, Response
 from starlette.requests import Request
 
 import src.api as api
+import src.api_lifespan as api_lifespan
+import src.api_shared as api_shared
 
 
 def _make_request(
@@ -122,6 +124,39 @@ def test_middleware_unauthorized_api_key(monkeypatch):
     assert _json_body(resp)["error_code"] == "unauthorized"
 
 
+@pytest.mark.parametrize(
+    ("path", "headers", "expected_status"),
+    [
+        ("/health", {}, 200),
+        ("/ready", {}, 200),
+        ("/metrics", {}, 200),
+        ("/dashboard", {}, 200),
+        ("/dashboard/api/runs", {}, 200),
+        ("/auth/me", {}, 200),
+        ("/predict_proba", {}, 401),
+        ("/predict_proba", {"x-api-key": "correct"}, 200),
+    ],
+)
+def test_middleware_public_private_path_matrix(
+    monkeypatch, path: str, headers: dict[str, str], expected_status: int
+):
+    req = _make_request(path=path, method="GET", headers=headers)
+    api.app.state.rate_limiter = _Limiter([True])
+    api.app.state.shutting_down = False
+    monkeypatch.setattr(api, "_api_key_required", lambda: True)
+    monkeypatch.setattr(api, "_expected_api_key", lambda: "correct")
+    resp = asyncio.run(api.request_context_middleware(req, _ok_next))
+    assert resp.status_code == expected_status
+
+
+def test_public_path_allowlist_env_overrides(monkeypatch):
+    monkeypatch.setenv("API_PUBLIC_PATHS_EXACT", "/custom/public")
+    monkeypatch.setenv("API_PUBLIC_PATHS_PREFIXES", "/custom-prefix/")
+    assert api._is_public_path("/custom/public") is True
+    assert api._is_public_path("/custom-prefix/value") is True
+    assert api._is_public_path("/private") is False
+
+
 def test_middleware_builds_limiter_when_missing_and_rate_limits(monkeypatch):
     limiter = _Limiter([False])
     req = _make_request(path="/predict_proba")
@@ -140,9 +175,31 @@ def test_middleware_login_bruteforce_limit(monkeypatch):
     api.app.state.rate_limiter = _Limiter([False])
     api.app.state.shutting_down = False
     monkeypatch.setattr(api, "_api_key_required", lambda: False)
+    monkeypatch.setattr(
+        api,
+        "check_login_attempt_allowed",
+        lambda **_kwargs: (True, 0, "ok"),
+    )
     resp = asyncio.run(api.request_context_middleware(req, _ok_next))
     assert resp.status_code == 429
     assert _json_body(resp)["error_code"] == "login_rate_limit"
+
+
+def test_middleware_login_backoff_limit(monkeypatch):
+    req = _make_request(path="/auth/login", method="POST")
+    api.app.state.rate_limiter = _Limiter([True])
+    api.app.state.shutting_down = False
+    monkeypatch.setattr(api, "_api_key_required", lambda: False)
+    monkeypatch.setattr(
+        api,
+        "check_login_attempt_allowed",
+        lambda **_kwargs: (False, 12, "backoff"),
+    )
+    resp = asyncio.run(api.request_context_middleware(req, _ok_next))
+    assert resp.status_code == 429
+    body = _json_body(resp)
+    assert body["error_code"] == "login_backoff"
+    assert "12" in body["message"]
 
 
 def test_middleware_content_length_guards(monkeypatch):
@@ -267,13 +324,13 @@ def test_validate_admin_key_startup_enforces_non_dev(monkeypatch):
     monkeypatch.setenv("DS_ENV", "production")
     monkeypatch.delenv("DS_ADMIN_KEY", raising=False)
     with pytest.raises(RuntimeError, match="DS_ADMIN_KEY must be set"):
-        api._validate_admin_key_startup()
+        api_lifespan._validate_admin_key_startup()
 
 
 def test_validate_admin_key_startup_allows_dev_without_key(monkeypatch):
     monkeypatch.setenv("DS_ENV", "development")
     monkeypatch.delenv("DS_ADMIN_KEY", raising=False)
-    api._validate_admin_key_startup()
+    api_lifespan._validate_admin_key_startup()
 
 
 def test_exception_handlers_return_structured_error():
@@ -314,9 +371,9 @@ def test_periodic_chat_cleanup_runs_and_handles_errors(monkeypatch):
             return None
         raise asyncio.CancelledError()
 
-    monkeypatch.setattr(api.asyncio, "sleep", _sleep_once_then_cancel)
+    monkeypatch.setattr(api_lifespan.asyncio, "sleep", _sleep_once_then_cancel)
     monkeypatch.setattr(chat_memory, "get_session_store", lambda: store)
-    asyncio.run(api._periodic_chat_cleanup(interval_seconds=0))
+    asyncio.run(api_lifespan._periodic_chat_cleanup(interval_seconds=0))
     assert store.cleaned == 1
 
     calls2 = {"n": 0}
@@ -327,13 +384,13 @@ def test_periodic_chat_cleanup_runs_and_handles_errors(monkeypatch):
             return None
         raise asyncio.CancelledError()
 
-    monkeypatch.setattr(api.asyncio, "sleep", _sleep_for_error_case)
+    monkeypatch.setattr(api_lifespan.asyncio, "sleep", _sleep_for_error_case)
     monkeypatch.setattr(
         chat_memory,
         "get_session_store",
         lambda: (_ for _ in ()).throw(RuntimeError("store down")),
     )
-    asyncio.run(api._periodic_chat_cleanup(interval_seconds=0))
+    asyncio.run(api_lifespan._periodic_chat_cleanup(interval_seconds=0))
 
 
 def test_lifespan_degraded_and_shutdown_paths(monkeypatch):
@@ -341,25 +398,33 @@ def test_lifespan_degraded_and_shutdown_paths(monkeypatch):
 
     monkeypatch.setenv("WEB_CONCURRENCY", "2")
     monkeypatch.setenv("RATE_LIMIT_BACKEND", "memory")
-    monkeypatch.setattr(api, "init_tracing", lambda **kwargs: None)
-    monkeypatch.setattr(api, "instrument_fastapi", lambda *_: None)
-    monkeypatch.setattr(api, "run_migrations", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(api, "ensure_required_tables", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(api, "init_user_store", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(api, "seed_admin", lambda: None)
-    monkeypatch.setattr(api, "init_guest_store", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(api, "init_dashboard_store", lambda: None)
+    monkeypatch.setattr(api_lifespan, "init_tracing", lambda **kwargs: None)
+    monkeypatch.setattr(api_lifespan, "instrument_fastapi", lambda *_: None)
+    monkeypatch.setattr(api_lifespan, "run_migrations", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        api,
-        "_load_serving_state",
+        api_lifespan,
+        "ensure_required_tables",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(api_lifespan, "init_user_store", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(api_lifespan, "seed_admin", lambda: None)
+    monkeypatch.setattr(
+        api_lifespan, "init_guest_store", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(api_lifespan, "init_dashboard_store", lambda: None)
+    monkeypatch.setattr(
+        api_shared,
+        "load_serving_state",
         lambda: (_ for _ in ()).throw(RuntimeError("model load fail")),
     )
-    monkeypatch.setattr(api, "_build_runtime_rate_limiter", lambda: _Limiter([True]))
+    monkeypatch.setattr(
+        api_lifespan, "_build_runtime_rate_limiter", lambda: _Limiter([True])
+    )
 
     async def _cleanup_forever(*args, **kwargs):
         await asyncio.sleep(3600)
 
-    monkeypatch.setattr(api, "_periodic_chat_cleanup", _cleanup_forever)
+    monkeypatch.setattr(api_lifespan, "_periodic_chat_cleanup", _cleanup_forever)
 
     import src.chat.ollama_client as ollama_client
 
@@ -370,7 +435,7 @@ def test_lifespan_degraded_and_shutdown_paths(monkeypatch):
     monkeypatch.setattr(ollama_client, "get_ollama_client", lambda: _BadClient())
 
     async def _run():
-        async with api.lifespan(fake_app):
+        async with api_lifespan.lifespan(fake_app):
             assert fake_app.state.serving is None
             assert fake_app.state.shutting_down is False
             assert isinstance(fake_app.state._reload_lock, asyncio.Lock)

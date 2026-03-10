@@ -1,0 +1,12 @@
+﻿/*
+ Theme entrypoint and layer contract.
+
+ Load order is intentional:
+ 1) styles.css  -> classic default tokens and base components
+ 2) modern.css  -> [data-theme="modern-light|modern-dark"] overrides
+
+ Both files remain separate to keep classic and modern concerns isolated.
+*/
+@import './styles.css';
+@import './modern.css';
+

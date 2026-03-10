@@ -13,6 +13,8 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[1]
 _DATA_CSV = _ROOT / "data" / "raw" / "hotel_bookings.csv"
 
+pytestmark = [pytest.mark.integration, pytest.mark.slow]
+
 
 @pytest.mark.skipif(
     not _DATA_CSV.exists(),

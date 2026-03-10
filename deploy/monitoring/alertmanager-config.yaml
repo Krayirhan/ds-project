@@ -1,10 +1,24 @@
 apiVersion: v1
-kind: ConfigMap
+kind: Secret
+metadata:
+  name: ds-project-alertmanager-secrets
+  namespace: ds-project
+  annotations:
+    ds-project.io/managed-by: external-secret
+type: Opaque
+stringData:
+  # Do not commit real values. Inject at deploy time via ExternalSecret/SealedSecret.
+  slack_webhook_url: "REPLACE_AT_DEPLOY_TIME"
+  pagerduty_routing_key: "REPLACE_AT_DEPLOY_TIME"
+---
+apiVersion: v1
+kind: Secret
 metadata:
   name: ds-project-alertmanager-config
   namespace: ds-project
-data:
-  alertmanager.yml: |
+type: Opaque
+stringData:
+  alertmanager.yaml: |
     global:
       resolve_timeout: 5m
 
@@ -29,12 +43,23 @@ data:
 
       - name: slack-warnings
         slack_configs:
-          - api_url: "${SLACK_WEBHOOK_URL}"
+          - api_url_file: /etc/alertmanager/secrets/ds-project-alertmanager-secrets/slack_webhook_url
             channel: "#ds-alerts"
             title: "[DS Project] {{ .CommonAnnotations.summary }}"
             text: "{{ .CommonAnnotations.description }}"
 
       - name: pagerduty-critical
         pagerduty_configs:
-          - routing_key: "${PAGERDUTY_ROUTING_KEY}"
+          - routing_key_file: /etc/alertmanager/secrets/ds-project-alertmanager-secrets/pagerduty_routing_key
             description: "{{ .CommonAnnotations.summary }}"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Alertmanager
+metadata:
+  name: ds-project-alertmanager
+  namespace: ds-project
+spec:
+  replicas: 1
+  configSecret: ds-project-alertmanager-config
+  secrets:
+    - ds-project-alertmanager-secrets

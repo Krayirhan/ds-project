@@ -6,11 +6,15 @@ Extracted to avoid circular imports between api.py ↔ api_v1.py / api_v2.py.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
+import hmac
 import json
+import os
 from pathlib import Path
-from typing import Any, Dict, List, Literal
+from typing import Any, Callable, Dict, List, Literal
 
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -304,3 +308,34 @@ def get_serving_state_for_router() -> ServingState:
     if _shared_app_ref is not None:
         _shared_app_ref.state.serving = serving
     return serving
+
+
+def require_admin_key(
+    request: Request, *, detail: str = "x-admin-key header gereklidir."
+) -> None:
+    """Enforce DS_ADMIN_KEY protection for reload-like endpoints."""
+    expected_admin = os.getenv("DS_ADMIN_KEY")
+    if expected_admin and not hmac.compare_digest(
+        request.headers.get("x-admin-key") or "", expected_admin
+    ):
+        raise HTTPException(status_code=403, detail=detail)
+
+
+def get_or_create_reload_lock(app) -> asyncio.Lock:
+    """Return app-level reload lock and create it when absent."""
+    lock = getattr(app.state, "_reload_lock", None)
+    if lock is None:
+        lock = asyncio.Lock()
+        app.state._reload_lock = lock
+    return lock
+
+
+async def reload_serving_state_for_app(
+    app, *, loader: Callable[[], ServingState] = load_serving_state
+) -> ServingState:
+    """Reload serving state under a shared app-level async lock."""
+    lock = get_or_create_reload_lock(app)
+    async with lock:
+        serving = loader()
+        app.state.serving = serving
+        return serving

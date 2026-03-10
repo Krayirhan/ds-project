@@ -75,7 +75,7 @@ def preprocess_basic(
                 df[c] = df[c].fillna(fill)
 
     # 5) Post-imputation NaN assertion — imputation başarısız olduysa pipeline'ı durdur
-    from .data_validation import assert_no_nans_after_imputation
+    from .validation import assert_no_nans_after_imputation
 
     nan_remains = assert_no_nans_after_imputation(df, exclude_cols=[target_col])
     if nan_remains:

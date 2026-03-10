@@ -1,40 +1,47 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+﻿import { useState, useCallback, useEffect, useRef } from 'react';
 import { startChatSession, getChatSummary, predictRiskScore, createGuest, streamChatMessage } from '../api';
 
 /**
- * useChat — Chat asistanı hook'u
+ * @typedef {{role: string, content: string, id?: string, streaming?: boolean}} ChatMessage
+ */
+
+/**
+ * @typedef {Object} UseChatState
+ * @property {string} sessionId
+ * @property {ChatMessage[]} messages
+ * @property {string} input
+ * @property {(value: string) => void} setInput
+ * @property {Array<{label: string, message: string}>} quickActions
+ * @property {object|null} summary
+ * @property {boolean} busy
+ * @property {string} error
+ * @property {number|null} riskScore
+ * @property {string} riskLabel
+ * @property {boolean} predicting
+ * @property {string|null} selectedModel
+ * @property {(model: string|null) => void} setSelectedModel
+ * @property {number|null} guestId
+ * @property {(id: number|null) => void} setGuestId
+ * @property {boolean} guestSaved
+ * @property {(saved: boolean) => void} setGuestSaved
+ * @property {object} customer
+ * @property {(key: string, value: any) => void} handleCustomerChange
+ * @property {() => Promise<void>} openSession
+ * @property {(text: string) => Promise<void>} sendMessage
+ */
+/**
+ * useChat â€” Chat asistanÄ± hook'u
  *
- * Müşteri formu, oturum yönetimi ve mesajlaşma state'i.
- * AbortController ile oturum açma cancel edilebilir.
- * Form değişince debounced auto-predict çalışır (600 ms).
+ * MÃ¼ÅŸteri formu, oturum yÃ¶netimi ve mesajlaÅŸma state'i.
+ * AbortController ile oturum aÃ§ma cancel edilebilir.
+ * Form deÄŸiÅŸince debounced auto-predict Ã§alÄ±ÅŸÄ±r (600 ms).
  *
  * @param {object}   opts
- * @param {string}   opts.apiKey          - X-API-KEY header değeri
- * @param {function} opts.onAuthFailed    - 401 alındığında çağrılır
- * @param {object}   [opts.initialCustomer={}] - Mevcut misafir verisiyle formu ön doldurur
+ * @param {string}   opts.apiKey          - X-API-KEY header deÄŸeri
+ * @param {function} opts.onAuthFailed    - 401 alÄ±ndÄ±ÄŸÄ±nda Ã§aÄŸrÄ±lÄ±r
+ * @param {object}   [opts.initialCustomer={}] - Mevcut misafir verisiyle formu Ã¶n doldurur
  *
- * @returns {{
- *   sessionId:           string,
- *   messages:            Array<{role: string, content: string}>,
- *   input:               string,
- *   quickActions:        string[],
- *   summary:             object|null,
- *   busy:                boolean,
- *   error:               string,
- *   riskScore:           number|null,
- *   riskLabel:           string,
- *   predicting:          boolean,
- *   selectedModel:       string|null,
- *   guestId:             number|null,
- *   guestSaved:          boolean,
- *   customer:            object,
- *   setInput:            (v: string) => void,
- *   setSelectedModel:    (m: string|null) => void,
- *   handleCustomerChange:(key: string, value: any) => void,
- *   handleStartSession:  () => Promise<void>,
- *   handleSend:          () => Promise<void>,
- *   handleSaveGuest:     () => Promise<void>,
- * }}
+ * @returns {UseChatState}
  */
 export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
   const [sessionId, setSessionId]         = useState('');
@@ -47,11 +54,11 @@ export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
   const [riskScore, setRiskScore]         = useState(null);
   const [riskLabel, setRiskLabel]         = useState('unknown');
   const [predicting, setPredicting]       = useState(false);
-  const [selectedModel, setSelectedModel] = useState(null); // null → varsayılan şampiyon
+  const [selectedModel, setSelectedModel] = useState(null); // null â†’ varsayÄ±lan ÅŸampiyon
   const [guestId, setGuestId]             = useState(initialCustomer?.id ?? null);
   const [guestSaved, setGuestSaved]       = useState(!!initialCustomer?.id);
   const [customer, setCustomer]           = useState({
-    // Kişisel bilgiler (DB'ye kaydedilir, modele gitmez)
+    // KiÅŸisel bilgiler (DB'ye kaydedilir, modele gitmez)
     first_name:  '',
     last_name:   '',
     email:       '',
@@ -62,7 +69,7 @@ export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
     gender:      '',
     vip_status:  false,
     notes:       '',
-    // Rezervasyon / model alanları
+    // Rezervasyon / model alanlarÄ±
     hotel:                   'City Hotel',
     lead_time:               30,
     deposit_type:            'No Deposit',
@@ -86,7 +93,7 @@ export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
     setCustomer(prev => ({ ...prev, [key]: value }));
   }
 
-  // Yalnızca rezervasyon alanları değişince risk yeniden hesaplanır (kişisel alanlar tetiklemez)
+  // YalnÄ±zca rezervasyon alanlarÄ± deÄŸiÅŸince risk yeniden hesaplanÄ±r (kiÅŸisel alanlar tetiklemez)
   const bookingSnapshot = JSON.stringify({
     hotel: customer.hotel, lead_time: customer.lead_time,
     deposit_type: customer.deposit_type, market_segment: customer.market_segment,
@@ -98,7 +105,7 @@ export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
     selectedModel,
   });
 
-  // Form değişince 600 ms debounce ile otomatik risk hesapla
+  // Form deÄŸiÅŸince 600 ms debounce ile otomatik risk hesapla
   useEffect(() => {
     clearTimeout(debounceTimer.current);
     predictAbort.current?.abort();
@@ -152,7 +159,7 @@ export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
     setError('');
     setBusy(true);
     try {
-      // Misafir adı girilmişse ve henüz kaydedilmemişse DB'ye kaydet
+      // Misafir adÄ± girilmiÅŸse ve henÃ¼z kaydedilmemiÅŸse DB'ye kaydet
       if (!guestId && customer.first_name) {
         try {
           const guest = await createGuest({
@@ -181,12 +188,12 @@ export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
           setGuestId(guest.id);
           setGuestSaved(true);
         } catch (guestErr) {
-          console.warn('Misafir kaydı oluşturulamadı:', guestErr);
+          console.warn('Misafir kaydÄ± oluÅŸturulamadÄ±:', guestErr);
         }
       }
 
-      // Mevcut hesaplanmış risk skoru kullan (auto-predict ile geldi)
-      // Eğer henüz hesaplanmadıysa bekle / fallback kullan
+      // Mevcut hesaplanmÄ±ÅŸ risk skoru kullan (auto-predict ile geldi)
+      // EÄŸer henÃ¼z hesaplanmadÄ±ysa bekle / fallback kullan
       const computedScore = riskScore ?? 0.5;
       const computedLabel = riskLabel !== 'unknown' ? riskLabel : 'medium';
 
@@ -207,14 +214,14 @@ export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
       const created = await startChatSession(payload, apiKey, { signal: controller.signal });
       setSessionId(created.session_id);
       setQuickActions(created.quick_actions || []);
-      setMessages([{ role: 'assistant', content: created.bot_message || 'Oturum açıldı.' }]);
+      setMessages([{ role: 'assistant', content: created.bot_message || 'Oturum aÃ§Ä±ldÄ±.' }]);
 
       const s = await getChatSummary(created.session_id, apiKey, { signal: controller.signal });
       setSummary(s);
     } catch (err) {
       if (err.name === 'AbortError') return;
       if (err?.status === 401) { onAuthFailed?.(err); return; }
-      setError(err.message || 'Chat oturumu açılamadı.');
+      setError(err.message || 'Chat oturumu aÃ§Ä±lamadÄ±.');
     } finally {
       setBusy(false);
     }
@@ -277,7 +284,7 @@ export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
       setSummary(s);
     } catch (err) {
       if (err?.status === 401) { onAuthFailed?.(err); return; }
-      setError(err.message || 'Mesaj gönderilemedi.');
+      setError(err.message || 'Mesaj gÃ¶nderilemedi.');
       setMessages(prev => prev.filter(m => m.id !== streamId));
     } finally {
       setBusy(false);
@@ -297,3 +304,5 @@ export function useChat({ apiKey, onAuthFailed, initialCustomer = {} }) {
     openSession, sendMessage,
   };
 }
+
+

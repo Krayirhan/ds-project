@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import { formatRunId } from '../lib/helpers';
 
 /**
@@ -37,3 +38,16 @@ export default function FilterControls({ runs }) {
     </section>
   );
 }
+
+FilterControls.propTypes = {
+  runs: PropTypes.shape({
+    runs: PropTypes.arrayOf(PropTypes.string).isRequired,
+    selectedRun: PropTypes.string,
+    setSelectedRun: PropTypes.func.isRequired,
+    refreshOverviewOnly: PropTypes.func.isRequired,
+    apiKey: PropTypes.string,
+    setApiKey: PropTypes.func.isRequired,
+    loading: PropTypes.bool.isRequired,
+    refreshRunsAndData: PropTypes.func.isRequired,
+  }).isRequired,
+};

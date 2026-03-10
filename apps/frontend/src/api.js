@@ -12,6 +12,50 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 const DEFAULT_API_KEY = import.meta.env.VITE_DEFAULT_API_KEY || '';
 const DEFAULT_TIMEOUT = 30_000; // 30 seconds
 
+/**
+ * Shared request options for API helpers.
+ * @typedef {Object} ApiRequestOptions
+ * @property {string=} apiKey
+ * @property {number=} timeout
+ * @property {AbortSignal=} signal
+ * @property {Record<string, string>=} headers
+ */
+
+/**
+ * Paging and filter params for guest listing.
+ * @typedef {Object} GuestListParams
+ * @property {string=} search
+ * @property {number=} limit
+ * @property {number=} offset
+ */
+
+/**
+ * Guest payload used by create/update endpoints.
+ * @typedef {Object} GuestPayload
+ * @property {string} first_name
+ * @property {string} last_name
+ * @property {string|null=} email
+ * @property {string|null=} phone
+ * @property {string|null=} nationality
+ * @property {string|null=} identity_no
+ * @property {string|null=} birth_date
+ * @property {string|null=} gender
+ * @property {boolean=} vip_status
+ * @property {string|null=} notes
+ * @property {string=} hotel
+ * @property {number=} lead_time
+ * @property {string=} deposit_type
+ * @property {string=} market_segment
+ * @property {number=} adults
+ * @property {number=} children
+ * @property {number=} babies
+ * @property {number=} stays_in_week_nights
+ * @property {number=} stays_in_weekend_nights
+ * @property {number=} is_repeated_guest
+ * @property {number=} previous_cancellations
+ * @property {number|null=} adr
+ */
+
 function resolveApiKey(apiKey) {
   const val = String(apiKey || '').trim();
   return val || String(DEFAULT_API_KEY || '').trim();
@@ -35,13 +79,7 @@ function buildHeaders(apiKey, extra = {}) {
  * Core fetch wrapper.
  *
  * @param {string} path   - API path (e.g. '/dashboard/api/runs')
- * @param {object} opts
- * @param {string} opts.apiKey       - API key override
- * @param {number} opts.timeout      - Request timeout in ms (default 30 s)
- * @param {object} opts.headers      - Extra headers to merge
- * @param {AbortSignal} opts.signal  - External AbortSignal for cancellation
- * @param {string} opts.method       - HTTP method
- * @param {string} opts.body         - Request body
+ * @param {ApiRequestOptions & RequestInit} options
  * @returns {Promise<any>} Parsed JSON response
  */
 export async function fetchWithAuth(path, options = {}) {
@@ -230,6 +268,9 @@ export function getAvailableModels(apiKey, { signal } = {}) {
 /**
  * Create a new hotel guest (personal info + booking fields).
  * Backend: POST /guests
+ * @param {GuestPayload} data
+ * @param {string} apiKey
+ * @param {{signal?: AbortSignal}=} options
  */
 export function createGuest(data, apiKey, { signal } = {}) {
   return fetchWithAuth('/guests', {
@@ -244,6 +285,9 @@ export function createGuest(data, apiKey, { signal } = {}) {
 /**
  * List guests with optional search and pagination.
  * Backend: GET /guests?search=&limit=&offset=
+ * @param {GuestListParams=} params
+ * @param {string} apiKey
+ * @param {{signal?: AbortSignal}=} options
  */
 export function listGuests(params = {}, apiKey, { signal } = {}) {
   const qs = new URLSearchParams();
@@ -257,6 +301,9 @@ export function listGuests(params = {}, apiKey, { signal } = {}) {
 /**
  * Get a single guest by id.
  * Backend: GET /guests/{id}
+ * @param {number|string} guestId
+ * @param {string} apiKey
+ * @param {{signal?: AbortSignal}=} options
  */
 export function getGuest(guestId, apiKey, { signal } = {}) {
   return fetchWithAuth(`/guests/${encodeURIComponent(guestId)}`, { apiKey, signal });
@@ -265,6 +312,9 @@ export function getGuest(guestId, apiKey, { signal } = {}) {
 /**
  * Delete a guest permanently.
  * Backend: DELETE /guests/{id}
+ * @param {number|string} guestId
+ * @param {string} apiKey
+ * @param {{signal?: AbortSignal}=} options
  */
 export function deleteGuest(guestId, apiKey, { signal } = {}) {
   return fetchWithAuth(`/guests/${encodeURIComponent(guestId)}`, {
@@ -277,6 +327,10 @@ export function deleteGuest(guestId, apiKey, { signal } = {}) {
 /**
  * Partially update a guest.
  * Backend: PATCH /guests/{id}
+ * @param {number|string} guestId
+ * @param {Partial<GuestPayload>} data
+ * @param {string} apiKey
+ * @param {{signal?: AbortSignal}=} options
  */
 export function updateGuest(guestId, data, apiKey, { signal } = {}) {
   return fetchWithAuth(`/guests/${encodeURIComponent(guestId)}`, {

@@ -125,6 +125,28 @@ monitoring:
         severity: critical
         summary: "DS API 5xx rate breach"
         description: "5xx ratio above 0.1% for 10m"
+      - alert: DSProjectCorrelatedRollbackSignal
+        expr: >-
+          (
+            sum(rate(ds_api_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(ds_api_requests_total[5m])), 0.001) > 0.001
+          )
+          and
+          (
+            histogram_quantile(0.95,
+              sum(rate(ds_api_request_latency_seconds_bucket[5m])) by (le)
+            ) > 0.3
+          )
+          and
+          (
+            (min(ds_model_roc_auc) < 0.65)
+            or
+            (max(ds_feature_psi) > 0.2)
+          )
+        for: 10m
+        severity: critical
+        summary: "Correlated rollback signal (5xx + latency + model quality)"
+        description: "Operational and model-quality signals are jointly breached. Trigger automated rollback workflow."
       - alert: DSProjectErrorBudgetBurnFast
         expr: >-
           sum(rate(ds_api_requests_total{status=~"5.."}[5m]))

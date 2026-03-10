@@ -20,8 +20,8 @@ Both files are imported unconditionally in `main.jsx`. The active theme is deter
 3. CSS specificity takes over: `[data-theme="modern-light"] .some-class` overrides `:root .some-class`.
 
 ```
-localStorage key: "ds-theme"
-Values: "classic" | "modern-light" | "modern-dark"
+localStorage key: "ds_theme"
+values: "classic" | "modern-light" | "modern-dark"
 ```
 
 ---

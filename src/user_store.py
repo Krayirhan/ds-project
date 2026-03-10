@@ -16,7 +16,6 @@ Usage:
 
 from __future__ import annotations
 
-import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -37,7 +36,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import IntegrityError
 
-logger = logging.getLogger(__name__)
+from .utils import get_logger
+
+logger = get_logger("user_store")
 
 _user_store: Optional["UserStore"] = None
 

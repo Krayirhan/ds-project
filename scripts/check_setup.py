@@ -8,6 +8,7 @@ Eksik olan her şeyi tek tek listeler ve nasıl düzeleceğini söyler.
 Kullanım:
     python scripts/check_setup.py           # Kontrol
     python scripts/check_setup.py --fix     # Kontrol + .env otomatik oluştur
+    python scripts/check_setup.py --bootstrap  # Python 3.12 .venv bootstrap
     python scripts/check_setup.py --json    # Makine-okunabilir JSON çıktı
 """
 
@@ -25,9 +26,18 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python <3.11 fallback
+    tomllib = None  # type: ignore[assignment]
+
 ROOT = Path(__file__).resolve().parents[1]
 FIX = "--fix" in sys.argv
+BOOTSTRAP = "--bootstrap" in sys.argv
 JSON_OUT = "--json" in sys.argv
+
+DEFAULT_REQUIRED_PYTHON_SERIES = (3, 12)
+DEFAULT_BOOTSTRAP_PYTHON = "3.12.9"
 
 # ── Windows: force UTF-8 console + stdout to prevent UnicodeEncodeError ──────
 # Windows cmd / PowerShell default code page (cp1252) cannot encode emoji
@@ -112,6 +122,185 @@ def _load_dotenv(path: Path) -> None:
             os.environ[key] = value
 
 
+def _runtime_policy() -> tuple[tuple[int, int], str]:
+    """Read runtime policy from pyproject.toml if available."""
+    pyproject = ROOT / "pyproject.toml"
+    if tomllib is None or not pyproject.exists():
+        return DEFAULT_REQUIRED_PYTHON_SERIES, DEFAULT_BOOTSTRAP_PYTHON
+
+    try:
+        payload = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except Exception:
+        return DEFAULT_REQUIRED_PYTHON_SERIES, DEFAULT_BOOTSTRAP_PYTHON
+
+    runtime = payload.get("tool", {}).get("ds_project", {}).get("runtime", {})
+    required_minor = str(
+        runtime.get(
+            "required_python_minor",
+            f"{DEFAULT_REQUIRED_PYTHON_SERIES[0]}.{DEFAULT_REQUIRED_PYTHON_SERIES[1]}",
+        )
+    ).strip()
+    bootstrap_python = str(
+        runtime.get("bootstrap_python", DEFAULT_BOOTSTRAP_PYTHON)
+    ).strip()
+
+    try:
+        major_str, minor_str = required_minor.split(".", 1)
+        required_series = (int(major_str), int(minor_str))
+    except Exception:
+        required_series = DEFAULT_REQUIRED_PYTHON_SERIES
+
+    if not bootstrap_python:
+        bootstrap_python = DEFAULT_BOOTSTRAP_PYTHON
+
+    return required_series, bootstrap_python
+
+
+def _venv_python_bin() -> Path:
+    if os.name == "nt":
+        return ROOT / ".venv" / "Scripts" / "python.exe"
+    return ROOT / ".venv" / "bin" / "python"
+
+
+def _bootstrap_env(required_series: tuple[int, int], bootstrap_python: str) -> None:
+    """Create a local .venv with uv (preferred) or pyenv."""
+    req_minor = f"{required_series[0]}.{required_series[1]}"
+    req_file = ROOT / ".python-version"
+    req_file.write_text(f"{bootstrap_python}\n", encoding="utf-8")
+
+    uv_cmd = shutil.which("uv")
+    pyenv_cmd = shutil.which("pyenv")
+
+    if uv_cmd:
+        commands = [
+            [uv_cmd, "python", "install", bootstrap_python],
+            [uv_cmd, "venv", "--python", bootstrap_python, str(ROOT / ".venv")],
+            [
+                uv_cmd,
+                "pip",
+                "install",
+                "--python",
+                str(_venv_python_bin()),
+                "-r",
+                "requirements-prod.txt",
+            ],
+            [uv_cmd, "pip", "install", "--python", str(_venv_python_bin()), "-e", "."],
+        ]
+        if (ROOT / "requirements-dev.txt").exists():
+            commands.append(
+                [
+                    uv_cmd,
+                    "pip",
+                    "install",
+                    "--python",
+                    str(_venv_python_bin()),
+                    "-r",
+                    "requirements-dev.txt",
+                ]
+            )
+        for cmd in commands:
+            print(info(f"$ {' '.join(cmd)}"))
+            run = subprocess.run(
+                cmd, cwd=ROOT, check=False, text=True, capture_output=True
+            )
+            if run.returncode != 0:
+                print(fail("Bootstrap komutu basarisiz"))
+                print(info((run.stderr or run.stdout or "").strip()[:300]))
+                _issue(
+                    "python_bootstrap",
+                    f"uv bootstrap basarisiz ({' '.join(cmd)})",
+                    f"uv python install {bootstrap_python} && uv venv --python {bootstrap_python} .venv",
+                )
+                return
+        print(ok(f"uv ile .venv hazirlandi (Python {bootstrap_python})"))
+        return
+
+    if pyenv_cmd:
+        commands = [
+            [pyenv_cmd, "install", "-s", bootstrap_python],
+            [pyenv_cmd, "local", bootstrap_python],
+        ]
+        for cmd in commands:
+            print(info(f"$ {' '.join(cmd)}"))
+            run = subprocess.run(
+                cmd, cwd=ROOT, check=False, text=True, capture_output=True
+            )
+            if run.returncode != 0:
+                print(fail("pyenv komutu basarisiz"))
+                print(info((run.stderr or run.stdout or "").strip()[:300]))
+                _issue(
+                    "python_bootstrap",
+                    f"pyenv bootstrap basarisiz ({' '.join(cmd)})",
+                    f"pyenv install -s {bootstrap_python} && pyenv local {bootstrap_python}",
+                )
+                return
+
+        pyenv_python = subprocess.run(
+            [pyenv_cmd, "which", "python"],
+            cwd=ROOT,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        if pyenv_python.returncode != 0:
+            print(fail("pyenv which python basarisiz"))
+            _issue(
+                "python_bootstrap",
+                "pyenv python executable bulunamadi",
+                "pyenv which python",
+            )
+            return
+
+        python_bin = pyenv_python.stdout.strip()
+        commands = [
+            [python_bin, "-m", "venv", str(ROOT / ".venv")],
+            [str(_venv_python_bin()), "-m", "pip", "install", "--upgrade", "pip"],
+            [
+                str(_venv_python_bin()),
+                "-m",
+                "pip",
+                "install",
+                "-r",
+                "requirements-prod.txt",
+            ],
+            [str(_venv_python_bin()), "-m", "pip", "install", "-e", "."],
+        ]
+        if (ROOT / "requirements-dev.txt").exists():
+            commands.append(
+                [
+                    str(_venv_python_bin()),
+                    "-m",
+                    "pip",
+                    "install",
+                    "-r",
+                    "requirements-dev.txt",
+                ]
+            )
+        for cmd in commands:
+            print(info(f"$ {' '.join(cmd)}"))
+            run = subprocess.run(
+                cmd, cwd=ROOT, check=False, text=True, capture_output=True
+            )
+            if run.returncode != 0:
+                print(fail("pyenv bootstrap pip adimi basarisiz"))
+                print(info((run.stderr or run.stdout or "").strip()[:300]))
+                _issue(
+                    "python_bootstrap",
+                    f"pyenv venv/pip adimi basarisiz ({' '.join(cmd)})",
+                    f"Python {req_minor} icin .venv kurulumunu tekrar calistirin",
+                )
+                return
+        print(ok(f"pyenv ile .venv hazirlandi (Python {bootstrap_python})"))
+        return
+
+    print(fail("Bootstrap icin uv veya pyenv bulunamadi"))
+    _issue(
+        "python_bootstrap_manager",
+        "uv veya pyenv kurulu degil",
+        "uv kurun: https://docs.astral.sh/uv/ veya pyenv kurun: https://github.com/pyenv/pyenv",
+    )
+
+
 # ─── Yardımcılar ─────────────────────────────────────────────────────────────
 def _run(cmd: list[str], timeout: int = 6) -> tuple[bool, str]:
     """Komutu çalıştır; (başarı, çıktı) döndür."""
@@ -153,19 +342,40 @@ TOTAL_CHECKS = 10
 
 
 def check_python() -> None:
-    """1 — Python >= 3.12"""
-    print(hdr("Python Sürümü", 1, TOTAL_CHECKS))
+    """1 - Python minor parity + runtime manager availability."""
+    print(hdr("Python Surumu", 1, TOTAL_CHECKS))
+    required_series, bootstrap_python = _runtime_policy()
     major, minor = sys.version_info[:2]
     ver = f"{major}.{minor}.{sys.version_info[2]}"
-    if (major, minor) >= (3, 12):
-        print(ok(f"Python {ver}  (>= 3.12)"))
+    required_minor = f"{required_series[0]}.{required_series[1]}"
+
+    if (major, minor) == required_series:
+        print(ok(f"Python {ver}  (minor parity: {required_minor})"))
     else:
-        print(fail(f"Python {ver} — en az 3.12 gerekli"))
-        print(info("https://www.python.org/downloads/"))
+        print(fail(f"Python {ver} - proje minor surumu {required_minor} olmali"))
+        print(
+            info(
+                f"Bootstrap: python scripts/check_setup.py --bootstrap  (target: {bootstrap_python})"
+            )
+        )
         _issue(
             "python_version",
-            f"Python {ver} — 3.12+ gerekli",
-            "https://www.python.org/downloads/",
+            f"Python {ver} - minor parity {required_minor} gerekli",
+            "python scripts/check_setup.py --bootstrap",
+        )
+
+    has_uv = shutil.which("uv") is not None
+    has_pyenv = shutil.which("pyenv") is not None
+    if has_uv:
+        print(ok("Runtime manager: uv"))
+    elif has_pyenv:
+        print(ok("Runtime manager: pyenv"))
+    else:
+        print(fail("Runtime manager bulunamadi (uv veya pyenv gerekli)"))
+        _issue(
+            "python_runtime_manager",
+            "uv veya pyenv gerekli",
+            "uv: https://docs.astral.sh/uv/  |  pyenv: https://github.com/pyenv/pyenv",
         )
 
 
@@ -745,11 +955,22 @@ def main() -> None:
         print(f"  Sistem     : {sys.platform}  |  Python {sys.version.split()[0]}")
         if FIX:
             print(_c(_YELLOW, "  Mod        : --fix (otomatik duzeltme acik)"))
+        if BOOTSTRAP:
+            print(
+                _c(
+                    _YELLOW,
+                    "  Mod        : --bootstrap (uv/pyenv ile .venv kurulum)",
+                )
+            )
 
     # .env'i mumkun olan en erken yukle
     env_path = ROOT / ".env"
     if env_path.exists():
         _load_dotenv(env_path)
+
+    if BOOTSTRAP:
+        required_series, bootstrap_python = _runtime_policy()
+        _bootstrap_env(required_series, bootstrap_python)
 
     check_python()
     check_python_packages()

@@ -88,6 +88,24 @@ def test_create_guest_validates_required_fields(client):
     assert r.status_code == 422
 
 
+def test_create_guest_invalid_email_returns_422(client):
+    bad = _minimal_guest(email="not-an-email")
+    r = client.post("/guests", json=bad, headers=_HEADERS)
+    assert r.status_code == 422
+
+
+def test_create_guest_invalid_bounds_returns_422(client):
+    bad = _minimal_guest(lead_time=-1, adults=0)
+    r = client.post("/guests", json=bad, headers=_HEADERS)
+    assert r.status_code == 422
+
+
+def test_create_guest_invalid_enum_returns_422(client):
+    bad = _minimal_guest(deposit_type="Unknown")
+    r = client.post("/guests", json=bad, headers=_HEADERS)
+    assert r.status_code == 422
+
+
 def test_create_guest_minimal_fields_only(client):
     """Only first_name and last_name required; everything else has defaults."""
     payload = {"first_name": "Elif", "last_name": "Kaya"}
@@ -116,8 +134,18 @@ def test_list_guests_returns_list(client):
 
 
 def test_list_guests_search_filter(client):
-    client.post("/guests", json=_minimal_guest(first_name="Mehmet", last_name="Demir", email="mehmet@x.com"), headers=_HEADERS)
-    client.post("/guests", json=_minimal_guest(first_name="Zeynep", last_name="Çelik"), headers=_HEADERS)
+    client.post(
+        "/guests",
+        json=_minimal_guest(
+            first_name="Mehmet", last_name="Demir", email="mehmet@x.com"
+        ),
+        headers=_HEADERS,
+    )
+    client.post(
+        "/guests",
+        json=_minimal_guest(first_name="Zeynep", last_name="Çelik"),
+        headers=_HEADERS,
+    )
 
     r = client.get("/guests?search=Mehmet", headers=_HEADERS)
     assert r.status_code == 200
@@ -129,7 +157,11 @@ def test_list_guests_search_filter(client):
 def test_list_guests_pagination(client):
     # Create 5 guests
     for i in range(5):
-        client.post("/guests", json=_minimal_guest(first_name=f"G{i}", last_name="Test"), headers=_HEADERS)
+        client.post(
+            "/guests",
+            json=_minimal_guest(first_name=f"G{i}", last_name="Test"),
+            headers=_HEADERS,
+        )
 
     r = client.get("/guests?limit=2&offset=0", headers=_HEADERS)
     assert r.status_code == 200
@@ -187,10 +219,11 @@ def test_update_guest_personal_info(client):
 
 
 def test_update_guest_booking_fields_recalculates_risk(client):
-    r_create = client.post("/guests", json=_minimal_guest(lead_time=1), headers=_HEADERS)
+    r_create = client.post(
+        "/guests", json=_minimal_guest(lead_time=1), headers=_HEADERS
+    )
     assert r_create.status_code == 201
     guest_id = r_create.json()["id"]
-    first_risk = r_create.json()["risk_score"]
 
     # Change a booking field — risk should be recomputed (might differ or stay same)
     r = client.patch(
@@ -210,6 +243,15 @@ def test_update_guest_booking_fields_recalculates_risk(client):
 def test_update_guest_not_found(client):
     r = client.patch("/guests/9999999", json={"email": "x@y.com"}, headers=_HEADERS)
     assert r.status_code == 404
+
+
+def test_update_guest_empty_payload_returns_400(client):
+    r_create = client.post("/guests", json=_minimal_guest(), headers=_HEADERS)
+    assert r_create.status_code == 201
+    guest_id = r_create.json()["id"]
+
+    r = client.patch(f"/guests/{guest_id}", json={}, headers=_HEADERS)
+    assert r.status_code == 400
 
 
 def test_update_guest_requires_api_key(client):
@@ -241,6 +283,18 @@ def test_delete_guest_not_found(client):
 def test_delete_guest_requires_api_key(client):
     r = client.delete("/guests/1")
     assert r.status_code == 401
+
+
+def test_guests_store_unavailable_returns_503(client, monkeypatch):
+    import src.guest_store as guest_store
+    from src.guest_store import GuestStoreUnavailableError
+
+    def _raise_store_error():
+        raise GuestStoreUnavailableError("db down")
+
+    monkeypatch.setattr(guest_store, "get_guest_store", _raise_store_error)
+    r = client.get("/guests", headers=_HEADERS)
+    assert r.status_code == 503
 
 
 # ─── Idempotency & edge cases ─────────────────────────────────────────────────

@@ -10,6 +10,13 @@ from sklearn.metrics import roc_auc_score, brier_score_loss
 from .features import FeatureSpec
 
 
+# ── PSI helpers — thin wrappers around canonical implementation in
+#    data_validation._psi_score.  These functions preserve the existing
+#    public interface (monitoring.psi_numeric / monitoring.psi_categorical)
+#    while eliminating the duplicate algorithm.  See data_validation._psi_score
+#    for the core binning + log-ratio calculation.
+
+
 def _safe_hist(values: np.ndarray, bins: np.ndarray) -> np.ndarray:
     hist, _ = np.histogram(values, bins=bins)
     hist = hist.astype(float)
@@ -23,21 +30,21 @@ def _safe_hist(values: np.ndarray, bins: np.ndarray) -> np.ndarray:
 
 
 def psi_numeric(ref: pd.Series, cur: pd.Series, bins: int = 10) -> float:
+    """PSI for a numeric feature.
+
+    Uses the canonical ``data_validation._psi_score`` when both Series
+    contain valid numeric data, falling back to the local edge-case
+    handling only when needed (empty series, degenerate edges).
+    """
     ref_v = pd.to_numeric(ref, errors="coerce").dropna().to_numpy()
     cur_v = pd.to_numeric(cur, errors="coerce").dropna().to_numpy()
     if ref_v.size == 0 or cur_v.size == 0:
         return 0.0
 
-    q = np.linspace(0, 1, bins + 1)
-    edges = np.unique(np.quantile(ref_v, q))
-    if edges.shape[0] <= 2:
-        lo = min(float(np.min(ref_v)), float(np.min(cur_v)))
-        hi = max(float(np.max(ref_v)), float(np.max(cur_v)))
-        edges = np.linspace(lo, hi if hi > lo else lo + 1e-6, bins + 1)
+    # Delegate to the single canonical PSI implementation
+    from .validation import _psi_score  # centralised algorithm
 
-    p_ref = _safe_hist(ref_v, edges)
-    p_cur = _safe_hist(cur_v, edges)
-    return float(np.sum((p_cur - p_ref) * np.log(p_cur / p_ref)))
+    return _psi_score(ref_v, cur_v, n_bins=bins)
 
 
 def psi_categorical(ref: pd.Series, cur: pd.Series) -> float:

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PropTypes from 'prop-types';
 
 /**
  * LoginPage — Giriş ekranı bileşeni
@@ -54,3 +55,15 @@ export default function LoginPage({ auth, theme }) {
     </div>
   );
 }
+
+LoginPage.propTypes = {
+  auth: PropTypes.shape({
+    handleLogin: PropTypes.func.isRequired,
+    loginError: PropTypes.string,
+  }).isRequired,
+  theme: PropTypes.shape({
+    toggleTheme: PropTypes.func.isRequired,
+    themeLabel: PropTypes.string.isRequired,
+    themeIcon: PropTypes.string.isRequired,
+  }).isRequired,
+};

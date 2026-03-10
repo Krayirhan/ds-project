@@ -58,9 +58,19 @@ class FakeRedis:
             self.zsets.setdefault(key, {}).pop(member, None)
 
 
+def _req(ip: str = "127.0.0.1", headers: dict[str, str] | None = None):
+    return SimpleNamespace(client=SimpleNamespace(host=ip), headers=headers or {})
+
+
 @pytest.fixture(autouse=True)
 def reset_auth_state(monkeypatch: pytest.MonkeyPatch) -> None:
     auth._token_store.clear()
+    auth._login_failures_by_user.clear()
+    auth._login_failures_by_ip.clear()
+    auth._login_backoff_until_user.clear()
+    auth._login_backoff_until_ip.clear()
+    auth._login_lockout_until_user.clear()
+    auth._login_lockout_until_ip.clear()
     monkeypatch.setattr(auth, "_redis_client", None)
     for key in [
         "DASHBOARD_AUTH_ENABLED",
@@ -70,8 +80,15 @@ def reset_auth_state(monkeypatch: pytest.MonkeyPatch) -> None:
         "DASHBOARD_ADMIN_PASSWORD",
         "DASHBOARD_EXTRA_USERS",
         "DASHBOARD_TOKEN_TTL_MINUTES",
+        "DASHBOARD_LOGIN_WINDOW_SECONDS",
+        "DASHBOARD_LOGIN_BACKOFF_START_AFTER",
+        "DASHBOARD_LOGIN_BASE_BACKOFF_SECONDS",
+        "DASHBOARD_LOGIN_MAX_BACKOFF_SECONDS",
+        "DASHBOARD_LOGIN_LOCKOUT_AFTER",
+        "DASHBOARD_LOGIN_LOCKOUT_SECONDS",
         "DS_ENV",
         "REDIS_URL",
+        "DS_ADMIN_KEY",
     ]:
         monkeypatch.delenv(key, raising=False)
 
@@ -247,7 +264,7 @@ def test_redis_enforce_user_limit_evicts_oldest() -> None:
 def test_dashboard_login_auth_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DASHBOARD_AUTH_ENABLED", "false")
     payload = auth.LoginRequest(username="any", password="any")
-    resp = auth.dashboard_login(payload)
+    resp = auth.dashboard_login(payload, _req())
     assert resp.access_token == "auth-disabled"
     assert resp.username == "anonymous"
 
@@ -256,7 +273,10 @@ def test_dashboard_login_invalid_credentials(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", "StrongPass!123")
     with patch.object(auth, "_verify_credentials", return_value=False):
         with pytest.raises(HTTPException) as ex:
-            auth.dashboard_login(auth.LoginRequest(username="admin", password="bad"))
+            auth.dashboard_login(
+                auth.LoginRequest(username="admin", password="bad"),
+                _req(),
+            )
     assert ex.value.status_code == 401
 
 
@@ -276,7 +296,10 @@ def test_dashboard_login_in_memory_evicts_oldest(
         patch.object(auth, "_get_redis_client", return_value=None),
         patch.object(auth.secrets, "token_urlsafe", return_value="new-token"),
     ):
-        resp = auth.dashboard_login(auth.LoginRequest(username="admin", password="ok"))
+        resp = auth.dashboard_login(
+            auth.LoginRequest(username="admin", password="ok"),
+            _req(),
+        )
     assert resp.access_token == "new-token"
     user_tokens = [
         k for k, v in auth._token_store.items() if v.get("username") == "admin"
@@ -305,7 +328,10 @@ def test_dashboard_login_in_memory_capacity_full(
         patch.object(auth, "_get_redis_client", return_value=None),
     ):
         with pytest.raises(HTTPException) as ex:
-            auth.dashboard_login(auth.LoginRequest(username="admin", password="ok"))
+            auth.dashboard_login(
+                auth.LoginRequest(username="admin", password="ok"),
+                _req(),
+            )
     assert ex.value.status_code == 503
 
 
@@ -319,7 +345,10 @@ def test_dashboard_login_redis_path(monkeypatch: pytest.MonkeyPatch) -> None:
         patch.object(auth, "_redis_add_token") as mock_add,
         patch.object(auth.secrets, "token_urlsafe", return_value="redis-token"),
     ):
-        resp = auth.dashboard_login(auth.LoginRequest(username="admin", password="ok"))
+        resp = auth.dashboard_login(
+            auth.LoginRequest(username="admin", password="ok"),
+            _req(headers={"x-device-id": "dev-1"}),
+        )
     assert resp.access_token == "redis-token"
     mock_limit.assert_called_once()
     mock_add.assert_called_once()
@@ -376,6 +405,165 @@ def test_dashboard_logout_and_me(monkeypatch: pytest.MonkeyPatch) -> None:
 
     me = auth.dashboard_me({"username": "admin", "auth_enabled": True})
     assert me["username"] == "admin"
+
+
+def test_login_guard_progressive_backoff_and_lockout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DASHBOARD_LOGIN_BACKOFF_START_AFTER", "2")
+    monkeypatch.setenv("DASHBOARD_LOGIN_LOCKOUT_AFTER", "4")
+    monkeypatch.setenv("DASHBOARD_LOGIN_LOCKOUT_SECONDS", "60")
+
+    allowed, _, _ = auth.check_login_attempt_allowed(
+        username="admin",
+        client_ip="10.0.0.9",
+    )
+    assert allowed is True
+
+    auth.record_login_attempt(
+        username="admin",
+        client_ip="10.0.0.9",
+        success=False,
+    )
+    allowed_after_first, _, _ = auth.check_login_attempt_allowed(
+        username="admin",
+        client_ip="10.0.0.9",
+    )
+    assert allowed_after_first is True
+
+    auth.record_login_attempt(
+        username="admin",
+        client_ip="10.0.0.9",
+        success=False,
+    )
+    blocked, retry_after, reason = auth.check_login_attempt_allowed(
+        username="admin",
+        client_ip="10.0.0.9",
+    )
+    assert blocked is False
+    assert retry_after >= 1
+    assert reason == "backoff"
+
+    auth._login_backoff_until_user["admin"] = 0.0
+    auth._login_backoff_until_ip["10.0.0.9"] = 0.0
+
+    auth.record_login_attempt(
+        username="admin",
+        client_ip="10.0.0.9",
+        success=False,
+    )
+    auth.record_login_attempt(
+        username="admin",
+        client_ip="10.0.0.9",
+        success=False,
+    )
+    locked, lock_retry, lock_reason = auth.check_login_attempt_allowed(
+        username="admin",
+        client_ip="10.0.0.9",
+    )
+    assert locked is False
+    assert lock_retry >= 1
+    assert lock_reason == "lockout"
+
+
+def test_dashboard_login_blocked_by_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DASHBOARD_ADMIN_PASSWORD_ADMIN", "StrongPass!123")
+    payload = auth.LoginRequest(username="admin", password="StrongPass!123")
+    with patch.object(
+        auth,
+        "check_login_attempt_allowed",
+        return_value=(False, 15, "lockout"),
+    ):
+        with pytest.raises(HTTPException) as ex:
+            auth.dashboard_login(payload, _req())
+    assert ex.value.status_code == 429
+
+
+def test_dashboard_refresh_rotates_in_memory_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(timezone.utc)
+    auth._token_store["old-token"] = {
+        "username": "admin",
+        "expires_at": now + timedelta(minutes=10),
+        "issued_at": now,
+        "device_id": "dev-1",
+        "session_id": "sess-old",
+    }
+    with patch.object(
+        auth.secrets,
+        "token_urlsafe",
+        side_effect=["new-token", "sess-new"],
+    ):
+        resp = auth.dashboard_refresh(
+            _req(headers={"x-device-id": "dev-1"}),
+            "Bearer old-token",
+            {"username": "admin", "token": "old-token", "device_id": "dev-1"},
+        )
+    assert resp.access_token == "new-token"
+    assert "old-token" not in auth._token_store
+    assert auth._token_store["new-token"]["rotated_from"] == "old-token"
+    assert auth._token_store["new-token"]["device_id"] == "dev-1"
+
+
+def test_dashboard_revoke_device_and_force_logout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(timezone.utc) + timedelta(minutes=10)
+    auth._token_store["tok-a"] = {
+        "username": "admin",
+        "expires_at": now,
+        "device_id": "dev-a",
+    }
+    auth._token_store["tok-b"] = {
+        "username": "admin",
+        "expires_at": now,
+        "device_id": "dev-a",
+    }
+    auth._token_store["tok-c"] = {
+        "username": "admin",
+        "expires_at": now,
+        "device_id": "dev-b",
+    }
+
+    out = auth.dashboard_revoke_device(
+        auth.RevokeDeviceRequest(device_id="dev-a"),
+        {"username": "admin"},
+    )
+    assert out["revoked"] == 2
+    assert "tok-c" in auth._token_store
+
+    monkeypatch.setenv("DS_ADMIN_KEY", "admin-secret")
+    out2 = auth.dashboard_force_logout(
+        auth.ForceLogoutRequest(username="admin", device_id=None),
+        "admin-secret",
+    )
+    assert out2["revoked"] == 1
+    assert not auth._token_store
+
+    with pytest.raises(HTTPException) as ex:
+        auth.dashboard_force_logout(
+            auth.ForceLogoutRequest(username="admin", device_id=None),
+            "wrong",
+        )
+    assert ex.value.status_code == 403
+
+
+def test_dashboard_logout_all_revokes_current_and_other_tokens() -> None:
+    now = datetime.now(timezone.utc) + timedelta(minutes=10)
+    auth._token_store["tok-current"] = {
+        "username": "admin",
+        "expires_at": now,
+        "device_id": "dev-a",
+    }
+    auth._token_store["tok-other"] = {
+        "username": "admin",
+        "expires_at": now,
+        "device_id": "dev-b",
+    }
+    out = auth.dashboard_logout_all({"username": "admin", "token": "tok-current"})
+    assert out["revoked"] == 2
+    assert not auth._token_store
 
 
 def test_get_redis_client_short_circuits_when_cached(

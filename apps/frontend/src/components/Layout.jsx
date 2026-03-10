@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Outlet, useOutletContext } from 'react-router-dom';
+import PropTypes from 'prop-types';
 import { useRuns } from '../hooks/useRuns';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
@@ -40,6 +41,19 @@ export default function Layout({ auth, theme }) {
     </div>
   );
 }
+
+Layout.propTypes = {
+  auth: PropTypes.shape({
+    handleAuthFailure: PropTypes.func.isRequired,
+    handleLogout: PropTypes.func.isRequired,
+    currentUser: PropTypes.string,
+  }).isRequired,
+  theme: PropTypes.shape({
+    toggleTheme: PropTypes.func.isRequired,
+    themeLabel: PropTypes.string.isRequired,
+    themeIcon: PropTypes.string.isRequired,
+  }).isRequired,
+};
 
 /**
  * useLayoutContext — Alt sayfa bileşenlerinin Layout context'ine erişim hook'u

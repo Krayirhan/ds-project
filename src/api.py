@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import hmac
 import os
 import time
@@ -22,12 +21,14 @@ from .api_shared import (
     exec_predict_proba,
     exec_decide,
     load_serving_state,
+    require_admin_key,
+    reload_serving_state_for_app,
     error_response,
 )
 from .api_lifespan import lifespan, _build_runtime_rate_limiter
 from .config import ExperimentConfig
 from .dashboard import router_dashboard
-from .dashboard_auth import router_dashboard_auth
+from .dashboard_auth import router_dashboard_auth, check_login_attempt_allowed
 from .guests import router_guests
 from .chat import router_chat
 from .metrics import (
@@ -50,12 +51,34 @@ def _expected_api_key() -> str | None:
     return os.getenv(cfg.api_key_env_var)
 
 
-def _expected_admin_key() -> str | None:
-    """DS_ADMIN_KEY tanımlıysa /reload endpoint'i için ayrı koruma sağlar."""
-    return os.getenv("DS_ADMIN_KEY")
+def _split_csv_env(raw: str | None) -> tuple[str, ...]:
+    if not raw:
+        return ()
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
+def _public_exact_paths() -> set[str]:
+    cfg = ExperimentConfig().api
+    base = set(cfg.public_paths_exact)
+    base.update(_split_csv_env(os.getenv("API_PUBLIC_PATHS_EXACT")))
+    return base
+
+
+def _public_prefix_paths() -> tuple[str, ...]:
+    cfg = ExperimentConfig().api
+    base = list(cfg.public_paths_prefixes)
+    base.extend(_split_csv_env(os.getenv("API_PUBLIC_PATHS_PREFIXES")))
+    return tuple(dict.fromkeys(base))
+
+
+def _is_public_path(path: str) -> bool:
+    if path in _public_exact_paths():
+        return True
+    return any(path.startswith(prefix) for prefix in _public_prefix_paths())
 
 
 def _load_serving_state() -> ServingState:
+    """Wrapper for testability (monkeypatching)."""
     return load_serving_state()
 
 
@@ -81,8 +104,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_allow_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "x-api-key",
+        "x-admin-key",
+        "x-request-id",
+    ],
 )
 
 # ── Register versioned routers ────────────────────────────────────────
@@ -137,18 +166,8 @@ async def request_context_middleware(request: Request, call_next):
     if request.method.upper() == "OPTIONS":
         return await call_next(request)
 
-    is_public_dashboard_page = request_path == "/dashboard"
-    is_public_dashboard_api = request_path.startswith("/dashboard/api/")
-    is_public_dashboard_auth = request_path.startswith("/auth/")
-    is_public_operational = request_path in {"/health", "/ready", "/metrics"}
-
     # Security gate
-    if _api_key_required() and not (
-        is_public_dashboard_page
-        or is_public_dashboard_api
-        or is_public_dashboard_auth
-        or is_public_operational
-    ):
+    if _api_key_required() and not _is_public_path(request_path):
         expected = _expected_api_key()
         if not expected:
             return _error_response(
@@ -177,11 +196,25 @@ async def request_context_middleware(request: Request, call_next):
     # ── Brute-force koruması: /auth/login için sıkı limit (10 istek/dk/IP) ──
     if request_path == "/auth/login" and request.method.upper() == "POST":
         login_ip = request.client.host if request.client else "unknown"
+        allowed, retry_after, reason = check_login_attempt_allowed(
+            username=None,
+            client_ip=login_ip,
+        )
+        if not allowed:
+            return _error_response(
+                status_code=429,
+                error_code="login_backoff",
+                message=(
+                    f"Giris denemesi gecici olarak bloklandi ({reason}). "
+                    f"{retry_after} saniye sonra tekrar deneyin."
+                ),
+                request_id=rid,
+            )
         if not limiter.allow(f"login:{login_ip}", 10):
             return _error_response(
                 status_code=429,
                 error_code="login_rate_limit",
-                message="Çok fazla giriş denemesi. Lütfen bir dakika bekleyin.",
+                message="Cok fazla giris denemesi. Lutfen bir dakika bekleyin.",
                 request_id=rid,
             )
 
@@ -237,8 +270,14 @@ async def request_context_middleware(request: Request, call_next):
 
     latency_ms = round((time.time() - started) * 1000.0, 2)
     logger.info(
-        f"request path={request_path} status={response.status_code} latency_ms={latency_ms}",
-        extra={"request_id": rid},
+        "request completed",
+        extra={
+            "request_id": rid,
+            "path": request_path,
+            "method": request.method,
+            "status": response.status_code,
+            "latency_ms": latency_ms,
+        },
     )
     REQUEST_COUNT.labels(
         path=request_path, method=request.method, status=str(response.status_code)
@@ -364,29 +403,20 @@ def decide(payload: RecordsPayload) -> DecideResponse:
     responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def reload_serving_state(request: Request) -> ReloadResponse:
-    # Admin key koruması: DS_ADMIN_KEY tanımlıysa sadece x-admin-key header'ı ile çağrılabilir
-    expected_admin = _expected_admin_key()
-    if expected_admin:
-        got_admin = request.headers.get("x-admin-key") or ""
-        if not hmac.compare_digest(got_admin, expected_admin):
-            raise HTTPException(
-                status_code=403,
-                detail="Bu endpoint için x-admin-key header'ı gereklidir.",
-            )
-    # Thread-safe reload: aynı anda birden fazla reload isteği yarış koşuluna girmesin
-    lock: asyncio.Lock = getattr(app.state, "_reload_lock", None) or asyncio.Lock()
-    async with lock:
-        try:
-            serving = _load_serving_state()
-            app.state.serving = serving
-            return {
-                "status": "ok",
-                "message": "Serving state reloaded",
-                "model": serving.policy.selected_model,
-                "policy_path": str(serving.policy_path),
-            }
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Reload failed: {e}")
+    require_admin_key(
+        request,
+        detail="Bu endpoint icin x-admin-key header'i gereklidir.",
+    )
+    try:
+        serving = await reload_serving_state_for_app(app, loader=_load_serving_state)
+        return {
+            "status": "ok",
+            "message": "Serving state reloaded",
+            "model": serving.policy.selected_model,
+            "policy_path": str(serving.policy_path),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Reload failed: {e}")
 
 
 @app.exception_handler(HTTPException)

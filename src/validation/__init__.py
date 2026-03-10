@@ -1,91 +1,57 @@
-"""validation/__init__.py — Logical split of data_validation.py.
+"""Official validation import surface.
 
-This package provides thematic entry points into the validation framework.
-All implementations remain in ``src/data_validation.py``; this package is
-the stable public API surface.
-
-Thematic sub-modules
---------------------
-- ``src.validation.raw_schema``  — Pandera schema builders + high-level validate_*()
-- ``src.validation.drift``       — Distribution, label, correlation, skew, PSI / JS
-- ``src.validation.anomaly``     — Row anomalies, duplicates, cardinality, volume, staleness
-
-Full re-export (backward compatibility)
----------------------------------------
-Everything exported here is identical to importing directly from
-``src.data_validation``.  Old call sites continue to work unchanged.
-
-Example
--------
-    # New, preferred import style
-    from src.validation.raw_schema import validate_raw_data
-    from src.validation.drift import compute_psi
-
-    # Old style — still works
-    from src.data_validation import validate_raw_data, compute_psi
+Use this module for all new validation imports. It composes the physical
+schema/drift/anomaly modules.
 """
 
-from ..data_validation import (  # noqa: F401
-    # ── Schema builders ──
-    build_raw_schema,
-    build_processed_schema,
-    build_inference_schema,
-    # ── High-level validators ──
-    validate_raw_data,
-    validate_processed_data,
-    validate_inference_payload,
-    # ── Distribution ──
-    DistributionReport,
-    validate_distributions,
-    generate_reference_stats,
-    # ── Row-level anomaly ──
-    AnomalyReport,
-    detect_row_anomalies,
-    # ── Duplicates ──
-    DuplicateReport,
-    detect_duplicates,
-    # ── Post-imputation ──
-    assert_no_nans_after_imputation,
-    # ── Label drift ──
-    LabelDriftReport,
-    detect_label_drift,
-    # ── Cardinality ──
-    CardinalityReport,
-    detect_unseen_categories,
-    # ── Model output ──
-    OutputValidationReport,
-    validate_model_output,
-    # ── Volume + Staleness ──
-    VolumeReport,
-    validate_data_volume,
-    StalenessReport,
-    check_data_staleness,
-    # ── Schema fingerprint ──
-    get_schema_fingerprint,
-    # ── Correlation drift ──
-    CorrelationDriftReport,
-    detect_correlation_drift,
-    generate_reference_correlations,
-    # ── Reference categories ──
-    generate_reference_categories,
-    # ── Training-serving skew ──
-    SkewReport,
-    detect_training_serving_skew,
-    # ── Row count ──
-    validate_row_counts,
-    # ── Feature importance drift ──
-    ImportanceDriftReport,
-    detect_feature_importance_drift,
-    # ── PSI / JS ──
-    PSIReport,
-    compute_psi,
-    # ── Validation profile ──
-    ValidationProfileReport,
-    run_validation_profile,
-    # ── Basic schema checks (merged from validate.py) ──
+from .schema import (
     basic_schema_checks,
-    validate_target_labels,
+    build_inference_schema,
+    build_processed_schema,
+    build_raw_schema,
+    generate_reference_stats,
+    get_schema_fingerprint,
     null_ratio_report,
+    validate_inference_payload,
+    validate_processed_data,
+    validate_raw_data,
+    validate_target_labels,
+)
+from .drift import (
+    CorrelationDriftReport,
+    DistributionReport,
+    ImportanceDriftReport,
+    LabelDriftReport,
+    PSIReport,
+    SkewReport,
+    ValidationProfileReport,
+    _js_divergence,
+    _psi_score,
+    compute_psi,
+    detect_correlation_drift,
+    detect_feature_importance_drift,
+    detect_label_drift,
+    detect_training_serving_skew,
+    generate_reference_categories,
+    generate_reference_correlations,
+    run_validation_profile,
+    validate_distributions,
+)
+from .anomaly import (
+    AnomalyReport,
+    CardinalityReport,
+    DuplicateReport,
+    OutputValidationReport,
+    StalenessReport,
+    VolumeReport,
+    assert_no_nans_after_imputation,
+    check_data_staleness,
+    detect_duplicates,
+    detect_row_anomalies,
+    detect_unseen_categories,
+    validate_data_volume,
+    validate_model_output,
+    validate_row_counts,
 )
 
 __all__ = [
@@ -95,16 +61,34 @@ __all__ = [
     "validate_raw_data",
     "validate_processed_data",
     "validate_inference_payload",
+    "generate_reference_stats",
+    "get_schema_fingerprint",
+    "basic_schema_checks",
+    "validate_target_labels",
+    "null_ratio_report",
     "DistributionReport",
     "validate_distributions",
-    "generate_reference_stats",
+    "LabelDriftReport",
+    "detect_label_drift",
+    "CorrelationDriftReport",
+    "detect_correlation_drift",
+    "generate_reference_correlations",
+    "SkewReport",
+    "detect_training_serving_skew",
+    "ImportanceDriftReport",
+    "detect_feature_importance_drift",
+    "generate_reference_categories",
+    "PSIReport",
+    "_psi_score",
+    "_js_divergence",
+    "compute_psi",
+    "ValidationProfileReport",
+    "run_validation_profile",
     "AnomalyReport",
     "detect_row_anomalies",
     "DuplicateReport",
     "detect_duplicates",
     "assert_no_nans_after_imputation",
-    "LabelDriftReport",
-    "detect_label_drift",
     "CardinalityReport",
     "detect_unseen_categories",
     "OutputValidationReport",
@@ -113,21 +97,5 @@ __all__ = [
     "validate_data_volume",
     "StalenessReport",
     "check_data_staleness",
-    "get_schema_fingerprint",
-    "CorrelationDriftReport",
-    "detect_correlation_drift",
-    "generate_reference_correlations",
-    "generate_reference_categories",
-    "SkewReport",
-    "detect_training_serving_skew",
     "validate_row_counts",
-    "ImportanceDriftReport",
-    "detect_feature_importance_drift",
-    "PSIReport",
-    "compute_psi",
-    "ValidationProfileReport",
-    "run_validation_profile",
-    "basic_schema_checks",
-    "validate_target_labels",
-    "null_ratio_report",
 ]

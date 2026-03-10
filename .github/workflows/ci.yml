@@ -4,6 +4,8 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
+  schedule:
+    - cron: "30 2 * * *"
 
 jobs:
   frontend:
@@ -28,11 +30,38 @@ jobs:
         run: npm run build
         working-directory: apps/frontend
 
-  test:
+  alembic-drift-check:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ['3.12']
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-prod.txt
+          pip install -e .
+      - name: Alembic migration drift check (fail-fast)
+        run: |
+          export DATABASE_URL="sqlite:///${{ github.workspace }}/.ci_alembic_check.db"
+          rm -f "${{ github.workspace }}/.ci_alembic_check.db"
+          alembic upgrade head
+          alembic check
+
+  test:
+    needs: alembic-drift-check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12']
+    outputs:
+      dvc_data_available: ${{ steps.dvc_pull.outputs.data_available }}
     env:
       PYTHONPATH: ${{ github.workspace }}
     steps:
@@ -52,7 +81,6 @@ jobs:
             ruff==0.7.4 \
             mypy==1.13.0 \
             bandit==1.7.10 \
-            pre-commit==4.0.1 \
             pytest-cov==6.0.0 \
             dvc==3.58.0 \
             dvc-s3==3.2.0
@@ -65,161 +93,156 @@ jobs:
           AWS_S3_ENDPOINT_URL: ${{ secrets.DVC_S3_ENDPOINT_URL }}
         run: |
           # Configure prod remote endpoint from secret (falls back gracefully if
-          # the secret is not set — CI still runs against locally committed stubs)
+          # the secret is not set - CI still runs against locally committed stubs)
           if [ -n "$AWS_S3_ENDPOINT_URL" ]; then
             dvc remote modify prod endpointurl "$AWS_S3_ENDPOINT_URL" --local
           fi
           if dvc pull data/raw data/processed --allow-missing 2>&1; then
             echo "data_available=true" >> "$GITHUB_OUTPUT"
-            echo "✅ DVC pull succeeded"
+            echo "DVC pull succeeded"
           else
             echo "data_available=false" >> "$GITHUB_OUTPUT"
-            echo "⚠️  DVC remote not reachable — smoke test will be skipped"
+            echo "DVC remote not reachable - smoke test will be skipped"
           fi
 
-      - name: Quality gate (pre-commit)
+      - name: DVC data unavailable notice (non-blocking)
+        if: steps.dvc_pull.outputs.data_available != 'true'
         run: |
-          pre-commit run --all-files
+          echo "::warning::DVC data unavailable. Integration smoke is marked as neutral/skipped in this run."
+          {
+            echo "### DVC Smoke Status"
+            echo ""
+            echo "- status: skipped (neutral)"
+            echo "- reason: DVC data unavailable in CI context"
+            echo "- enforcement: nightly `dvc-e2e-nightly` run is mandatory and fails on missing data"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare quality report directory
+        run: mkdir -p reports
+
+      - name: Ruff lint (non-fix + SARIF)
+        run: |
+          ruff check . --output-format sarif > reports/ruff.sarif
+
+      - name: Ruff format check (non-fix)
+        run: |
+          ruff format --check .
 
       - name: Static type check (mypy)
         run: |
           mypy --ignore-missing-imports \
             src/api.py \
+            src/api_lifespan.py \
             src/api_v1.py \
             src/api_v2.py \
+            src/api_shared.py \
+            src/dashboard_store.py \
+            src/dashboard_auth.py \
+            src/rate_limit.py \
+            src/monitoring.py \
+            src/policy.py \
+            src/data_validation.py \
+            src/db_bootstrap.py \
+            src/metrics.py \
             src/cli/train.py \
             src/user_store.py \
-            scripts/evaluate_rollback.py
+            src/guest_store.py \
+            scripts/evaluate_rollback.py \
+            | tee reports/mypy.txt
 
-      - name: Coverage gate — all tests + module coverage >=80%
+      - name: API contract snapshot guard (v1/v2)
         run: |
-          python -m pytest -q \
-            --cov=src.cost_matrix \
-            --cov=src.evaluate \
-            --cov=src.monitoring \
-            --cov=src.rate_limit \
-            --cov=src.train \
-            --cov=src.experiment_tracking \
-            --cov=src.config \
-            --cov=src.utils \
-            --cov=src.cli.evaluate \
-            --cov=src.cli.train \
-            --cov=src.explain \
-            --cov=src.hpo \
-            --cov=src.api \
-            --cov=src.api_shared \
-            --cov=src.dashboard \
-            --cov=src.dashboard_auth \
-            --cov=src.data_validation \
-            --cov=src.api_v1 \
-            --cov=src.api_v2 \
-            --cov=src.tracing \
-            --cov=src.cli._helpers \
-            --cov=src.features \
-            --cov=src.cli.monitor \
-            --cov=src.cli.preprocess \
-            --cov=src.cli.serve \
-            --cov=src.calibration \
-            --cov=src.io \
-            --cov=src.preprocess \
-            --cov=src.predict \
-            --cov=src.split \
-            --cov=src.validate \
-            --cov=src.policy \
-            --cov=src.cli.hpo \
-            --cov=src.cli.explain \
-            --cov=src.cli.predict \
-            --cov=src.cli.policy \
-            --cov=src.cli.split \
-            --cov=src.guests \
-            --cov=src.guest_store \
+          python -m pytest -q -m contract tests
+
+      - name: Coverage gate - marker-based suite (coverage >=80%)
+        run: |
+          python -m pytest -q tests \
+            -m "not integration and not contract" \
+            --cov=src \
             --cov-report=term \
+            --cov-report=xml:reports/coverage.xml \
+            --cov-report=json:reports/coverage.json \
+            --junitxml=reports/junit.xml \
             --cov-fail-under=80 \
-            tests/test_cost_matrix.py \
-            tests/test_evaluate.py \
-            tests/test_monitoring.py \
-            tests/test_rate_limit.py \
-            tests/test_rate_limit_extended.py \
-            tests/test_train.py \
-            tests/test_train_extended.py \
-            tests/test_experiment_tracking.py \
-            tests/test_experiment_tracking_extended.py \
-            tests/test_config.py \
-            tests/test_utils.py \
-            tests/test_explain.py \
-            tests/test_hpo.py \
-            tests/test_features.py \
-            tests/test_dashboard.py \
-            tests/test_dashboard_extended.py \
-            tests/test_dashboard_auth_unit.py \
-            tests/test_data_validation.py \
-            tests/test_data_validation_extended.py \
-            tests/test_api.py \
-            tests/test_api_extended.py \
-            tests/test_api_versions.py \
-            tests/test_api_shared_unit.py \
-            tests/test_tracing.py \
-            tests/test_tracing_extended.py \
-            tests/test_chat_memory.py \
-            tests/test_chat_pipeline.py \
-            tests/test_chat_ollama_client.py \
-            tests/test_chat_orchestrator.py \
-            tests/test_chat_router.py \
-            tests/test_knowledge_store.py \
-            tests/test_evaluate_rollback_script.py \
-            tests/test_cli_helpers.py \
-            tests/test_cli_train.py \
-            tests/test_cli_train_extended2.py \
-            tests/test_cli_evaluate.py \
-            tests/test_cli_evaluate_extended.py \
-            tests/test_cli_monitor.py \
-            tests/test_cli_monitor_extended.py \
-            tests/test_cli_preprocess.py \
-            tests/test_cli_preprocess_extended.py \
-            tests/test_cli_serve.py \
-            tests/test_cli_predict.py \
-            tests/test_cli_hpo.py \
-            tests/test_cli_explain.py \
-            tests/test_cli_policy.py \
-            tests/test_policy.py \
-            tests/test_schema_validation.py \
-            tests/test_calibration.py \
-            tests/test_chat.py \
-            tests/test_io.py \
-            tests/test_policy_extended.py \
-            tests/test_predict_full.py \
-            tests/test_preprocess.py \
-            tests/test_split.py \
-            tests/test_validate.py \
-            tests/test_guests.py \
-            tests/test_knowledge_api.py
+            --durations=20
 
       - name: Bandit security scan
         run: |
-          bandit -r src/ -ll -x src/web
+          bandit -r src/ -ll -x src/web -f sarif -o reports/bandit.sarif
 
       - name: Dependency security audit
         run: |
-          pip-audit -r requirements-prod.txt
+          pip-audit -r requirements-prod.txt -f json -o reports/pip-audit.json
 
       - name: Integration smoke
+        if: steps.dvc_pull.outputs.data_available == 'true'
         run: |
-          python -m pytest -v tests/test_pipeline_smoke.py
-        # Veri yoksa test skipif ile atlanır (exit 0) — CI bloklanmaz.
-        # Veri varsa gerçek pipeline çalışır.
+          python -m pytest -q -m integration tests
+        # If data is unavailable, smoke is explicitly skipped via job summary warning.
 
-  docker-build:
+      - name: Upload quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports-py${{ matrix.python-version }}
+          if-no-files-found: warn
+          path: |
+            reports/coverage.xml
+            reports/coverage.json
+            reports/junit.xml
+            reports/ruff.sarif
+            reports/bandit.sarif
+            reports/pip-audit.json
+            reports/mypy.txt
+
+  dvc-smoke-status:
+    name: dvc-smoke-status
     runs-on: ubuntu-latest
-    needs: [test, frontend]
+    needs: test
+    if: always()
+    steps:
+      - name: Upstream test failed
+        if: needs.test.result != 'success'
+        run: |
+          echo "::error::Upstream test job failed; DVC smoke status cannot be evaluated."
+          exit 1
+
+      - name: Smoke executed
+        if: needs.test.outputs.dvc_data_available == 'true'
+        run: |
+          echo "DVC data available. Integration smoke executed in test job."
+          {
+            echo "### DVC Smoke Status"
+            echo ""
+            echo "- status: executed"
+            echo "- data availability: true"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Smoke skipped with warning (neutral)
+        if: needs.test.outputs.dvc_data_available != 'true'
+        run: |
+          echo "::warning::DVC data unavailable. Smoke intentionally skipped (neutral) on PR/push."
+          {
+            echo "### DVC Smoke Status"
+            echo ""
+            echo "- status: skipped (neutral)"
+            echo "- data availability: false"
+            echo "- action: nightly full DVC e2e run enforces hard failure on missing data"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  docker-validate:
+    runs-on: ubuntu-latest
+    needs: [test, frontend, dvc-smoke-status]
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      - name: Build image
+      - name: Validate Docker image build
         run: docker build -t ds-project:${{ github.sha }} .
 
   dvc-e2e:
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'schedule'
     env:
       PYTHONPATH: ${{ github.workspace }}
     steps:
@@ -246,10 +269,10 @@ jobs:
             echo "data_available=true" >> "$GITHUB_OUTPUT"
           else
             echo "data_available=false" >> "$GITHUB_OUTPUT"
-            echo "⚠️  DVC remote not reachable — e2e skipped"
+            echo "DVC remote not reachable - e2e skipped"
             exit 0
           fi
-      - name: Run DVC pipeline (preprocess → split → train → evaluate)
+      - name: Run DVC pipeline (preprocess -> split -> train -> evaluate)
         if: steps.dvc_pull.outputs.data_available == 'true'
         run: |
           dvc repro preprocess split train evaluate
@@ -260,9 +283,54 @@ jobs:
           from pathlib import Path
           for p in ['data/processed', 'data/interim', 'models']:
               assert Path(p).exists(), f'Missing pipeline output: {p}'
-          print('✅ All pipeline outputs present')
+          print('All pipeline outputs present')
           "
       - name: Run pipeline smoke test
         if: steps.dvc_pull.outputs.data_available == 'true'
+        run: |
+          python -m pytest -v tests/test_pipeline_smoke.py
+
+  dvc-e2e-nightly:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'schedule'
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-prod.txt -e .
+          pip install dvc==3.58.0 dvc-s3==3.2.0 pytest==8.3.3
+
+      - name: Pull DVC data (required on nightly)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DVC_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DVC_SECRET_ACCESS_KEY }}
+          AWS_S3_ENDPOINT_URL: ${{ secrets.DVC_S3_ENDPOINT_URL }}
+        run: |
+          if [ -n "$AWS_S3_ENDPOINT_URL" ]; then
+            dvc remote modify prod endpointurl "$AWS_S3_ENDPOINT_URL" --local
+          fi
+          dvc pull data/raw data/processed
+
+      - name: Run full DVC pipeline nightly
+        run: |
+          dvc repro preprocess split train evaluate
+
+      - name: Verify pipeline outputs exist
+        run: |
+          python -c "
+          from pathlib import Path
+          for p in ['data/processed', 'data/interim', 'models']:
+              assert Path(p).exists(), f'Missing pipeline output: {p}'
+          print('All pipeline outputs present')
+          "
+
+      - name: Nightly pipeline smoke test
         run: |
           python -m pytest -v tests/test_pipeline_smoke.py

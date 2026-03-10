@@ -1,5 +1,5 @@
 """
-api_v1.py — V1 API router.
+api_v1.py - V1 API router.
 
 Original API endpoints mounted under /v1 prefix.
 Maintains backward compatibility.
@@ -7,11 +7,8 @@ Maintains backward compatibility.
 
 from __future__ import annotations
 
-import asyncio
-import hmac
-import os
-
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.routing import APIRoute
 
 from .api_shared import (
     ServingState,
@@ -20,31 +17,61 @@ from .api_shared import (
     PredictProbaResponse,
     RecordsPayload,
     ReloadResponse,
-    exec_predict_proba,
     exec_decide,
-    load_serving_state,
+    exec_predict_proba,
     get_shared_app_ref,
-    get_serving_state_for_router as _shared_get_serving_state,
+    load_serving_state,
+    reload_serving_state_for_app,
+    require_admin_key,
 )
 from .metrics import INFERENCE_ERRORS
 
-router_v1 = APIRouter(prefix="/v1", tags=["v1"])
+V1_DEPRECATION_HEADER = "true"
+V1_SUNSET_HEADER = "Wed, 31 Dec 2026 23:59:59 GMT"
+V1_SUCCESSOR_LINK_HEADER = '</v2>; rel="successor-version"'
 
 
-# Backward-compat shim for tests/legacy code that monkeypatch module-level _app_ref.
+class V1DeprecationRoute(APIRoute):
+    """Inject RFC-aligned deprecation metadata on all v1 responses."""
+
+    def get_route_handler(self):
+        original_route_handler = super().get_route_handler()
+
+        async def route_handler(request: Request):
+            response = await original_route_handler(request)
+            response.headers["Deprecation"] = V1_DEPRECATION_HEADER
+            response.headers["Sunset"] = V1_SUNSET_HEADER
+            response.headers["Link"] = V1_SUCCESSOR_LINK_HEADER
+            return response
+
+        return route_handler
+
+
+router_v1 = APIRouter(prefix="/v1", tags=["v1"], route_class=V1DeprecationRoute)
+
+# Backward-compat shim for tests that monkeypatch module-level app refs.
 _app_ref = None
 
 
+def _load_serving_state() -> ServingState:
+    return load_serving_state()
+
+
+def _resolve_app_ref():
+    return _app_ref or get_shared_app_ref()
+
+
 def _get_serving_state() -> ServingState:
-    if _app_ref is None:
-        return _shared_get_serving_state()
+    """Retrieve current serving state, loading and caching when needed."""
+    app_ref = _resolve_app_ref()
+    if app_ref is not None:
+        serving = getattr(app_ref.state, "serving", None)
+        if serving is not None:
+            return serving
 
-    serving = getattr(_app_ref.state, "serving", None)
-    if serving is not None:
-        return serving
-
-    serving = load_serving_state()
-    _app_ref.state.serving = serving
+    serving = _load_serving_state()
+    if app_ref is not None:
+        app_ref.state.serving = serving
     return serving
 
 
@@ -60,7 +87,7 @@ def _get_serving_state() -> ServingState:
 def v1_predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
     serving = _get_serving_state()
     try:
-        proba, schema_report, model_name = exec_predict_proba(
+        proba, schema_report, _ = exec_predict_proba(
             payload, serving, "v1.predict_proba"
         )
         return PredictProbaResponse(
@@ -73,7 +100,7 @@ def v1_predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
             endpoint="v1.predict_proba", model=_model_name(serving)
         ).inc()
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:  # server-side failure → 500, not 400 (#19)
+    except Exception as e:
         INFERENCE_ERRORS.labels(
             endpoint="v1.predict_proba", model=_model_name(serving)
         ).inc()
@@ -92,7 +119,7 @@ def v1_predict_proba(payload: RecordsPayload) -> PredictProbaResponse:
 def v1_decide(payload: RecordsPayload) -> DecideResponse:
     serving = _get_serving_state()
     try:
-        actions_df, pred_report, model_name = exec_decide(payload, serving, "v1.decide")
+        actions_df, pred_report, _ = exec_decide(payload, serving, "v1.decide")
         return DecideResponse(
             n=int(len(actions_df)),
             results=actions_df.to_dict(orient="records"),
@@ -101,13 +128,13 @@ def v1_decide(payload: RecordsPayload) -> DecideResponse:
     except ValueError as e:
         INFERENCE_ERRORS.labels(endpoint="v1.decide", model=_model_name(serving)).inc()
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:  # server-side failure → 500 (#19)
+    except Exception as e:
         INFERENCE_ERRORS.labels(endpoint="v1.decide", model=_model_name(serving)).inc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 def _model_name(serving: ServingState | None) -> str:
-    """Extract model name from serving state safely."""
+    """Extract model artifact name from serving state safely."""
     return str(
         getattr(getattr(serving, "policy", None), "selected_model_artifact", "") or ""
     )
@@ -119,23 +146,21 @@ def _model_name(serving: ServingState | None) -> str:
     responses={403: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def v1_reload(request: Request) -> ReloadResponse:
-    expected_admin = os.getenv("DS_ADMIN_KEY")
-    if expected_admin and not hmac.compare_digest(
-        request.headers.get("x-admin-key") or "", expected_admin
-    ):
-        raise HTTPException(status_code=403, detail="x-admin-key header gereklidir.")
-    _app = _app_ref or get_shared_app_ref()
-    lock = getattr(_app.state if _app else None, "_reload_lock", None) or asyncio.Lock()
-    async with lock:
-        try:
-            serving = load_serving_state()
-            if _app is not None:
-                _app.state.serving = serving
-            return {
-                "status": "ok",
-                "message": "Serving state reloaded",
-                "model": serving.policy.selected_model,
-                "policy_path": str(serving.policy_path),
-            }
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Reload failed: {e}")
+    require_admin_key(request)
+
+    app_ref = _resolve_app_ref()
+    if app_ref is None:
+        raise HTTPException(status_code=500, detail="Application state is unavailable.")
+
+    try:
+        serving = await reload_serving_state_for_app(
+            app_ref, loader=_load_serving_state
+        )
+        return {
+            "status": "ok",
+            "message": "Serving state reloaded",
+            "model": serving.policy.selected_model,
+            "policy_path": str(serving.policy_path),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Reload failed: {e}")

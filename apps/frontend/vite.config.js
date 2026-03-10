@@ -55,6 +55,14 @@ export default defineConfig({
         target: BACKEND_TARGET,
         changeOrigin: true,
       },
+      '/v1': {
+        target: BACKEND_TARGET,
+        changeOrigin: true,
+      },
+      '/v2': {
+        target: BACKEND_TARGET,
+        changeOrigin: true,
+      },
     },
   },
 });

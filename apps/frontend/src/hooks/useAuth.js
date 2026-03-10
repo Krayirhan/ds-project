@@ -1,21 +1,23 @@
-import { useState, useCallback, useEffect } from 'react';
+﻿import { useState, useCallback, useEffect } from 'react';
 import { login, logout, me } from '../api';
 
 /**
- * useAuth — Kimlik doğrulama hook'u
+ * @typedef {Object} UseAuthState
+ * @property {boolean} authenticated
+ * @property {string} currentUser
+ * @property {string} loginError
+ * @property {boolean} checking
+ * @property {(username: string, password: string) => Promise<boolean>} handleLogin
+ * @property {() => Promise<void>} handleLogout
+ * @property {() => void} handleAuthFailure
+ */
+/**
+ * useAuth â€” Kimlik doÄŸrulama hook'u
  *
- * JWT token'ı localStorage'dan okur ve /auth/me ile doğrular.
- * Login / logout / auth-failure aksiyonlarını yönetir.
+ * JWT token'Ä± localStorage'dan okur ve /auth/me ile doÄŸrular.
+ * Login / logout / auth-failure aksiyonlarÄ±nÄ± yÃ¶netir.
  *
- * @returns {{
- *   authenticated: boolean,
- *   currentUser:   string,
- *   loginError:    string,
- *   checking:      boolean,
- *   handleLogin:   (username: string, password: string) => Promise<boolean>,
- *   handleLogout:  () => Promise<void>,
- *   handleAuthFailure: () => void,
- * }}
+ * @returns {UseAuthState}
  */
 export function useAuth() {
   const [authenticated, setAuthenticated] = useState(false);
@@ -23,7 +25,7 @@ export function useAuth() {
   const [loginError, setLoginError]       = useState('');
   const [checking, setChecking]           = useState(true);
 
-  // İlk yüklemede mevcut token'ı doğrula
+  // Ä°lk yÃ¼klemede mevcut token'Ä± doÄŸrula
   useEffect(() => {
     const token = localStorage.getItem('dashboard_token');
     if (!token) {
@@ -52,7 +54,7 @@ export function useAuth() {
       setCurrentUser(p.username || username);
       return true;
     } catch (err) {
-      setLoginError(err.message || 'Giriş yapılamadı.');
+      setLoginError(err.message || 'GiriÅŸ yapÄ±lamadÄ±.');
       return false;
     }
   }, []);
@@ -67,7 +69,7 @@ export function useAuth() {
   const handleAuthFailure = useCallback(() => {
     localStorage.removeItem('dashboard_token');
     setAuthenticated(false);
-    setLoginError('Oturum süresi doldu. Lütfen tekrar giriş yapın.');
+    setLoginError('Oturum sÃ¼resi doldu. LÃ¼tfen tekrar giriÅŸ yapÄ±n.');
   }, []);
 
   return {
@@ -80,3 +82,5 @@ export function useAuth() {
     handleAuthFailure,
   };
 }
+
+

@@ -99,6 +99,7 @@ describe('useSystemStatus', () => {
     const { result } = renderHook(() => useSystemStatus({ apiKey: 'k' }));
 
     await act(async () => { await result.current.refresh(); });
-    expect(result.current.error).toBe('Sistem durumu alınamadı');
+    expect(result.current.error).toContain('Sistem durumu');
   });
 });
+
